@@ -1,0 +1,320 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import { Store, ArrowLeft, Plus, Pencil, X, Search, Trash2 } from 'lucide-svelte';
+import { supabase } from '~/lib/supabase';
+
+const url = Astro.url;
+const editIdParam = url.searchParams.get('edit');
+const editId = editIdParam ? Number(editIdParam) : null;
+const adding = url.searchParams.get('new') === '1';
+const prefillName = url.searchParams.get('name') ?? '';
+const search = (url.searchParams.get('q') ?? '').trim();
+const groupFilter = url.searchParams.get('group') ?? 'all';
+
+let q = supabase
+  .from('expenses_vendors')
+  .select('vendor_id, name, person_employee_id, description, frequency, status, group_name, latest_update, to_do, review_again, tags, aliases, report_matches, person:employees!expenses_vendors_person_employee_id_fkey(id, full_name)')
+  .order('name');
+if (search) q = q.ilike('name', `%${search}%`);
+if (groupFilter !== 'all') q = q.eq('group_name', groupFilter);
+const { data: vendors } = await q;
+
+// Normalize the joined `person` array → single object
+const normalize = (v: any) => ({
+  ...v,
+  person: Array.isArray(v.person) ? v.person[0] ?? null : v.person ?? null,
+});
+const vendorList = (vendors ?? []).map(normalize);
+
+// Employees for the dropdown
+const { data: employees } = await supabase
+  .from('employees')
+  .select('id, full_name')
+  .order('full_name');
+
+// Distinct group names for filter dropdown
+const { data: allForFilters } = await supabase
+  .from('expenses_vendors')
+  .select('group_name');
+const groups = Array.from(
+  new Set((allForFilters ?? []).map((v) => v.group_name).filter(Boolean)),
+).sort() as string[];
+
+// All-time spend per vendor (match on name + aliases + report_matches)
+const { data: allExpenses } = await supabase
+  .from('expenses')
+  .select('vendor, amount');
+
+const byRaw = new Map<string, { count: number; total: number }>();
+for (const e of (allExpenses ?? []) as { vendor: string; amount: string | number }[]) {
+  const key = (e.vendor ?? '').trim().toLowerCase();
+  if (!byRaw.has(key)) byRaw.set(key, { count: 0, total: 0 });
+  const s = byRaw.get(key)!;
+  s.count += 1;
+  s.total += Number(e.amount) || 0;
+}
+function statsFor(v: any): { count: number; total: number } {
+  const keys = new Set<string>();
+  keys.add((v.name ?? '').trim().toLowerCase());
+  for (const a of v.aliases ?? []) keys.add((a ?? '').trim().toLowerCase());
+  for (const r of v.report_matches ?? []) keys.add((r ?? '').trim().toLowerCase());
+  let count = 0;
+  let total = 0;
+  for (const k of keys) {
+    if (!k) continue;
+    const s = byRaw.get(k);
+    if (s) {
+      count += s.count;
+      total += s.total;
+    }
+  }
+  return { count, total };
+}
+
+const editing = editId ? vendorList.find((v) => v.vendor_id === editId) ?? null : null;
+
+const fmtMoney = (n: number) =>
+  '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const back = '/expenses/vendors';
+const arrToLines = (arr: string[] | null | undefined) => (arr ?? []).join('\n');
+---
+<AppLayout title="Vendors · GYE EOS">
+  <a href="/expenses" class="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-900 mb-6">
+    <ArrowLeft size={16} /> Back to Expenses
+  </a>
+
+  <header class="flex items-start justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-purple-100 grid place-items-center">
+        <Store class="text-purple-600" size={24} />
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-stone-900">Vendors</h1>
+        <p class="text-stone-500 text-sm">{vendors?.length ?? 0} vendors · edit info, aliases, and to-dos</p>
+      </div>
+    </div>
+    <a
+      href="/expenses/vendors?new=1"
+      class="bg-purple-600 hover:bg-purple-700 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
+    >
+      <Plus size={16} />
+      New vendor
+    </a>
+  </header>
+
+  <form method="GET" class="flex gap-2 mb-4">
+    <div class="flex-1 relative">
+      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+      <input
+        type="text"
+        name="q"
+        value={search}
+        placeholder="Search vendors..."
+        class="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-purple-400"
+      />
+    </div>
+    <select name="group" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
+      <option value="all" selected={groupFilter === 'all'}>All groups</option>
+      {groups.map((g) => <option value={g} selected={groupFilter === g}>{g}</option>)}
+    </select>
+  </form>
+
+  <div class="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-[11px] uppercase tracking-wider text-stone-500 bg-stone-50">
+          <th class="text-left font-medium px-5 py-3">Vendor</th>
+          <th class="text-left font-medium px-3 py-3 w-32">Group</th>
+          <th class="text-left font-medium px-3 py-3 w-32">Person</th>
+          <th class="text-left font-medium px-3 py-3 w-28">Status</th>
+          <th class="text-left font-medium px-3 py-3">To-do</th>
+          <th class="text-right font-medium px-3 py-3 w-12">#</th>
+          <th class="text-right font-medium px-3 py-3 w-28">All-time</th>
+          <th class="text-right font-medium px-5 py-3 w-12"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {vendorList.length === 0 ? (
+          <tr>
+            <td colspan="8" class="px-5 py-10 text-center text-sm text-stone-400">
+              No vendors match the filters.
+            </td>
+          </tr>
+        ) : (
+          vendorList.map((v: any) => {
+            const s = statsFor(v);
+            return (
+              <tr class="border-t border-stone-100 hover:bg-stone-50/60">
+                <td class="px-5 py-3">
+                  <div class="font-medium text-stone-900">{v.name}</div>
+                  {v.description && <div class="text-[11px] text-stone-500 line-clamp-1">{v.description}</div>}
+                  {(v.aliases?.length > 0 || v.report_matches?.length > 0) && (
+                    <div class="text-[10px] text-stone-400 mt-0.5">
+                      {[...(v.report_matches ?? []), ...(v.aliases ?? [])].filter((x: string) => x && x.toLowerCase() !== (v.name ?? '').toLowerCase()).slice(0, 3).join(' · ') || null}
+                    </div>
+                  )}
+                </td>
+                <td class="px-3 py-3">
+                  {v.group_name && v.group_name !== 'Unknown' ? (
+                    <span class="text-xs text-stone-700">{v.group_name}</span>
+                  ) : (
+                    <span class="text-xs text-stone-300">—</span>
+                  )}
+                </td>
+                <td class="px-3 py-3 text-xs text-stone-700">
+                  {v.person?.full_name || <span class="text-stone-300">—</span>}
+                </td>
+                <td class="px-3 py-3">
+                  {v.status && v.status !== 'Unknown' ? (
+                    <span class="text-[11px] bg-stone-100 text-stone-700 rounded-full px-2 py-0.5">{v.status}</span>
+                  ) : (
+                    <span class="text-xs text-stone-300">—</span>
+                  )}
+                </td>
+                <td class="px-3 py-3 text-xs text-stone-600 max-w-xs">
+                  {v.to_do ? <span class="line-clamp-2">{v.to_do}</span> : <span class="text-stone-300">—</span>}
+                </td>
+                <td class="px-3 py-3 text-right text-stone-500 tabular-nums">{s.count}</td>
+                <td class="px-3 py-3 text-right font-medium text-stone-900 tabular-nums">{fmtMoney(s.total)}</td>
+                <td class="px-5 py-3 text-right">
+                  <a href={`/expenses/vendors?edit=${v.vendor_id}`} class="p-1.5 rounded text-stone-400 hover:text-stone-800 hover:bg-stone-100 inline-block">
+                    <Pencil size={14} />
+                  </a>
+                </td>
+              </tr>
+            );
+          })
+        )}
+      </tbody>
+    </table>
+  </div>
+
+  {(editing || adding) && (
+    <div class="fixed inset-0 z-30">
+      <a href={back} class="absolute inset-0 bg-black/30"></a>
+      <aside class="absolute right-0 top-0 bottom-0 w-full max-w-lg bg-white shadow-2xl overflow-y-auto">
+        <div class="p-6 space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-stone-900">
+              {editing ? 'Edit vendor' : 'New vendor'}
+            </h2>
+            <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={20} /></a>
+          </div>
+
+          <form method="POST" action="/api/expenses-vendors" class="space-y-4">
+            <input type="hidden" name="_action" value={editing ? 'update' : 'create'} />
+            {editing && <input type="hidden" name="vendor_id" value={editing.vendor_id} />}
+            <input type="hidden" name="back" value={back} />
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">Name</label>
+              <input type="text" name="name" required value={editing?.name ?? prefillName}
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-sm font-medium text-stone-700">Group</label>
+                <input type="text" name="group_name" value={editing?.group_name ?? ''}
+                  placeholder="e.g. Software, Hosting"
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">Person</label>
+                <select name="person_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
+                  <option value="">— none —</option>
+                  {employees?.map((e) => (
+                    <option value={e.id} selected={e.id === editing?.person_employee_id}>{e.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">Frequency</label>
+                <input type="text" name="frequency" value={editing?.frequency ?? ''}
+                  placeholder="monthly, annual, one-off"
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">Status</label>
+                <input type="text" name="status" value={editing?.status ?? ''}
+                  placeholder="Active, Cancelled, ..."
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
+              </div>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">Description</label>
+              <textarea name="description" rows="2"
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
+              >{editing?.description ?? ''}</textarea>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">Latest update</label>
+              <textarea name="latest_update" rows="2"
+                placeholder="What's the current state / last change"
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
+              >{editing?.latest_update ?? ''}</textarea>
+            </div>
+
+            <div class="grid grid-cols-[1fr_160px] gap-3">
+              <div>
+                <label class="text-sm font-medium text-stone-700">To-do</label>
+                <textarea name="to_do" rows="2"
+                  placeholder="What needs to happen next"
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
+                >{editing?.to_do ?? ''}</textarea>
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">Review again</label>
+                <input type="date" name="review_again" value={editing?.review_again ?? ''}
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">Report matches <span class="text-xs text-stone-400">(raw strings that map to this vendor, one per line)</span></label>
+              <textarea name="report_matches" rows="3" placeholder="Google G Suite&#10;google cloud"
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-400"
+              >{arrToLines(editing?.report_matches)}</textarea>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">Aliases <span class="text-xs text-stone-400">(one per line)</span></label>
+              <textarea name="aliases" rows="2"
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-400"
+              >{arrToLines(editing?.aliases)}</textarea>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">Tags <span class="text-xs text-stone-400">(one per line)</span></label>
+              <textarea name="tags" rows="2"
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-400"
+              >{arrToLines(editing?.tags)}</textarea>
+            </div>
+
+            <button class="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-lg py-2.5 text-sm font-medium">
+              {editing ? 'Save changes' : 'Create vendor'}
+            </button>
+          </form>
+
+          {editing && (
+            <form
+              method="POST"
+              action="/api/expenses-vendors"
+              class="pt-4 border-t border-stone-200"
+              onsubmit="return confirm('Delete this vendor?');"
+            >
+              <input type="hidden" name="_action" value="delete" />
+              <input type="hidden" name="vendor_id" value={editing.vendor_id} />
+              <input type="hidden" name="back" value={back} />
+              <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
+                <Trash2 size={14} /> Delete vendor
+              </button>
+            </form>
+          )}
+        </div>
+      </aside>
+    </div>
+  )}
+</AppLayout>
