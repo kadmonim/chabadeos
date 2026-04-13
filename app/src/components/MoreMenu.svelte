@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Settings, ListChecks, Contact, Newspaper, BookOpen, Users, Plane, Link2, Network, Wallet } from 'lucide-svelte';
+  import { Settings, ListChecks, Contact, Newspaper, BookOpen, Users, Plane, Link2, Network, Wallet, Lightbulb } from 'lucide-svelte';
 
   let { canSeeExpenses = false } = $props<{ canSeeExpenses?: boolean }>();
   let open = $state(false);
@@ -37,6 +37,7 @@
     { href: '/teams',          label: 'Teams & People',        icon: Users,       always: true },
     { href: '/links',          label: 'Links',                 icon: Link2,       always: true },
     { href: '/trips',          label: 'Add a Trip',            icon: Plane,       always: true },
+    { href: '/feature-ideas',  label: 'Feature Ideas',          icon: Lightbulb,   always: true },
   ];
   const items = $derived(allItems.filter((i) => i.always || (i.href === '/expenses' && canSeeExpenses)));
 </script>

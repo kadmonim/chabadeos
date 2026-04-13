@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     Menu, X, Target, AlertCircle, ListTodo, ChartBar, Focus, Eye,
-    ListChecks, Contact, Newspaper, BookOpen, Users, Link2, Plane, Network, Wallet, LogOut,
+    ListChecks, Contact, Newspaper, BookOpen, Users, Link2, Plane, Network, Wallet, Lightbulb, LogOut,
   } from 'lucide-svelte';
 
   type Team = { id: string; name: string };
@@ -58,6 +58,7 @@
     { href: '/teams',          label: 'Teams & People',        icon: Users,       always: true },
     { href: '/links',          label: 'Links',                 icon: Link2,       always: true },
     { href: '/trips',          label: 'Add a Trip',            icon: Plane,       always: true },
+    { href: '/feature-ideas',  label: 'Feature Ideas',          icon: Lightbulb,   always: true },
   ];
   const secondary = $derived(allSecondary.filter((i) => i.always || (i.href === '/expenses' && canSeeExpenses)));
 </script>
