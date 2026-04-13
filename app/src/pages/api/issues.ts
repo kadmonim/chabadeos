@@ -12,6 +12,18 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
   const action = String(form.get('_action') ?? 'create');
   const back = String(form.get('back') ?? '/issues');
 
+  if (action === 'archive_solved') {
+    const team_id = String(form.get('team_id') ?? '') || null;
+    const term_type = String(form.get('term_type') ?? '') || null;
+    if (!canAccessTeam(locals, team_id)) return new Response('Forbidden', { status: 403 });
+    let q = supabase.from('issues').update({ status: 'archived' }).eq('status', 'solved');
+    if (team_id) q = q.eq('team_id', team_id);
+    if (term_type) q = q.eq('term_type', term_type);
+    const { error } = await q;
+    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    return redirect(back);
+  }
+
   if (action === 'create') {
     const title = String(form.get('title') ?? '').trim();
     const team_id = String(form.get('team_id') ?? '') || null;

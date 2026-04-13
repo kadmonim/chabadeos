@@ -69,13 +69,23 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
         <Target size={16} />
         Select Top 3
       </button>
-      <a
-        href={`/issues?term=${term}&status=archived`}
-        class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700"
+      <form
+        method="POST"
+        action="/api/issues"
+        onsubmit="return confirm('Archive all solved issues for this term?');"
       >
-        <Archive size={16} />
-        Archive
-      </a>
+        <input type="hidden" name="_action" value="archive_solved" />
+        <input type="hidden" name="team_id" value={team.id} />
+        <input type="hidden" name="term_type" value={term} />
+        <input type="hidden" name="back" value={back} />
+        <button
+          type="submit"
+          class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700 hover:bg-stone-50"
+        >
+          <Archive size={16} />
+          Archive solved issues
+        </button>
+      </form>
     </div>
   </header>
 
@@ -173,6 +183,21 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
             >
               {i.title}
             </a>
+            <form method="POST" action="/api/issues" class="shrink-0">
+              <input type="hidden" name="_action" value="update" />
+              <input type="hidden" name="id" value={i.id} />
+              <input type="hidden" name="title" value={i.title} />
+              <input type="hidden" name="back" value={back} />
+              <select
+                name="term_type"
+                onchange="this.form.submit()"
+                class="text-[11px] bg-stone-50 border border-stone-200 rounded px-1.5 py-0.5 text-stone-500 cursor-pointer hover:border-stone-300"
+              >
+                <option value="short_term" selected={i.term_type === 'short_term'}>Short</option>
+                <option value="long_term" selected={i.term_type === 'long_term'}>Long</option>
+                <option value="idea_backlog" selected={i.term_type === 'idea_backlog'}>Idea</option>
+              </select>
+            </form>
             {i.owner && (
               <div class="w-7 h-7 rounded-full bg-stone-100 text-stone-600 grid place-items-center text-[10px] font-semibold" title={i.owner.full_name}>
                 {initials(i.owner.full_name)}
