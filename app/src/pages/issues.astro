@@ -37,7 +37,9 @@ else q = q.order('priority_order', { ascending: true }).order('created_at', { as
 
 const [{ data: issues }, { data: employees }] = await Promise.all([
   q,
-  supabase.from('employees').select('id, full_name').order('full_name'),
+  supabase.from('team_memberships').select('employee:employees(id, full_name)').eq('team_id', team.id).order('employee(full_name)').then(({ data }) => ({
+    data: (data ?? []).map((m: any) => m.employee).filter(Boolean),
+  })),
 ]);
 
 let detail: any = null;
