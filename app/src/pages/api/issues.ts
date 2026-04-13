@@ -71,6 +71,23 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
   return new Response('unknown action', { status: 400 });
 };
 
+// PUT /api/issues — reorder issues
+// body: { ids: string[] } — ordered list of issue IDs
+export const PUT: APIRoute = async ({ request, locals }) => {
+  let body: any;
+  try { body = await request.json(); } catch { return new Response('body must be JSON', { status: 400 }); }
+  const ids: string[] = body?.ids;
+  if (!Array.isArray(ids) || ids.length === 0) return new Response('ids required', { status: 400 });
+
+  const updates = ids.map((id, i) =>
+    supabase.from('issues').update({ priority_order: i }).eq('id', id)
+  );
+  const results = await Promise.all(updates);
+  const err = results.find((r) => r.error);
+  if (err?.error) return new Response(err.error.message, { status: 500 });
+  return new Response(null, { status: 204 });
+};
+
 const ISSUE_PATCH_FIELDS = new Set(['status', 'description', 'title', 'priority', 'type', 'term_type']);
 
 export const PATCH: APIRoute = async ({ request, locals }) => {

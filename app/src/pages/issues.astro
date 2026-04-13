@@ -159,13 +159,14 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
     </select>
   </form>
 
-  <div class="bg-white border border-stone-200 rounded-xl divide-y divide-stone-100">
+  <div id="issues-list" class="bg-white border border-stone-200 rounded-xl divide-y divide-stone-100">
     {issues && issues.length > 0 ? (
       issues.map((i: any) => {
         const solved = i.status === 'solved';
         const detailHref = `?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), detail: i.id }).toString()}`;
         return (
-          <div class="flex items-center gap-3 px-4 py-3">
+          <div class="flex items-center gap-3 px-4 py-3" data-id={i.id} draggable="true">
+            <span class="cursor-grab active:cursor-grabbing text-stone-300 hover:text-stone-500 shrink-0 select-none">⠿</span>
             <StatusCheckbox client:load id={i.id} status={i.status} endpoint="/api/issues" doneValue="solved" />
             <span class="text-xs font-semibold text-violet-600 bg-violet-50 border border-violet-200 rounded px-2 py-0.5 shrink-0">
               P{i.priority ?? 3}
@@ -309,4 +310,58 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
       </aside>
     </div>
   )}
+
+  <script>
+    const list = document.getElementById('issues-list');
+    if (list) {
+      let dragged: HTMLElement | null = null;
+
+      list.addEventListener('dragstart', (e) => {
+        const row = (e.target as HTMLElement).closest('[data-id]') as HTMLElement | null;
+        if (!row) return;
+        dragged = row;
+        row.style.opacity = '0.4';
+        e.dataTransfer!.effectAllowed = 'move';
+      });
+
+      list.addEventListener('dragend', () => {
+        if (dragged) dragged.style.opacity = '';
+        dragged = null;
+        list.querySelectorAll('[data-id]').forEach(el => el.classList.remove('border-t-2', 'border-violet-400'));
+      });
+
+      list.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer!.dropEffect = 'move';
+        const target = (e.target as HTMLElement).closest('[data-id]') as HTMLElement | null;
+        list.querySelectorAll('[data-id]').forEach(el => el.classList.remove('border-t-2', 'border-violet-400'));
+        if (target && target !== dragged) target.classList.add('border-t-2', 'border-violet-400');
+      });
+
+      list.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const target = (e.target as HTMLElement).closest('[data-id]') as HTMLElement | null;
+        if (!target || !dragged || target === dragged) return;
+        list.insertBefore(dragged, target);
+        dragged.style.opacity = '';
+        dragged.style.transition = 'background-color 0.4s ease, transform 0.2s ease';
+        dragged.style.backgroundColor = '#f5f3ff';
+        dragged.style.transform = 'scale(1.01)';
+        const el = dragged;
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            el.style.backgroundColor = '';
+            el.style.transform = '';
+            setTimeout(() => el.style.transition = '', 400);
+          }, 300);
+        });
+        const ids = [...list.querySelectorAll('[data-id]')].map(el => el.getAttribute('data-id'));
+        fetch('/api/issues', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids }),
+        });
+      });
+    }
+  </script>
 </AppLayout>
