@@ -46,6 +46,16 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     return redirect(back);
   }
 
+  if (action === 'archive_done') {
+    const team_id = String(form.get('team_id') ?? '') || null;
+    if (!canAccessTeam(locals, team_id)) return new Response('Forbidden', { status: 403 });
+    let q = supabase.from('todos').update({ status: 'archived' }).eq('status', 'done');
+    if (team_id) q = q.eq('team_id', team_id);
+    const { error } = await q;
+    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    return redirect(back);
+  }
+
   if (action === 'delete') {
     const id = String(form.get('id') ?? '');
     if (!(await assertTodoTeamAccess(id, locals))) return new Response('Forbidden', { status: 403 });

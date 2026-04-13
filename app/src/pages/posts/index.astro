@@ -15,8 +15,6 @@ if (kind !== 'all') q = q.eq('kind', kind);
 if (category !== 'all') q = q.eq('category', category);
 
 const { data: posts } = await q;
-const { data: allCats } = await supabase.from('posts').select('category');
-const categories = Array.from(new Set((allCats ?? []).map((c) => c.category).filter(Boolean))).sort() as string[];
 
 const fmt = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';

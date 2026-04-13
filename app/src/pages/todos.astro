@@ -62,13 +62,22 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
         <p class="text-stone-500 text-sm">{team.name} team to-dos</p>
       </div>
     </div>
-    <a
-      href={`/todos?status=archived`}
-      class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700 hover:bg-stone-50"
+    <form
+      method="POST"
+      action="/api/todos"
+      onsubmit="return confirm('Archive all completed to-dos for this team?');"
     >
-      <Archive size={16} />
-      Archive
-    </a>
+      <input type="hidden" name="_action" value="archive_done" />
+      <input type="hidden" name="team_id" value={team.id} />
+      <input type="hidden" name="back" value={back} />
+      <button
+        type="submit"
+        class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700 hover:bg-stone-50"
+      >
+        <Archive size={16} />
+        Archive completed tasks
+      </button>
+    </form>
   </header>
 
   <form method="POST" action="/api/todos" class="flex gap-2 mb-4">
