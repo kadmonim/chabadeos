@@ -2,7 +2,7 @@
 import AppLayout from '~/layouts/AppLayout.astro';
 import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import RichTextEditor from '~/components/RichTextEditor.svelte';
-import { AlertCircle, Plus, Search, Zap, Clock, Target, Archive, X, Trash2 } from 'lucide-svelte';
+import { AlertCircle, Plus, Search, Zap, Clock, Target, Archive, X, Trash2, Copy } from 'lucide-svelte';
 import { supabase } from '~/lib/supabase';
 const team = Astro.locals.currentTeam;
 const teams = Astro.locals.allowedTeams;
@@ -20,7 +20,7 @@ const baseQuery = () =>
   supabase
     .from('issues')
     .select(
-      'id, title, description, status, priority, priority_order, type, term_type, team_id, created_at, owner_employee_id, ' +
+      'id, title, description, status, priority, priority_order, term_type, team_id, created_at, owner_employee_id, ' +
       'owner:employees!issues_owner_employee_id_fkey(id, full_name)',
     )
     .eq('team_id', team.id)
@@ -212,7 +212,7 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
               <input type="hidden" name="title" value={detail.title} />
               <input type="hidden" name="term_type" value={detail.term_type} />
               <input type="hidden" name="back" value={backNoDetail} />
-              <button class="flex items-center gap-1.5 border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-lg px-3 py-1.5 text-sm font-medium">
+              <button class="flex items-center gap-1.5 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
                 ✓ {detail.status === 'solved' ? 'Mark Open' : 'Mark Solved'}
               </button>
             </form>
@@ -223,18 +223,29 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
               <input type="hidden" name="title" value={detail.title} />
               <input type="hidden" name="term_type" value={detail.term_type} />
               <input type="hidden" name="back" value={backNoDetail} />
-              <button class="flex items-center gap-1.5 border border-stone-300 text-stone-700 rounded-lg px-3 py-1.5 text-sm font-medium">
+              <button class="flex items-center gap-1.5 border border-stone-300 text-stone-700 bg-white hover:bg-stone-100 hover:border-stone-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
                 <Archive size={14} /> Archive
               </button>
             </form>
-            <form method="POST" action="/api/issues">
+            <form method="POST" action="/api/issues" onsubmit="return confirm('Delete this issue? This cannot be undone.');">
               <input type="hidden" name="_action" value="delete" />
               <input type="hidden" name="id" value={detail.id} />
               <input type="hidden" name="back" value={backNoDetail} />
-              <button class="flex items-center gap-1.5 border border-rose-300 text-rose-700 rounded-lg px-3 py-1.5 text-sm font-medium">
+              <button class="flex items-center gap-1.5 border border-rose-300 text-rose-700 bg-white hover:bg-rose-50 hover:border-rose-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
                 <Trash2 size={14} /> Delete
               </button>
             </form>
+          </div>
+
+          <div class="flex gap-2">
+            <button type="button" data-clone-open="issue"
+              class="flex items-center gap-1.5 border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 hover:border-violet-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+              <Copy size={14} /> Clone as Issue
+            </button>
+            <button type="button" data-clone-open="todo"
+              class="flex items-center gap-1.5 border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:border-sky-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+              <Copy size={14} /> Clone as To-Do
+            </button>
           </div>
 
           <form method="POST" action="/api/issues" class="space-y-4">
@@ -261,22 +272,11 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="text-sm font-medium text-stone-700">Priority</label>
-                <select name="priority" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                  {[1, 2, 3, 4, 5].map((p) => <option value={p} selected={p === detail.priority}>P{p}</option>)}
-                </select>
-              </div>
-              <div>
-                <label class="text-sm font-medium text-stone-700">Type</label>
-                <select name="type" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                  <option value="">—</option>
-                  {['problem', 'idea', 'question', 'brainstorm', 'update'].map((t) => (
-                    <option value={t} selected={t === detail.type}>{t}</option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label class="text-sm font-medium text-stone-700">Priority</label>
+              <select name="priority" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                {[1, 2, 3, 4, 5].map((p) => <option value={p} selected={p === detail.priority}>P{p}</option>)}
+              </select>
             </div>
 
             <div>
@@ -307,11 +307,136 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
             </button>
           </form>
         </div>
+
+        <div id="clone-issue-modal" class="hidden fixed inset-0 z-40 grid place-items-center p-4">
+          <div class="absolute inset-0 bg-black/40" data-clone-close="issue"></div>
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <form method="POST" action="/api/issues" class="p-6 space-y-4">
+              <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-stone-900">Clone as Issue</h3>
+                <button type="button" data-clone-close="issue" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
+              </div>
+              <input type="hidden" name="_action" value="create" />
+              <input type="hidden" name="back" value={backNoDetail} />
+              <div>
+                <label class="text-sm font-medium text-stone-700">Title</label>
+                <input type="text" name="title" value={`${detail.title} (copy)`} required
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">Description</label>
+                <textarea name="description" rows="4"
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                  set:html={detail.description ?? ''} />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">Priority</label>
+                <select name="priority" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  {[1, 2, 3, 4, 5].map((p) => <option value={p} selected={p === detail.priority}>P{p}</option>)}
+                </select>
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">Team</label>
+                <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">Owner</label>
+                <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="">Unassigned</option>
+                  {employees?.map((e) => <option value={e.id} selected={e.id === detail.owner_employee_id}>{e.full_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">Term</label>
+                <select name="term_type" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="short_term" selected={detail.term_type === 'short_term'}>Short term</option>
+                  <option value="long_term" selected={detail.term_type === 'long_term'}>Long term</option>
+                </select>
+              </div>
+              <div class="flex gap-2 pt-2">
+                <button type="button" data-clone-close="issue"
+                  class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">Cancel</button>
+                <button type="submit"
+                  class="flex-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">Create issue</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div id="clone-todo-modal" class="hidden fixed inset-0 z-40 grid place-items-center p-4">
+          <div class="absolute inset-0 bg-black/40" data-clone-close="todo"></div>
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <form method="POST" action="/api/todos" class="p-6 space-y-4">
+              <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-stone-900">Clone as To-Do</h3>
+                <button type="button" data-clone-close="todo" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
+              </div>
+              <input type="hidden" name="_action" value="create" />
+              <input type="hidden" name="back" value={backNoDetail} />
+              <div>
+                <label class="text-sm font-medium text-stone-700">Title</label>
+                <input type="text" name="title" value={detail.title} required
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">Description</label>
+                <textarea name="description" rows="4"
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                  set:html={detail.description ?? ''} />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-sm font-medium text-stone-700">Team</label>
+                  <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                    {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-stone-700">Due date</label>
+                  <input type="date" name="due_date" value={(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })()}
+                    class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+                </div>
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">Assignee</label>
+                <select name="assignee_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="">Unassigned</option>
+                  {employees?.map((e) => <option value={e.id} selected={e.id === detail.owner_employee_id}>{e.full_name}</option>)}
+                </select>
+              </div>
+              <label class="flex items-center gap-2 text-sm text-stone-700">
+                <input type="checkbox" name="is_urgent" checked={detail.priority === 1} />
+                Mark as urgent
+              </label>
+              <div class="flex gap-2 pt-2">
+                <button type="button" data-clone-close="todo"
+                  class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">Cancel</button>
+                <button type="submit"
+                  class="flex-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2.5 text-sm font-medium">Create to-do</button>
+              </div>
+            </form>
+          </div>
+        </div>
       </aside>
     </div>
   )}
 
   <script>
+    document.querySelectorAll('[data-clone-open]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const kind = (btn as HTMLElement).dataset.cloneOpen;
+        document.getElementById(`clone-${kind}-modal`)?.classList.remove('hidden');
+      });
+    });
+    document.querySelectorAll('[data-clone-close]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const kind = (el as HTMLElement).dataset.cloneClose;
+        document.getElementById(`clone-${kind}-modal`)?.classList.add('hidden');
+      });
+    });
+
     const list = document.getElementById('issues-list');
     if (list) {
       let dragged: HTMLElement | null = null;

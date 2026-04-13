@@ -16,13 +16,19 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     const title = String(form.get('title') ?? '').trim();
     const team_id = String(form.get('team_id') ?? '') || null;
     const assignee_employee_id = String(form.get('assignee_employee_id') ?? '') || null;
+    const description = String(form.get('description') ?? '') || null;
+    const is_urgent = form.get('is_urgent') === 'on' || form.get('is_urgent') === 'true';
+    let due_date = String(form.get('due_date') ?? '') || null;
+    if (!due_date) {
+      const due = new Date();
+      due.setDate(due.getDate() + 7);
+      due_date = due.toISOString().slice(0, 10);
+    }
     if (!title) return redirect(back);
     if (!canAccessTeam(locals, team_id)) return new Response('Forbidden', { status: 403 });
-    const due = new Date();
-    due.setDate(due.getDate() + 7);
-    const due_date = due.toISOString().slice(0, 10);
     const { error } = await supabase.from('todos').insert({
-      title, team_id, assignee_employee_id, status: 'open', due_date,
+      title, team_id, assignee_employee_id, status: 'open',
+      description, due_date, is_urgent,
     });
     if (error) return new Response(`Error: ${error.message}`, { status: 500 });
     return redirect(back);
