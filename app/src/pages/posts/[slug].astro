@@ -46,8 +46,8 @@ const kindPill = isTestimonial
   ? 'font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1 flex items-center gap-1'
   : 'font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-3 py-1 flex items-center gap-1';
 const proseClass = isTestimonial
-  ? 'prose prose-stone max-w-none mt-6 [&_img]:rounded-lg [&_img]:max-h-96 [&_a]:text-amber-600'
-  : 'prose prose-stone max-w-none mt-6 [&_img]:rounded-lg [&_img]:max-h-96 [&_a]:text-violet-600';
+  ? 'prose prose-stone max-w-none mt-6 [&_img]:rounded-lg [&_img]:max-h-96 [&_a]:text-amber-600 [&_p:has(>br:only-child)]:hidden'
+  : 'prose prose-stone max-w-none mt-6 [&_img]:rounded-lg [&_img]:max-h-96 [&_a]:text-violet-600 [&_p:has(>br:only-child)]:hidden';
 const sourceLinkClass = isTestimonial
   ? 'inline-flex items-center gap-2 mt-8 text-sm text-amber-600 hover:text-amber-700 font-medium border-t border-stone-100 pt-6'
   : 'inline-flex items-center gap-2 mt-8 text-sm text-violet-600 hover:text-violet-700 font-medium border-t border-stone-100 pt-6';

@@ -41,18 +41,6 @@ const fmt = (d: string | null) =>
     </a>
   </header>
 
-  <form method="GET" class="flex gap-2 mb-6">
-    <select name="kind" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="all" selected={kind === 'all'}>All kinds</option>
-      <option value="post" selected={kind === 'post'}>Posts</option>
-      <option value="testimonial" selected={kind === 'testimonial'}>Testimonials</option>
-    </select>
-    <select name="category" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="all" selected={category === 'all'}>All categories</option>
-      {categories.map((c) => <option value={c} selected={category === c}>{c}</option>)}
-    </select>
-  </form>
-
   {posts && posts.length > 0 ? (
     <div class="columns-1 md:columns-2 lg:columns-3 gap-5 [column-fill:_balance]">
       {posts.map((p: any) => {
