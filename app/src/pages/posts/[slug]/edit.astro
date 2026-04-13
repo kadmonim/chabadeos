@@ -1,0 +1,21 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import PostEditor from '~/components/PostEditor.astro';
+import { supabase } from '~/lib/supabase';
+
+const { slug } = Astro.params;
+
+const { data: post } = await supabase
+  .from('posts')
+  .select('*')
+  .eq('slug', slug)
+  .maybeSingle();
+
+if (!post) return new Response('Not found', { status: 404 });
+
+const { data: catRows } = await supabase.from('posts').select('category');
+const categories = Array.from(new Set((catRows ?? []).map((c) => c.category).filter(Boolean))).sort() as string[];
+---
+<AppLayout title={`Edit · ${post.headline || 'post'} · GYE EOS`}>
+  <PostEditor mode="edit" post={post} categories={categories} />
+</AppLayout>

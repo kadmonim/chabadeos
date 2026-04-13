@@ -1,0 +1,163 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import { Calendar, ExternalLink, Pencil, ArrowLeft, Quote } from 'lucide-svelte';
+import { supabase } from '~/lib/supabase';
+
+const { slug } = Astro.params;
+
+const { data: post } = await supabase
+  .from('posts')
+  .select('*')
+  .eq('slug', slug)
+  .maybeSingle();
+
+if (!post) return new Response('Not found', { status: 404 });
+
+const { data: latest } = await supabase
+  .from('posts')
+  .select('slug, headline, kind, date, image_url, screenshot_url')
+  .neq('id', post.id)
+  .order('date', { ascending: false, nullsFirst: false })
+  .limit(8);
+
+const isTestimonial = post.kind === 'testimonial';
+
+const fmt = (d: string | null) =>
+  d ? new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+
+function youtubeEmbed(u: string | null): string | null {
+  if (!u) return null;
+  try {
+    const parsed = new URL(u);
+    const host = parsed.hostname.replace(/^www\./, '');
+    if (host === 'youtu.be') return `https://www.youtube.com/embed/${parsed.pathname.slice(1)}`;
+    if (host === 'youtube.com' || host === 'm.youtube.com') {
+      const v = parsed.searchParams.get('v');
+      if (v) return `https://www.youtube.com/embed/${v}`;
+      if (parsed.pathname.startsWith('/embed/')) return u;
+      if (parsed.pathname.startsWith('/shorts/')) return `https://www.youtube.com/embed/${parsed.pathname.split('/')[2]}`;
+    }
+  } catch {}
+  return null;
+}
+const isDirectVideo = (u: string | null) => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
+const embed = youtubeEmbed(post.video_url);
+const kindPill = isTestimonial
+  ? 'font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1 flex items-center gap-1'
+  : 'font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-3 py-1 flex items-center gap-1';
+const proseClass = isTestimonial
+  ? 'prose prose-stone max-w-none mt-6 [&_img]:rounded-lg [&_img]:max-h-96 [&_a]:text-amber-600'
+  : 'prose prose-stone max-w-none mt-6 [&_img]:rounded-lg [&_img]:max-h-96 [&_a]:text-violet-600';
+const sourceLinkClass = isTestimonial
+  ? 'inline-flex items-center gap-2 mt-8 text-sm text-amber-600 hover:text-amber-700 font-medium border-t border-stone-100 pt-6'
+  : 'inline-flex items-center gap-2 mt-8 text-sm text-violet-600 hover:text-violet-700 font-medium border-t border-stone-100 pt-6';
+---
+<AppLayout title={`${post.headline || 'Post'} · GYE EOS`}>
+  <a href="/posts" class="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-900 mb-6">
+    <ArrowLeft size={16} /> Back to posts
+  </a>
+
+  <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-8">
+    <article class="bg-white border border-stone-200 rounded-2xl overflow-hidden min-w-0">
+      {embed ? (
+        <div class="aspect-video w-full bg-black">
+          <iframe src={embed} class="w-full h-full" frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen />
+        </div>
+      ) : isDirectVideo(post.video_url) ? (
+        <video controls class="w-full bg-black" src={post.video_url!} />
+      ) : post.image_url ? (
+        <img src={post.image_url} alt="" class="w-full max-h-[480px] object-cover bg-stone-100" />
+      ) : post.screenshot_url ? (
+        <img src={post.screenshot_url} alt="" class="w-full max-h-[480px] object-cover bg-stone-100" />
+      ) : null}
+
+      <div class="p-8 md:p-10">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3 text-sm">
+            <span class={kindPill}>
+              {isTestimonial ? (<><Quote size={12} /> Testimonial</>) : (post.category || 'Post')}
+            </span>
+            {isTestimonial && post.category && (
+              <span class="text-stone-500">{post.category}</span>
+            )}
+            {post.date && (
+              <span class="text-stone-500 flex items-center gap-1.5">
+                <Calendar size={13} /> {fmt(post.date)}
+              </span>
+            )}
+          </div>
+          <a href={`/posts/${post.slug}/edit`}
+            class="p-2 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100" title="Edit">
+            <Pencil size={16} />
+          </a>
+        </div>
+
+        <h1 class="text-3xl md:text-4xl font-semibold text-stone-900 leading-tight">
+          {post.headline || 'Untitled post'}
+        </h1>
+
+        {post.summary && (
+          <p class="mt-4 text-lg text-stone-600 leading-relaxed">{post.summary}</p>
+        )}
+
+        {(post.from_username || post.source) && (
+          <div class="mt-4 text-sm text-stone-500">
+            {post.from_username && <span class="font-medium text-stone-700">{post.from_username}</span>}
+            {post.from_username && post.source && <span> · </span>}
+            {post.source && <>via {post.source}</>}
+          </div>
+        )}
+
+        {post.screenshot_url && post.screenshot_url !== post.image_url && (
+          <img src={post.screenshot_url} alt="" class="mt-6 w-full rounded-xl bg-stone-100 border border-stone-200" />
+        )}
+
+        {(post.rich_text || post.notes) && (
+          <div class={proseClass} set:html={post.rich_text || post.notes} />
+        )}
+
+        {post.source_link && (
+          <a href={post.source_link} target="_blank" rel="noopener" class={sourceLinkClass}>
+            Open source <ExternalLink size={14} />
+          </a>
+        )}
+      </div>
+    </article>
+
+    <aside class="lg:sticky lg:top-6 lg:self-start">
+      <div class="bg-white border border-stone-200 rounded-2xl p-5">
+        <h2 class="text-sm font-semibold text-stone-900 mb-4">Latest posts</h2>
+        {latest && latest.length > 0 ? (
+          <ul class="space-y-4">
+            {latest.map((l: any) => {
+              const thumb = l.image_url || l.screenshot_url;
+              return (
+                <li>
+                  <a href={`/posts/${l.slug}`} class="group flex gap-3 items-start">
+                    {thumb ? (
+                      <img src={thumb} alt="" class="w-14 h-14 rounded-lg object-cover bg-stone-100 flex-shrink-0" loading="lazy" />
+                    ) : (
+                      <div class="w-14 h-14 rounded-lg bg-stone-100 flex-shrink-0 grid place-items-center text-stone-300">
+                        {l.kind === 'testimonial' ? <Quote size={18} /> : <Calendar size={18} />}
+                      </div>
+                    )}
+                    <div class="min-w-0 flex-1">
+                      <div class="text-xs font-medium text-stone-900 leading-snug line-clamp-2 group-hover:text-violet-700">
+                        {l.headline || 'Untitled'}
+                      </div>
+                      {l.date && <div class="text-[11px] text-stone-400 mt-0.5">{fmt(l.date)}</div>}
+                    </div>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p class="text-xs text-stone-400">No other posts yet.</p>
+        )}
+      </div>
+    </aside>
+  </div>
+</AppLayout>

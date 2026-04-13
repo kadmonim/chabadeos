@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     Menu, X, Target, AlertCircle, ListTodo, ChartBar, Focus, Eye,
-    ListChecks, Contact, Megaphone, BookOpen, Users, Link2, Plane, Network, Quote, Wallet, LogOut,
+    ListChecks, Contact, Newspaper, BookOpen, Users, Link2, Plane, Network, Wallet, LogOut,
   } from 'lucide-svelte';
 
   type Team = { id: string; name: string };
@@ -53,8 +53,7 @@
     { href: '/my-tasks',       label: 'My Tasks',              icon: ListChecks,  always: true },
     { href: '/expenses',       label: 'Expenses',              icon: Wallet,      always: false },
     { href: '/directory',      label: 'Directory',             icon: Contact,     always: true },
-    { href: '/updates',        label: 'Updates',               icon: Megaphone,   always: true },
-    { href: '/testimonials',   label: 'Testimonials',          icon: Quote,       always: true },
+    { href: '/posts',          label: 'Posts',                 icon: Newspaper,   always: true },
     { href: '/processes',      label: 'Processes',             icon: BookOpen,    always: true },
     { href: '/teams',          label: 'Teams & People',        icon: Users,       always: true },
     { href: '/links',          label: 'Links',                 icon: Link2,       always: true },

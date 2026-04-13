@@ -1,0 +1,108 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import { Newspaper, Calendar, Plus, Quote } from 'lucide-svelte';
+import { supabase } from '~/lib/supabase';
+
+const url = Astro.url;
+const kind = url.searchParams.get('kind') ?? 'all';
+const category = url.searchParams.get('category') ?? 'all';
+
+let q = supabase
+  .from('posts')
+  .select('id, kind, slug, headline, summary, category, date, image_url, screenshot_url, from_username, source')
+  .order('date', { ascending: false, nullsFirst: false });
+if (kind !== 'all') q = q.eq('kind', kind);
+if (category !== 'all') q = q.eq('category', category);
+
+const { data: posts } = await q;
+const { data: allCats } = await supabase.from('posts').select('category');
+const categories = Array.from(new Set((allCats ?? []).map((c) => c.category).filter(Boolean))).sort() as string[];
+
+const fmt = (d: string | null) =>
+  d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+---
+<AppLayout title="Posts · GYE EOS">
+  <header class="flex items-start justify-between mb-8">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
+        <Newspaper class="text-violet-600" size={24} />
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-stone-900">Posts</h1>
+        <p class="text-stone-500 text-sm">Updates, testimonials, and announcements</p>
+      </div>
+    </div>
+    <a
+      href="/posts/new"
+      class="bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
+    >
+      <Plus size={16} />
+      New Post
+    </a>
+  </header>
+
+  <form method="GET" class="flex gap-2 mb-6">
+    <select name="kind" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
+      <option value="all" selected={kind === 'all'}>All kinds</option>
+      <option value="post" selected={kind === 'post'}>Posts</option>
+      <option value="testimonial" selected={kind === 'testimonial'}>Testimonials</option>
+    </select>
+    <select name="category" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
+      <option value="all" selected={category === 'all'}>All categories</option>
+      {categories.map((c) => <option value={c} selected={category === c}>{c}</option>)}
+    </select>
+  </form>
+
+  {posts && posts.length > 0 ? (
+    <div class="columns-1 md:columns-2 lg:columns-3 gap-5 [column-fill:_balance]">
+      {posts.map((p: any) => {
+        const isTestimonial = p.kind === 'testimonial';
+        const thumb = p.image_url || p.screenshot_url;
+        const pillColor = isTestimonial
+          ? 'text-amber-700 bg-amber-50 border-amber-200'
+          : 'text-violet-700 bg-violet-50 border-violet-200';
+        const hoverBorder = isTestimonial ? 'hover:border-amber-300' : 'hover:border-violet-300';
+        return (
+          <a
+            href={`/posts/${p.slug}`}
+            class={`group block break-inside-avoid mb-5 bg-white border border-stone-200 rounded-2xl overflow-hidden transition hover:shadow-sm ${hoverBorder}`}
+          >
+            {thumb && <img src={thumb} alt="" loading="lazy" class="w-full bg-stone-100" />}
+            <div class="p-5">
+              <div class="flex flex-wrap items-center gap-1.5 mb-2 text-[11px]">
+                <span class={`font-medium border rounded-full px-2 py-0.5 ${pillColor}`}>
+                  {isTestimonial ? (<><Quote size={10} class="inline -mt-0.5" /> Testimonial</>) : (p.category || 'Post')}
+                </span>
+                {isTestimonial && p.category && <span class="text-stone-400">· {p.category}</span>}
+                {p.date && (
+                  <span class="text-stone-400 flex items-center gap-1">
+                    <Calendar size={10} /> {fmt(p.date)}
+                  </span>
+                )}
+              </div>
+              {p.headline && (
+                <h3 class="text-base font-semibold text-stone-900 leading-snug">
+                  {p.headline}
+                </h3>
+              )}
+              {p.summary && (
+                <p class={`text-[13px] text-stone-600 line-clamp-5 mt-1.5 ${isTestimonial ? 'italic' : ''}`}>
+                  {isTestimonial ? `"${p.summary}"` : p.summary}
+                </p>
+              )}
+              {isTestimonial && (p.from_username || p.source) && (
+                <div class="mt-2 text-[11px] text-stone-400">
+                  — {p.from_username || 'anonymous'}{p.source && <> · {p.source}</>}
+                </div>
+              )}
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  ) : (
+    <div class="bg-white border border-stone-200 rounded-2xl px-4 py-12 text-center text-sm text-stone-400">
+      No posts yet.
+    </div>
+  )}
+</AppLayout>

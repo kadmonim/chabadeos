@@ -1,0 +1,134 @@
+---
+import RichTextEditor from '~/components/RichTextEditor.svelte';
+import { ArrowLeft, Trash2 } from 'lucide-svelte';
+
+interface Props {
+  mode: 'new' | 'edit';
+  post?: any;
+  categories: string[];
+}
+
+const { mode, post, categories } = Astro.props;
+const editing = mode === 'edit';
+const p = post ?? {};
+const backHref = editing ? `/posts/${p.slug}` : '/posts';
+---
+<div class="max-w-4xl mx-auto">
+  <a href={backHref} class="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-900 mb-6">
+    <ArrowLeft size={16} /> {editing ? 'Back to post' : 'Back to posts'}
+  </a>
+
+  <form method="POST" action="/api/posts" class="space-y-6">
+    <input type="hidden" name="_action" value={editing ? 'update' : 'create'} />
+    {editing && <input type="hidden" name="id" value={p.id} />}
+    {editing && <input type="hidden" name="reslug" value="1" />}
+    <input type="hidden" name="back" value={backHref} />
+
+    <input
+      type="text"
+      name="headline"
+      required
+      placeholder="Post title"
+      value={p.headline ?? ''}
+      class="w-full bg-transparent text-4xl font-semibold text-stone-900 placeholder:text-stone-300 border-0 focus:outline-none focus:ring-0 p-0"
+    />
+
+    <textarea
+      name="summary"
+      placeholder="Short summary (shown on the home page and in feeds)"
+      rows="2"
+      class="w-full bg-transparent text-lg text-stone-600 placeholder:text-stone-300 border-0 focus:outline-none focus:ring-0 resize-none p-0"
+    >{p.summary ?? ''}</textarea>
+
+    <div class="border-t border-stone-200 pt-6">
+      <RichTextEditor
+        client:only="svelte"
+        name="rich_text"
+        initial={p.rich_text ?? p.notes ?? ''}
+        autosaveUrl={editing ? '/api/posts' : undefined}
+        autosaveId={p.id}
+        autosaveField="rich_text"
+      />
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 pt-6 border-t border-stone-200">
+      <div>
+        <label class="text-sm font-medium text-stone-700">Kind</label>
+        <select name="kind" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+          <option value="post" selected={(p.kind ?? 'post') === 'post'}>Post</option>
+          <option value="testimonial" selected={p.kind === 'testimonial'}>Testimonial</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-sm font-medium text-stone-700">Date</label>
+        <input type="date" name="date" value={p.date ?? ''}
+          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <label class="text-sm font-medium text-stone-700">Category</label>
+        <input type="text" name="category" list="post-categories" value={p.category ?? ''}
+          placeholder="e.g. SOC, Fundraising"
+          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+        <datalist id="post-categories">
+          {categories.map((c) => <option value={c}></option>)}
+        </datalist>
+      </div>
+      <div>
+        <label class="text-sm font-medium text-stone-700">Featured in newsletter</label>
+        <label class="mt-1 flex items-center gap-2 h-[38px] text-sm text-stone-700">
+          <input type="checkbox" name="featured_in_newsletter" checked={p.featured_in_newsletter} />
+          Include in newsletter
+        </label>
+      </div>
+      <div>
+        <label class="text-sm font-medium text-stone-700">Image URL</label>
+        <input type="url" name="image_url" value={p.image_url ?? ''} placeholder="https://..."
+          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <label class="text-sm font-medium text-stone-700">Screenshot URL</label>
+        <input type="url" name="screenshot_url" value={p.screenshot_url ?? ''} placeholder="https://..."
+          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <label class="text-sm font-medium text-stone-700">Video URL</label>
+        <input type="url" name="video_url" value={p.video_url ?? ''} placeholder="YouTube link, .mp4, etc."
+          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <label class="text-sm font-medium text-stone-700">Source link</label>
+        <input type="url" name="source_link" value={p.source_link ?? ''} placeholder="https://..."
+          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <label class="text-sm font-medium text-stone-700">From</label>
+        <input type="text" name="from_username" value={p.from_username ?? ''}
+          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <label class="text-sm font-medium text-stone-700">Source</label>
+        <input type="text" name="source" value={p.source ?? ''} placeholder="Intercom, Email, Forum..."
+          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between pt-6 border-t border-stone-200">
+      <a href={backHref} class="text-sm text-stone-500 hover:text-stone-900">Cancel</a>
+      <button class="bg-violet-600 hover:bg-violet-700 text-white rounded-lg px-6 py-2.5 text-sm font-medium">
+        {editing ? 'Save post' : 'Publish post'}
+      </button>
+    </div>
+  </form>
+
+  {editing && (
+    <form method="POST" action="/api/posts" class="mt-6 pt-6 border-t border-stone-200 max-w-4xl"
+      onsubmit="return confirm('Delete this post?');">
+      <input type="hidden" name="_action" value="delete" />
+      <input type="hidden" name="id" value={p.id} />
+      <input type="hidden" name="back" value="/posts" />
+      <button class="border border-rose-300 text-rose-700 rounded-lg px-4 py-2 text-sm font-medium flex items-center gap-2">
+        <Trash2 size={14} /> Delete post
+      </button>
+    </form>
+  )}
+</div>

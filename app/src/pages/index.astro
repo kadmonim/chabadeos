@@ -10,15 +10,15 @@ const [
   { count: openTodos },
   { count: openIssues },
   { count: employeesCount },
-  { data: updates },
+  { data: posts },
 ] = await Promise.all([
   supabase.from('rocks').select('*', { count: 'exact', head: true }).eq('is_archived', false),
   teamFilter(supabase.from('todos').select('*', { count: 'exact', head: true }).eq('status', 'open')),
   teamFilter(supabase.from('issues').select('*', { count: 'exact', head: true }).eq('status', 'open')),
   supabase.from('employees').select('*', { count: 'exact', head: true }),
   supabase
-    .from('testimonials')
-    .select('id, type, headline, category, date, notes, rich_text, image_url, screenshot_url, video_url, source_link, from_username, source')
+    .from('posts')
+    .select('id, kind, slug, headline, summary, category, date, image_url, screenshot_url, from_username, source, video_url')
     .order('date', { ascending: false, nullsFirst: false })
     .limit(10),
 ]);
@@ -68,88 +68,63 @@ const firstName = user.fullName?.split(' ')[0] || 'there';
         <Megaphone size={18} class="text-violet-600" />
         <h2 class="text-lg font-semibold text-stone-900">Recent Activity</h2>
       </div>
-      <div class="flex items-center gap-4 text-sm font-medium">
-        <a href="/updates" class="text-violet-600 hover:text-violet-700">Updates →</a>
-        <a href="/testimonials" class="text-amber-600 hover:text-amber-700">Testimonials →</a>
-      </div>
+      <a href="/posts" class="text-sm font-medium text-violet-600 hover:text-violet-700">All posts →</a>
     </div>
 
-    {updates && updates.length > 0 ? (
-      (() => {
-        const stripHtml = (raw: string) => raw
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&quot;/g, '"')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-        return (
-          <div class="columns-1 md:columns-2 lg:columns-3 gap-5 [column-fill:_balance]">
-            {updates.map((u: any) => {
-              const isTestimonial = u.type === 'Testimonial';
-              const thumb = u.image_url || u.screenshot_url;
-              const body = stripHtml(u.notes || u.rich_text || '');
-              const pillColor = isTestimonial
-                ? 'text-amber-700 bg-amber-50 border-amber-200'
-                : 'text-violet-700 bg-violet-50 border-violet-200';
-              const hoverBorder = isTestimonial ? 'hover:border-amber-300' : 'hover:border-violet-300';
-              const hoverHeading = isTestimonial ? 'group-hover:text-amber-700' : 'group-hover:text-violet-700';
-              return (
-                <a
-                  href={`/updates/${u.id}`}
-                  class={`group block break-inside-avoid mb-5 bg-white border border-stone-200 rounded-2xl overflow-hidden transition hover:shadow-sm ${hoverBorder}`}
-                >
-                  {thumb && (
-                    <img
-                      src={thumb}
-                      alt=""
-                      loading="lazy"
-                      class="w-full bg-stone-100 group-hover:opacity-95 transition"
-                    />
+    {posts && posts.length > 0 ? (
+      <div class="columns-1 md:columns-2 lg:columns-3 gap-5 [column-fill:_balance]">
+        {posts.map((p: any) => {
+          const isTestimonial = p.kind === 'testimonial';
+          const thumb = p.image_url || p.screenshot_url;
+          const pillColor = isTestimonial
+            ? 'text-amber-700 bg-amber-50 border-amber-200'
+            : 'text-violet-700 bg-violet-50 border-violet-200';
+          const hoverBorder = isTestimonial ? 'hover:border-amber-300' : 'hover:border-violet-300';
+          const hoverHeading = isTestimonial ? 'group-hover:text-amber-700' : 'group-hover:text-violet-700';
+          return (
+            <a
+              href={`/posts/${p.slug}`}
+              class={`group block break-inside-avoid mb-5 bg-white border border-stone-200 rounded-2xl overflow-hidden transition hover:shadow-sm ${hoverBorder}`}
+            >
+              {thumb && (
+                <img src={thumb} alt="" loading="lazy" class="w-full bg-stone-100 group-hover:opacity-95 transition" />
+              )}
+              <div class="p-4">
+                <div class="flex flex-wrap items-center gap-1.5 mb-1.5 text-[11px]">
+                  <span class={`font-medium border rounded-full px-2 py-0.5 ${pillColor}`}>
+                    {isTestimonial ? 'Testimonial' : p.category || 'Post'}
+                  </span>
+                  {isTestimonial && p.category && <span class="text-stone-400">· {p.category}</span>}
+                  {p.date && (
+                    <span class="text-stone-400 flex items-center gap-1">
+                      <Calendar size={10} /> {fmtDate(p.date)}
+                    </span>
                   )}
-                  <div class="p-4">
-                    <div class="flex flex-wrap items-center gap-1.5 mb-1.5 text-[11px]">
-                      <span class={`font-medium border rounded-full px-2 py-0.5 ${pillColor}`}>
-                        {isTestimonial ? 'Testimonial' : u.category || 'Update'}
-                      </span>
-                      {isTestimonial && u.category && (
-                        <span class="text-stone-400">· {u.category}</span>
-                      )}
-                      {u.date && (
-                        <span class="text-stone-400 flex items-center gap-1">
-                          <Calendar size={10} /> {fmtDate(u.date)}
-                        </span>
-                      )}
-                      {u.video_url && <span class="text-rose-500 font-medium">▶ Video</span>}
-                    </div>
-                    {u.headline && (
-                      <h3 class={`text-base font-semibold text-stone-900 leading-snug transition ${hoverHeading}`}>
-                        {u.headline}
-                      </h3>
-                    )}
-                    {body && (
-                      <p class={`text-[13px] text-stone-600 line-clamp-5 ${u.headline ? 'mt-1.5' : ''} ${isTestimonial ? 'italic' : ''}`}>
-                        {isTestimonial ? `"${body}"` : body}
-                      </p>
-                    )}
-                    {isTestimonial && (u.from_username || u.source) && (
-                      <div class="mt-2 text-[11px] text-stone-400">
-                        — {u.from_username || 'anonymous'}{u.source && <> · {u.source}</>}
-                      </div>
-                    )}
+                  {p.video_url && <span class="text-rose-500 font-medium">▶ Video</span>}
+                </div>
+                {p.headline && (
+                  <h3 class={`text-base font-semibold text-stone-900 leading-snug transition ${hoverHeading}`}>
+                    {p.headline}
+                  </h3>
+                )}
+                {p.summary && (
+                  <p class={`text-[13px] text-stone-600 line-clamp-5 ${p.headline ? 'mt-1.5' : ''} ${isTestimonial ? 'italic' : ''}`}>
+                    {isTestimonial ? `"${p.summary}"` : p.summary}
+                  </p>
+                )}
+                {isTestimonial && (p.from_username || p.source) && (
+                  <div class="mt-2 text-[11px] text-stone-400">
+                    — {p.from_username || 'anonymous'}{p.source && <> · {p.source}</>}
                   </div>
-                </a>
-              );
-            })}
-          </div>
-        );
-      })()
+                )}
+              </div>
+            </a>
+          );
+        })}
+      </div>
     ) : (
       <div class="bg-white border border-stone-200 rounded-2xl px-4 py-12 text-center text-sm text-stone-400">
-        No updates yet.
+        No posts yet.
       </div>
     )}
   </section>
