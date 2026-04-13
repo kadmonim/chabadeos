@@ -99,7 +99,11 @@ export const POST: APIRoute = async ({ request }) => {
       description: body.description ? String(body.description) : null,
       assignee_employee_id: assigneeId,
       team_id: teamId,
-      due_date: body.due_date ? String(body.due_date) : null,
+      due_date: body.due_date ? String(body.due_date) : (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 7);
+        return d.toISOString().slice(0, 10);
+      })(),
       is_urgent: body.is_urgent === true,
       status: 'open',
     })
@@ -111,9 +115,11 @@ export const POST: APIRoute = async ({ request }) => {
 };
 
 // ============================================================
-// PATCH /api/v1/todos — mark a todo complete
-// body: { id (required), done?: boolean (default true) }
-// Only toggles status between 'open' and 'done'. No other mutations.
+// PATCH /api/v1/todos — update a todo
+// body: { id (required), done?, is_urgent?, due_date?, assignee_email? }
+//   - done: toggles status between 'open' and 'done'
+//   - assignee_email: pass null/empty string to unassign
+//   - due_date: YYYY-MM-DD, or null/empty string to clear
 // ============================================================
 export const PATCH: APIRoute = async ({ request }) => {
   const unauth = requireApiKey(request);
@@ -124,10 +130,33 @@ export const PATCH: APIRoute = async ({ request }) => {
 
   const id = body?.id ? String(body.id) : '';
   if (!id) return json({ error: 'id is required' }, 400);
-  const done = body.done === undefined ? true : Boolean(body.done);
-  const status = done ? 'done' : 'open';
 
-  const { error } = await supabase.from('todos').update({ status }).eq('id', id);
+  const patch: Record<string, unknown> = {};
+
+  if (body.done !== undefined) {
+    patch.status = Boolean(body.done) ? 'done' : 'open';
+  }
+  if (body.is_urgent !== undefined) {
+    patch.is_urgent = Boolean(body.is_urgent);
+  }
+  if (body.due_date !== undefined) {
+    patch.due_date = body.due_date ? String(body.due_date) : null;
+  }
+  if (body.assignee_email !== undefined) {
+    if (!body.assignee_email) {
+      patch.assignee_employee_id = null;
+    } else {
+      const assigneeId = await resolveEmployeeByEmail(String(body.assignee_email));
+      if (!assigneeId) return json({ error: `no employee with email '${body.assignee_email}'` }, 400);
+      patch.assignee_employee_id = assigneeId;
+    }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return json({ error: 'no updatable fields provided' }, 400);
+  }
+
+  const { error } = await supabase.from('todos').update(patch).eq('id', id);
   if (error) return json({ error: error.message }, 500);
-  return json({ id, status });
+  return json({ id, ...patch });
 };
