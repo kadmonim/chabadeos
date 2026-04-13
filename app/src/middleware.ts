@@ -12,8 +12,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   const path = context.url.pathname;
   const isPublic = PUBLIC_PATHS.has(path) || path.startsWith('/_');
+  // Machine API has its own Bearer-token auth; skip the cookie-based gate.
+  const isMachineApi = path.startsWith('/api/v1');
 
-  if (!session && !isPublic) {
+  if (!session && !isPublic && !isMachineApi) {
     return context.redirect('/login');
   }
   if (session && path === '/login') {
