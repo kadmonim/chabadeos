@@ -2,7 +2,7 @@
 import AppLayout from '~/layouts/AppLayout.astro';
 import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import RichTextEditor from '~/components/RichTextEditor.svelte';
-import { AlertCircle, Plus, Search, Zap, Clock, Target, Archive, X, Trash2, Copy } from 'lucide-svelte';
+import { AlertCircle, Plus, Search, Zap, Clock, Target, Archive, X, Trash2, Copy, Share2 } from 'lucide-svelte';
 import { supabase } from '~/lib/supabase';
 const team = Astro.locals.currentTeam;
 const teams = Astro.locals.allowedTeams;
@@ -16,36 +16,72 @@ const sort = url.searchParams.get('sort') ?? 'manual';
 const search = (url.searchParams.get('q') ?? '').trim();
 const detailId = url.searchParams.get('detail');
 
-const baseQuery = () =>
-  supabase
-    .from('issues')
-    .select(
-      'id, title, description, status, priority, priority_order, term_type, team_id, created_at, owner_employee_id, ' +
-      'owner:employees!issues_owner_employee_id_fkey(id, full_name)',
-    )
-    .eq('team_id', team.id)
-    .eq('term_type', term);
+const issueSelect =
+  'id, title, description, status, priority, priority_order, term_type, team_id, created_at, owner_employee_id, ' +
+  'owner:employees!issues_owner_employee_id_fkey(id, full_name)';
 
-let q = baseQuery();
-if (statusFilter === 'active') q = q.in('status', ['open', 'solved']);
-else if (statusFilter !== 'all') q = q.eq('status', statusFilter);
-if (ownerFilter !== 'all') q = q.eq('owner_employee_id', ownerFilter);
-if (search) q = q.ilike('title', `%${search}%`);
-if (sort === 'priority') q = q.order('priority', { ascending: true });
-else if (sort === 'created') q = q.order('created_at', { ascending: false });
-else q = q.order('priority_order', { ascending: true }).order('created_at', { ascending: false });
+const applyFilters = (q: any) => {
+  if (statusFilter === 'active') q = q.in('status', ['open', 'solved']);
+  else if (statusFilter !== 'all') q = q.eq('status', statusFilter);
+  if (ownerFilter !== 'all') q = q.eq('owner_employee_id', ownerFilter);
+  if (search) q = q.ilike('title', `%${search}%`);
+  if (sort === 'priority') q = q.order('priority', { ascending: true });
+  else if (sort === 'created') q = q.order('created_at', { ascending: false });
+  else q = q.order('priority_order', { ascending: true }).order('created_at', { ascending: false });
+  return q;
+};
 
-const [{ data: issues }, { data: employees }] = await Promise.all([
-  q,
-  supabase.from('team_memberships').select('employee:employees(id, full_name)').eq('team_id', team.id).order('employee(full_name)').then(({ data }) => ({
-    data: (data ?? []).map((m: any) => m.employee).filter(Boolean),
-  })),
+const ownedQ = applyFilters(
+  supabase.from('issues').select(issueSelect).eq('team_id', team.id).eq('term_type', term)
+);
+
+const [ownedResult, employeesResult, shareLinksResult] = await Promise.all([
+  ownedQ,
+  supabase.from('team_memberships').select('employee:employees(id, full_name)').eq('team_id', team.id).order('employee(full_name)'),
+  supabase.from('issue_shares').select('issue_id').eq('team_id', team.id),
 ]);
+
+const employees = (employeesResult.data ?? []).map((m: any) => m.employee).filter(Boolean);
+const ownedIssues = (ownedResult.data ?? []).map((i: any) => ({ ...i, isSharedIssue: false }));
+const sharedIds: string[] = (shareLinksResult.data ?? []).map((l: any) => l.issue_id);
+
+let sharedIssues: any[] = [];
+if (sharedIds.length > 0) {
+  const sq = applyFilters(
+    supabase.from('issues')
+      .select(issueSelect + ', originTeam:teams!issues_team_id_fkey(id, name)')
+      .in('id', sharedIds)
+      .eq('term_type', term)
+  );
+  const { data } = await sq;
+  sharedIssues = (data ?? []).map((i: any) => ({ ...i, isSharedIssue: true }));
+}
+
+const issues = [...ownedIssues, ...sharedIssues];
 
 let detail: any = null;
 if (detailId) {
-  const { data } = await baseQuery().eq('id', detailId).maybeSingle();
-  detail = data;
+  const { data: ownedDetail } = await supabase
+    .from('issues')
+    .select(issueSelect + ', originTeam:teams!issues_team_id_fkey(id, name)')
+    .eq('team_id', team.id)
+    .eq('id', detailId)
+    .maybeSingle();
+
+  if (ownedDetail) {
+    const { data: shares } = await supabase
+      .from('issue_shares')
+      .select('team:teams(id, name)')
+      .eq('issue_id', detailId);
+    detail = { ...ownedDetail, isSharedIssue: false, shares: (shares ?? []).map((s: any) => s.team).filter(Boolean) };
+  } else if (sharedIds.includes(detailId)) {
+    const { data } = await supabase
+      .from('issues')
+      .select(issueSelect + ', originTeam:teams!issues_team_id_fkey(id, name)')
+      .eq('id', detailId)
+      .maybeSingle();
+    if (data) detail = { ...data, isSharedIssue: true, shares: [] };
+  }
 }
 
 const fmt = (d: string | null) =>
@@ -165,8 +201,17 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
         const solved = i.status === 'solved';
         const detailHref = `?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), detail: i.id }).toString()}`;
         return (
-          <div class="flex items-center gap-3 px-4 py-3" data-id={i.id} draggable="true">
-            <span class="cursor-grab active:cursor-grabbing text-stone-300 hover:text-stone-500 shrink-0 select-none">⠿</span>
+          <div
+            class="flex items-center gap-3 px-4 py-3"
+            data-id={i.id}
+            data-shared={i.isSharedIssue ? 'true' : undefined}
+            draggable={i.isSharedIssue ? undefined : 'true'}
+          >
+            {i.isSharedIssue ? (
+              <span class="w-4 shrink-0" />
+            ) : (
+              <span class="cursor-grab active:cursor-grabbing text-stone-300 hover:text-stone-500 shrink-0 select-none">⠿</span>
+            )}
             <StatusCheckbox client:load id={i.id} status={i.status} endpoint="/api/issues" doneValue="solved" />
             <span class="text-xs font-semibold text-violet-600 bg-violet-50 border border-violet-200 rounded px-2 py-0.5 shrink-0">
               P{i.priority ?? 3}
@@ -177,6 +222,11 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
             >
               {i.title}
             </a>
+            {i.isSharedIssue && i.originTeam && (
+              <span class="text-xs font-medium text-sky-600 bg-sky-50 border border-sky-200 rounded px-2 py-0.5 shrink-0 whitespace-nowrap">
+                From {i.originTeam.name}
+              </span>
+            )}
             {i.owner && (
               <div class="w-7 h-7 rounded-full bg-stone-100 text-stone-600 grid place-items-center text-[10px] font-semibold" title={i.owner.full_name}>
                 {initials(i.owner.full_name)}
@@ -199,226 +249,320 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
       <aside class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
-            <span class="inline-block text-xs font-medium text-stone-600 bg-stone-100 rounded-full px-2.5 py-1">{team.name}</span>
+            <div class="flex items-center gap-2">
+              <span class="inline-block text-xs font-medium text-stone-600 bg-stone-100 rounded-full px-2.5 py-1">
+                {detail.isSharedIssue ? (detail.originTeam?.name ?? 'Unknown Team') : team.name}
+              </span>
+              {detail.isSharedIssue && (
+                <span class="inline-block text-xs font-medium text-sky-600 bg-sky-50 border border-sky-200 rounded-full px-2.5 py-1">
+                  Shared
+                </span>
+              )}
+            </div>
             <a href={backNoDetail} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
           <h2 class="text-xl font-semibold text-stone-900">Issue Details</h2>
 
-          <div class="flex gap-2">
-            <form method="POST" action="/api/issues">
-              <input type="hidden" name="_action" value="update" />
-              <input type="hidden" name="id" value={detail.id} />
-              <input type="hidden" name="status" value={detail.status === 'solved' ? 'open' : 'solved'} />
-              <input type="hidden" name="title" value={detail.title} />
-              <input type="hidden" name="term_type" value={detail.term_type} />
-              <input type="hidden" name="back" value={backNoDetail} />
-              <button class="flex items-center gap-1.5 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-                ✓ {detail.status === 'solved' ? 'Mark Open' : 'Mark Solved'}
-              </button>
-            </form>
-            <form method="POST" action="/api/issues">
-              <input type="hidden" name="_action" value="update" />
-              <input type="hidden" name="id" value={detail.id} />
-              <input type="hidden" name="status" value="archived" />
-              <input type="hidden" name="title" value={detail.title} />
-              <input type="hidden" name="term_type" value={detail.term_type} />
-              <input type="hidden" name="back" value={backNoDetail} />
-              <button class="flex items-center gap-1.5 border border-stone-300 text-stone-700 bg-white hover:bg-stone-100 hover:border-stone-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-                <Archive size={14} /> Archive
-              </button>
-            </form>
-            <form method="POST" action="/api/issues" onsubmit="return confirm('Delete this issue? This cannot be undone.');">
-              <input type="hidden" name="_action" value="delete" />
-              <input type="hidden" name="id" value={detail.id} />
-              <input type="hidden" name="back" value={backNoDetail} />
-              <button class="flex items-center gap-1.5 border border-rose-300 text-rose-700 bg-white hover:bg-rose-50 hover:border-rose-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-                <Trash2 size={14} /> Delete
-              </button>
-            </form>
-          </div>
-
-          <div class="flex gap-2">
-            <button type="button" data-clone-open="issue"
-              class="flex items-center gap-1.5 border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 hover:border-violet-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-              <Copy size={14} /> Clone as Issue
-            </button>
-            <button type="button" data-clone-open="todo"
-              class="flex items-center gap-1.5 border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:border-sky-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-              <Copy size={14} /> Clone as To-Do
-            </button>
-          </div>
-
-          <form method="POST" action="/api/issues" class="space-y-4">
-            <input type="hidden" name="_action" value="update" />
-            <input type="hidden" name="id" value={detail.id} />
-            <input type="hidden" name="back" value={backNoDetail} />
-
-            <div>
-              <label class="text-sm font-medium text-stone-700">Title</label>
-              <input type="text" name="title" value={detail.title}
-                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+          {detail.isSharedIssue ? (
+            <!-- Read-only view for shared issues -->
+            <div class="space-y-4">
+              <div>
+                <p class="text-sm font-medium text-stone-700 mb-1">Title</p>
+                <p class="text-sm text-stone-900">{detail.title}</p>
+              </div>
+              {detail.description && (
+                <div>
+                  <p class="text-sm font-medium text-stone-700 mb-1">Description</p>
+                  <div class="text-sm text-stone-700 prose prose-sm max-w-none border border-stone-100 rounded-lg p-3 bg-stone-50" set:html={detail.description} />
+                </div>
+              )}
+              <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div>
+                  <p class="text-xs text-stone-500 mb-0.5">Priority</p>
+                  <span class="text-sm font-semibold text-violet-600">P{detail.priority ?? 3}</span>
+                </div>
+                <div>
+                  <p class="text-xs text-stone-500 mb-0.5">Status</p>
+                  <span class="text-sm text-stone-700 capitalize">{detail.status}</span>
+                </div>
+                <div>
+                  <p class="text-xs text-stone-500 mb-0.5">Term</p>
+                  <span class="text-sm text-stone-700">{detail.term_type === 'short_term' ? 'Short term' : 'Long term'}</span>
+                </div>
+                {detail.owner && (
+                  <div>
+                    <p class="text-xs text-stone-500 mb-0.5">Owner</p>
+                    <span class="text-sm text-stone-700">{detail.owner.full_name}</span>
+                  </div>
+                )}
+              </div>
+              <p class="text-xs text-stone-400 pt-2">This issue belongs to the {detail.originTeam?.name} team. Only that team can edit it.</p>
             </div>
+          ) : (
+            <!-- Full edit view for owned issues -->
+            <Fragment>
+              <div class="flex gap-2">
+                <form method="POST" action="/api/issues">
+                  <input type="hidden" name="_action" value="update" />
+                  <input type="hidden" name="id" value={detail.id} />
+                  <input type="hidden" name="status" value={detail.status === 'solved' ? 'open' : 'solved'} />
+                  <input type="hidden" name="title" value={detail.title} />
+                  <input type="hidden" name="term_type" value={detail.term_type} />
+                  <input type="hidden" name="back" value={backNoDetail} />
+                  <button class="flex items-center gap-1.5 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+                    ✓ {detail.status === 'solved' ? 'Mark Open' : 'Mark Solved'}
+                  </button>
+                </form>
+                <form method="POST" action="/api/issues">
+                  <input type="hidden" name="_action" value="update" />
+                  <input type="hidden" name="id" value={detail.id} />
+                  <input type="hidden" name="status" value="archived" />
+                  <input type="hidden" name="title" value={detail.title} />
+                  <input type="hidden" name="term_type" value={detail.term_type} />
+                  <input type="hidden" name="back" value={backNoDetail} />
+                  <button class="flex items-center gap-1.5 border border-stone-300 text-stone-700 bg-white hover:bg-stone-100 hover:border-stone-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+                    <Archive size={14} /> Archive
+                  </button>
+                </form>
+                <form method="POST" action="/api/issues" onsubmit="return confirm('Delete this issue? This cannot be undone.');">
+                  <input type="hidden" name="_action" value="delete" />
+                  <input type="hidden" name="id" value={detail.id} />
+                  <input type="hidden" name="back" value={backNoDetail} />
+                  <button class="flex items-center gap-1.5 border border-rose-300 text-rose-700 bg-white hover:bg-rose-50 hover:border-rose-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </form>
+              </div>
 
-            <div>
-              <label class="text-sm font-medium text-stone-700">Description</label>
-              <div class="mt-1">
-                <RichTextEditor
-                  client:only="svelte"
-                  name="description"
-                  initial={detail.description ?? ''}
-                  autosaveUrl="/api/issues"
-                  autosaveId={detail.id}
-                />
+              <div class="flex gap-2">
+                <button type="button" data-clone-open="issue"
+                  class="flex items-center gap-1.5 border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 hover:border-violet-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+                  <Copy size={14} /> Clone as Issue
+                </button>
+                <button type="button" data-clone-open="todo"
+                  class="flex items-center gap-1.5 border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:border-sky-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+                  <Copy size={14} /> Clone as To-Do
+                </button>
               </div>
-            </div>
 
-            <div>
-              <label class="text-sm font-medium text-stone-700">Priority</label>
-              <select name="priority" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                {[1, 2, 3, 4, 5].map((p) => <option value={p} selected={p === detail.priority}>P{p}</option>)}
-              </select>
-            </div>
+              <form method="POST" action="/api/issues" class="space-y-4">
+                <input type="hidden" name="_action" value="update" />
+                <input type="hidden" name="id" value={detail.id} />
+                <input type="hidden" name="back" value={backNoDetail} />
 
-            <div>
-              <label class="text-sm font-medium text-stone-700">Team</label>
-              <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
-              </select>
-            </div>
+                <div>
+                  <label class="text-sm font-medium text-stone-700">Title</label>
+                  <input type="text" name="title" value={detail.title}
+                    class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+                </div>
 
-            <div>
-              <label class="text-sm font-medium text-stone-700">Owner</label>
-              <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">Unassigned</option>
-                {employees?.map((e) => <option value={e.id} selected={e.id === detail.owner_employee_id}>{e.full_name}</option>)}
-              </select>
-            </div>
+                <div>
+                  <label class="text-sm font-medium text-stone-700">Description</label>
+                  <div class="mt-1">
+                    <RichTextEditor
+                      client:only="svelte"
+                      name="description"
+                      initial={detail.description ?? ''}
+                      autosaveUrl="/api/issues"
+                      autosaveId={detail.id}
+                    />
+                  </div>
+                </div>
 
-            <div>
-              <label class="text-sm font-medium text-stone-700">Term</label>
-              <select name="term_type" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="short_term" selected={detail.term_type === 'short_term'}>Short term</option>
-                <option value="long_term" selected={detail.term_type === 'long_term'}>Long term</option>
-              </select>
-            </div>
+                <div>
+                  <label class="text-sm font-medium text-stone-700">Priority</label>
+                  <select name="priority" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                    {[1, 2, 3, 4, 5].map((p) => <option value={p} selected={p === detail.priority}>P{p}</option>)}
+                  </select>
+                </div>
 
-            <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              Save changes
-            </button>
-          </form>
-        </div>
-
-        <div id="clone-issue-modal" class="hidden fixed inset-0 z-40 grid place-items-center p-4">
-          <div class="absolute inset-0 bg-black/40" data-clone-close="issue"></div>
-          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <form method="POST" action="/api/issues" class="p-6 space-y-4">
-              <div class="flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-stone-900">Clone as Issue</h3>
-                <button type="button" data-clone-close="issue" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
-              </div>
-              <input type="hidden" name="_action" value="create" />
-              <input type="hidden" name="back" value={backNoDetail} />
-              <div>
-                <label class="text-sm font-medium text-stone-700">Title</label>
-                <input type="text" name="title" value={`${detail.title} (copy)`} required
-                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
-              </div>
-              <div>
-                <label class="text-sm font-medium text-stone-700">Description</label>
-                <textarea name="description" rows="4"
-                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
-                  set:html={detail.description ?? ''} />
-              </div>
-              <div>
-                <label class="text-sm font-medium text-stone-700">Priority</label>
-                <select name="priority" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                  {[1, 2, 3, 4, 5].map((p) => <option value={p} selected={p === detail.priority}>P{p}</option>)}
-                </select>
-              </div>
-              <div>
-                <label class="text-sm font-medium text-stone-700">Team</label>
-                <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                  {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label class="text-sm font-medium text-stone-700">Owner</label>
-                <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                  <option value="">Unassigned</option>
-                  {employees?.map((e) => <option value={e.id} selected={e.id === detail.owner_employee_id}>{e.full_name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label class="text-sm font-medium text-stone-700">Term</label>
-                <select name="term_type" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                  <option value="short_term" selected={detail.term_type === 'short_term'}>Short term</option>
-                  <option value="long_term" selected={detail.term_type === 'long_term'}>Long term</option>
-                </select>
-              </div>
-              <div class="flex gap-2 pt-2">
-                <button type="button" data-clone-close="issue"
-                  class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">Cancel</button>
-                <button type="submit"
-                  class="flex-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">Create issue</button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        <div id="clone-todo-modal" class="hidden fixed inset-0 z-40 grid place-items-center p-4">
-          <div class="absolute inset-0 bg-black/40" data-clone-close="todo"></div>
-          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <form method="POST" action="/api/todos" class="p-6 space-y-4">
-              <div class="flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-stone-900">Clone as To-Do</h3>
-                <button type="button" data-clone-close="todo" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
-              </div>
-              <input type="hidden" name="_action" value="create" />
-              <input type="hidden" name="back" value={backNoDetail} />
-              <div>
-                <label class="text-sm font-medium text-stone-700">Title</label>
-                <input type="text" name="title" value={detail.title} required
-                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
-              </div>
-              <div>
-                <label class="text-sm font-medium text-stone-700">Description</label>
-                <textarea name="description" rows="4"
-                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
-                  set:html={detail.description ?? ''} />
-              </div>
-              <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="text-sm font-medium text-stone-700">Team</label>
                   <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                     {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
                   </select>
                 </div>
+
                 <div>
-                  <label class="text-sm font-medium text-stone-700">Due date</label>
-                  <input type="date" name="due_date" value={(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })()}
-                    class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+                  <label class="text-sm font-medium text-stone-700">Owner</label>
+                  <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="">Unassigned</option>
+                    {employees?.map((e) => <option value={e.id} selected={e.id === detail.owner_employee_id}>{e.full_name}</option>)}
+                  </select>
                 </div>
+
+                <div>
+                  <label class="text-sm font-medium text-stone-700">Term</label>
+                  <select name="term_type" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="short_term" selected={detail.term_type === 'short_term'}>Short term</option>
+                    <option value="long_term" selected={detail.term_type === 'long_term'}>Long term</option>
+                  </select>
+                </div>
+
+                <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
+                  Save changes
+                </button>
+              </form>
+
+              <!-- Sharing section -->
+              <div class="border-t border-stone-200 pt-5 space-y-3">
+                <p class="text-sm font-medium text-stone-700 flex items-center gap-1.5"><Share2 size={14} /> Shared with</p>
+
+                {detail.shares && detail.shares.length > 0 ? (
+                  <div class="flex flex-wrap gap-2">
+                    {detail.shares.map((s: any) => (
+                      <form method="POST" action="/api/issues" class="inline-flex items-center gap-1.5 bg-sky-50 border border-sky-200 rounded-lg px-2.5 py-1">
+                        <input type="hidden" name="_action" value="unshare_team" />
+                        <input type="hidden" name="id" value={detail.id} />
+                        <input type="hidden" name="share_team_id" value={s.id} />
+                        <input type="hidden" name="back" value={back} />
+                        <span class="text-xs text-sky-700">{s.name}</span>
+                        <button type="submit" class="text-sky-400 hover:text-sky-700 transition" title={`Remove ${s.name}`}>
+                          <X size={12} />
+                        </button>
+                      </form>
+                    ))}
+                  </div>
+                ) : (
+                  <p class="text-xs text-stone-400">Not shared with any other team.</p>
+                )}
+
+                {(() => {
+                  const shareable = teams.filter((t) => t.id !== team.id && !detail.shares?.some((s: any) => s.id === t.id));
+                  return shareable.length > 0 ? (
+                    <form method="POST" action="/api/issues" class="flex gap-2">
+                      <input type="hidden" name="_action" value="share_team" />
+                      <input type="hidden" name="id" value={detail.id} />
+                      <input type="hidden" name="back" value={back} />
+                      <select name="share_team_id" class="flex-1 bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400">
+                        {shareable.map((t) => <option value={t.id}>{t.name}</option>)}
+                      </select>
+                      <button type="submit" class="flex items-center gap-1.5 bg-stone-800 hover:bg-stone-900 text-white rounded-lg px-3 py-2 text-sm font-medium">
+                        <Share2 size={14} /> Share
+                      </button>
+                    </form>
+                  ) : null;
+                })()}
               </div>
-              <div>
-                <label class="text-sm font-medium text-stone-700">Assignee</label>
-                <select name="assignee_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                  <option value="">Unassigned</option>
-                  {employees?.map((e) => <option value={e.id} selected={e.id === detail.owner_employee_id}>{e.full_name}</option>)}
-                </select>
-              </div>
-              <label class="flex items-center gap-2 text-sm text-stone-700">
-                <input type="checkbox" name="is_urgent" checked={detail.priority === 1} />
-                Mark as urgent
-              </label>
-              <div class="flex gap-2 pt-2">
-                <button type="button" data-clone-close="todo"
-                  class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">Cancel</button>
-                <button type="submit"
-                  class="flex-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2.5 text-sm font-medium">Create to-do</button>
-              </div>
-            </form>
-          </div>
+            </Fragment>
+          )}
         </div>
+
+        {!detail.isSharedIssue && (
+          <Fragment>
+            <div id="clone-issue-modal" class="hidden fixed inset-0 z-40 grid place-items-center p-4">
+              <div class="absolute inset-0 bg-black/40" data-clone-close="issue"></div>
+              <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                <form method="POST" action="/api/issues" class="p-6 space-y-4">
+                  <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-stone-900">Clone as Issue</h3>
+                    <button type="button" data-clone-close="issue" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
+                  </div>
+                  <input type="hidden" name="_action" value="create" />
+                  <input type="hidden" name="back" value={backNoDetail} />
+                  <div>
+                    <label class="text-sm font-medium text-stone-700">Title</label>
+                    <input type="text" name="title" value={`${detail.title} (copy)`} required
+                      class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+                  </div>
+                  <div>
+                    <label class="text-sm font-medium text-stone-700">Description</label>
+                    <textarea name="description" rows="4"
+                      class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                      set:html={detail.description ?? ''} />
+                  </div>
+                  <div>
+                    <label class="text-sm font-medium text-stone-700">Priority</label>
+                    <select name="priority" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                      {[1, 2, 3, 4, 5].map((p) => <option value={p} selected={p === detail.priority}>P{p}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-sm font-medium text-stone-700">Team</label>
+                    <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                      {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-sm font-medium text-stone-700">Owner</label>
+                    <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                      <option value="">Unassigned</option>
+                      {employees?.map((e) => <option value={e.id} selected={e.id === detail.owner_employee_id}>{e.full_name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-sm font-medium text-stone-700">Term</label>
+                    <select name="term_type" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                      <option value="short_term" selected={detail.term_type === 'short_term'}>Short term</option>
+                      <option value="long_term" selected={detail.term_type === 'long_term'}>Long term</option>
+                    </select>
+                  </div>
+                  <div class="flex gap-2 pt-2">
+                    <button type="button" data-clone-close="issue"
+                      class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">Cancel</button>
+                    <button type="submit"
+                      class="flex-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">Create issue</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div id="clone-todo-modal" class="hidden fixed inset-0 z-40 grid place-items-center p-4">
+              <div class="absolute inset-0 bg-black/40" data-clone-close="todo"></div>
+              <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                <form method="POST" action="/api/todos" class="p-6 space-y-4">
+                  <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-stone-900">Clone as To-Do</h3>
+                    <button type="button" data-clone-close="todo" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
+                  </div>
+                  <input type="hidden" name="_action" value="create" />
+                  <input type="hidden" name="back" value={backNoDetail} />
+                  <div>
+                    <label class="text-sm font-medium text-stone-700">Title</label>
+                    <input type="text" name="title" value={detail.title} required
+                      class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+                  </div>
+                  <div>
+                    <label class="text-sm font-medium text-stone-700">Description</label>
+                    <textarea name="description" rows="4"
+                      class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                      set:html={detail.description ?? ''} />
+                  </div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">Team</label>
+                      <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                        {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">Due date</label>
+                      <input type="date" name="due_date" value={(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })()}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <label class="text-sm font-medium text-stone-700">Assignee</label>
+                    <select name="assignee_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                      <option value="">Unassigned</option>
+                      {employees?.map((e) => <option value={e.id} selected={e.id === detail.owner_employee_id}>{e.full_name}</option>)}
+                    </select>
+                  </div>
+                  <label class="flex items-center gap-2 text-sm text-stone-700">
+                    <input type="checkbox" name="is_urgent" checked={detail.priority === 1} />
+                    Mark as urgent
+                  </label>
+                  <div class="flex gap-2 pt-2">
+                    <button type="button" data-clone-close="todo"
+                      class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">Cancel</button>
+                    <button type="submit"
+                      class="flex-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2.5 text-sm font-medium">Create to-do</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </Fragment>
+        )}
       </aside>
     </div>
   )}
@@ -443,7 +587,7 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
 
       list.addEventListener('dragstart', (e) => {
         const row = (e.target as HTMLElement).closest('[data-id]') as HTMLElement | null;
-        if (!row) return;
+        if (!row || row.dataset.shared) return;
         dragged = row;
         row.style.opacity = '0.4';
         e.dataTransfer!.effectAllowed = 'move';
@@ -460,13 +604,13 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
         e.dataTransfer!.dropEffect = 'move';
         const target = (e.target as HTMLElement).closest('[data-id]') as HTMLElement | null;
         list.querySelectorAll('[data-id]').forEach(el => el.classList.remove('border-t-2', 'border-violet-400'));
-        if (target && target !== dragged) target.classList.add('border-t-2', 'border-violet-400');
+        if (target && target !== dragged && !target.dataset.shared) target.classList.add('border-t-2', 'border-violet-400');
       });
 
       list.addEventListener('drop', (e) => {
         e.preventDefault();
         const target = (e.target as HTMLElement).closest('[data-id]') as HTMLElement | null;
-        if (!target || !dragged || target === dragged) return;
+        if (!target || !dragged || target === dragged || target.dataset.shared) return;
         list.insertBefore(dragged, target);
         dragged.style.opacity = '';
         dragged.style.transition = 'background-color 0.4s ease, transform 0.2s ease';
@@ -480,7 +624,7 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
             setTimeout(() => el.style.transition = '', 400);
           }, 300);
         });
-        const ids = [...list.querySelectorAll('[data-id]')].map(el => el.getAttribute('data-id'));
+        const ids = [...list.querySelectorAll('[data-id]:not([data-shared])')].map(el => el.getAttribute('data-id'));
         fetch('/api/issues', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

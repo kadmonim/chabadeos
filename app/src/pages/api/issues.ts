@@ -71,6 +71,26 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     return redirect(back);
   }
 
+  if (action === 'share_team') {
+    const id = String(form.get('id') ?? '');
+    const share_team_id = String(form.get('share_team_id') ?? '');
+    if (!id || !share_team_id) return new Response('id and share_team_id required', { status: 400 });
+    if (!(await assertIssueTeamAccess(id, locals))) return new Response('Forbidden', { status: 403 });
+    const { error } = await supabase.from('issue_shares').upsert({ issue_id: id, team_id: share_team_id });
+    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    return redirect(back);
+  }
+
+  if (action === 'unshare_team') {
+    const id = String(form.get('id') ?? '');
+    const share_team_id = String(form.get('share_team_id') ?? '');
+    if (!id || !share_team_id) return new Response('id and share_team_id required', { status: 400 });
+    if (!(await assertIssueTeamAccess(id, locals))) return new Response('Forbidden', { status: 403 });
+    const { error } = await supabase.from('issue_shares').delete().eq('issue_id', id).eq('team_id', share_team_id);
+    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    return redirect(back);
+  }
+
   return new Response('unknown action', { status: 400 });
 };
 
