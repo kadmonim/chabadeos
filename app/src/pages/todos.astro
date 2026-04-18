@@ -48,6 +48,8 @@ if (detailId) {
 
 const fmt = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+const todayYmd = new Date().toISOString().slice(0, 10);
+const isOverdue = (d: string | null) => !!d && d <= todayYmd;
 const initials = (name: string) =>
   name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 const back = Astro.url.pathname + Astro.url.search;
@@ -147,7 +149,7 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
               {t.title}
             </a>
             {t.is_urgent && <Flag size={14} class="text-rose-500" />}
-            {t.due_date && <span class="text-xs text-rose-500 font-medium">{fmt(t.due_date)}</span>}
+            {t.due_date && <span class={`text-xs font-medium ${isOverdue(t.due_date) ? 'text-rose-500' : 'text-stone-500'}`}>{fmt(t.due_date)}</span>}
             {t.assignee && (
               <div class="flex items-center gap-1.5 text-xs text-stone-500">
                 <div class="w-6 h-6 rounded-full bg-violet-100 text-violet-700 grid place-items-center text-[10px] font-semibold">
