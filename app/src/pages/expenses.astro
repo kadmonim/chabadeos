@@ -1,6 +1,6 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
-import { Wallet, Calendar, ChevronRight, CreditCard, X } from 'lucide-svelte';
+import { Wallet, Calendar, ChevronRight, CreditCard, X, AlertCircle, CircleHelp, Store, ClipboardList, MessageSquare } from 'lucide-svelte';
 import { supabase } from '~/lib/supabase';
 import { resolveMethodFilter } from '~/lib/expense-method';
 import { canAccessExpenses } from '~/lib/permissions';
@@ -11,7 +11,7 @@ if (!canAccessExpenses(Astro.locals)) {
 
 const methodFilter = resolveMethodFilter(Astro.url, Astro.cookies);
 
-let expQuery = supabase.from('expenses').select('month, amount, method');
+let expQuery = supabase.from('expenses').select('expense_id, month, amount, method, status');
 if (methodFilter) expQuery = expQuery.eq('method', methodFilter);
 const { data: expenses } = await expQuery;
 
@@ -49,6 +49,45 @@ for (const e of (expenses ?? []) as Row[]) {
 }
 const groups = Array.from(groupsByMonth.values()).sort((a, b) => b.month.localeCompare(a.month));
 
+// ────────────────────────────────────────────────────────────────
+// Stats strip: unapproved spend, unreviewed/flagged counts, vendors with open notes.
+// ────────────────────────────────────────────────────────────────
+const allExpenses = (expenses ?? []) as { expense_id: number; amount: string | number; status: string }[];
+const unreviewed = allExpenses.filter((e) => e.status === 'none');
+const flagged = allExpenses.filter((e) => e.status === 'to_review');
+const toMove = allExpenses.filter((e) => e.status === 'to_move');
+const unapproved = [...unreviewed, ...flagged, ...toMove];
+const unapprovedTotal = unapproved.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+// Charges with expense_notes (user wants to see where narrative context lives).
+let chargesWithNotes = 0;
+const expenseIds = allExpenses.map((e) => e.expense_id);
+if (expenseIds.length > 0) {
+  const { data: noteRows } = await supabase
+    .from('expense_notes')
+    .select('expense_id')
+    .in('expense_id', expenseIds);
+  chargesWithNotes = new Set((noteRows ?? []).map((r: any) => r.expense_id)).size;
+}
+
+// Vendor notes: description / latest_update / to_do / review_again set.
+const { data: vendorRows } = await supabase
+  .from('expenses_vendors')
+  .select('vendor_id, description, latest_update, to_do, review_again');
+const today = new Date().toISOString().slice(0, 10);
+const vendorsWithTodo = (vendorRows ?? []).filter((v: any) => (v.to_do ?? '').trim()).length;
+const vendorsDueReview = (vendorRows ?? []).filter((v: any) => v.review_again && v.review_again <= today).length;
+const vendorsWithNotes = (vendorRows ?? []).filter((v: any) =>
+  (v.description ?? '').trim() ||
+  (v.latest_update ?? '').trim() ||
+  (v.to_do ?? '').trim() ||
+  (v.review_again ?? '').trim()
+).length;
+
+const latestMonth = groups[0]?.month ?? null;
+const unapprovedHref = latestMonth ? `/expenses/${latestMonth}?status=none${methodFilter ? `&method=${encodeURIComponent(methodFilter)}` : ''}` : '/expenses';
+const flaggedHref = latestMonth ? `/expenses/${latestMonth}?status=to_review${methodFilter ? `&method=${encodeURIComponent(methodFilter)}` : ''}` : '/expenses';
+
 const fmtMoney = (n: number) =>
   '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 ---
@@ -63,14 +102,75 @@ const fmtMoney = (n: number) =>
         <p class="text-stone-500 text-sm">Monthly spend reports</p>
       </div>
     </div>
-    <a
-      href="/expenses/methods"
-      class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700 hover:bg-stone-50"
-    >
-      <CreditCard size={16} />
-      Methods
-    </a>
+    <div class="flex items-center gap-2">
+      <a
+        href="/expenses/vendors"
+        class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700 hover:bg-stone-50"
+      >
+        <Store size={16} />
+        Vendors
+      </a>
+      <a
+        href="/expenses/methods"
+        class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700 hover:bg-stone-50"
+      >
+        <CreditCard size={16} />
+        Methods
+      </a>
+    </div>
   </header>
+
+  {/* Stats strip */}
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+    <a
+      href={unapprovedHref}
+      class="group bg-white border border-stone-200 rounded-2xl p-4 hover:border-amber-300 hover:shadow-sm transition block"
+    >
+      <div class="flex items-center gap-2 text-xs font-medium text-stone-500 uppercase tracking-wide">
+        <AlertCircle size={14} class="text-amber-500" />
+        Unapproved spend
+      </div>
+      <div class="mt-2 text-2xl font-semibold text-stone-900 tabular-nums">{fmtMoney(unapprovedTotal)}</div>
+      <div class="text-[11px] text-stone-500 mt-0.5">
+        {unapproved.length} charge{unapproved.length === 1 ? '' : 's'} · {unreviewed.length} new · {flagged.length} flagged{toMove.length > 0 ? ` · ${toMove.length} to move` : ''}
+      </div>
+    </a>
+
+    <a
+      href={flaggedHref}
+      class="group bg-white border border-stone-200 rounded-2xl p-4 hover:border-amber-300 hover:shadow-sm transition block"
+    >
+      <div class="flex items-center gap-2 text-xs font-medium text-stone-500 uppercase tracking-wide">
+        <CircleHelp size={14} class="text-amber-500" />
+        Flagged for review
+      </div>
+      <div class="mt-2 text-2xl font-semibold text-stone-900 tabular-nums">{flagged.length}</div>
+      <div class="text-[11px] text-stone-500 mt-0.5">charges marked to re-examine</div>
+    </a>
+
+    <a
+      href="/expenses/vendors"
+      class="group bg-white border border-stone-200 rounded-2xl p-4 hover:border-purple-300 hover:shadow-sm transition block"
+    >
+      <div class="flex items-center gap-2 text-xs font-medium text-stone-500 uppercase tracking-wide">
+        <ClipboardList size={14} class="text-purple-500" />
+        Vendors with notes
+      </div>
+      <div class="mt-2 text-2xl font-semibold text-stone-900 tabular-nums">{vendorsWithNotes}</div>
+      <div class="text-[11px] text-stone-500 mt-0.5">
+        {vendorsWithTodo} with to-do{vendorsDueReview > 0 ? ` · ${vendorsDueReview} due for review` : ''}
+      </div>
+    </a>
+
+    <div class="bg-white border border-stone-200 rounded-2xl p-4">
+      <div class="flex items-center gap-2 text-xs font-medium text-stone-500 uppercase tracking-wide">
+        <MessageSquare size={14} class="text-violet-500" />
+        Charges with notes
+      </div>
+      <div class="mt-2 text-2xl font-semibold text-stone-900 tabular-nums">{chargesWithNotes}</div>
+      <div class="text-[11px] text-stone-500 mt-0.5">charges annotated by Finance</div>
+    </div>
+  </div>
 
   {methodFilter && (
     <div class="mb-6 bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 flex items-center gap-3">
