@@ -2,6 +2,7 @@
 import { Info } from 'lucide-svelte';
 
 type Vendor = {
+  vendor_id?: number;
   description?: string | null;
   frequency?: string | null;
   status?: string | null;
@@ -15,6 +16,7 @@ type Vendor = {
 
 interface Props { vendor: Vendor; name: string; }
 const { vendor, name } = Astro.props;
+const editHref = vendor.vendor_id ? `/expenses/vendors?edit=${vendor.vendor_id}` : '#';
 
 const p = Array.isArray(vendor.person) ? vendor.person[0] : vendor.person;
 const rows: { label: string; value: string }[] = [];
@@ -33,14 +35,14 @@ const hasContent = rows.length > 0;
 ---
 {hasContent && (
   <span class="relative inline-flex items-center group/tip align-middle">
-    <button
-      type="button"
-      aria-label={`About ${name}`}
-      tabindex="0"
+    <a
+      href={editHref}
+      aria-label={`${name} details — open vendor editor`}
+      title={`Open ${name} details`}
       class="ml-1 text-stone-300 hover:text-violet-500 focus:text-violet-500 focus:outline-none"
     >
       <Info size={13} />
-    </button>
+    </a>
     <div
       role="tooltip"
       class="pointer-events-none opacity-0 group-hover/tip:opacity-100 group-focus-within/tip:opacity-100 transition absolute z-30 left-4 top-5 w-72 bg-stone-900 text-stone-100 text-[11px] rounded-lg shadow-xl p-3 leading-relaxed"

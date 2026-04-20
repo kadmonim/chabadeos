@@ -414,7 +414,12 @@ const fmtMonthLabel = (m: string) => {
                       </div>
                     )}
                     {!v.matched && (
-                      <div class="text-[11px] text-amber-600 mt-0.5">unmatched · click to add</div>
+                      <a
+                        href={`/expenses/vendors?new=1&name=${encodeURIComponent(v.canonical)}`}
+                        class="inline-block text-[11px] text-amber-600 hover:text-amber-800 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-600 mt-0.5"
+                      >
+                        unmatched · click to add
+                      </a>
                     )}
                   </div>
                 </td>
@@ -532,7 +537,12 @@ const fmtMonthLabel = (m: string) => {
                     )}
                   </div>
                   {!c.matched && (
-                    <div class="text-[11px] text-amber-600 mt-0.5">unmatched</div>
+                    <a
+                      href={`/expenses/vendors?new=1&name=${encodeURIComponent(c.canonical)}`}
+                      class="inline-block text-[11px] text-amber-600 hover:text-amber-800 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-600 mt-0.5"
+                    >
+                      unmatched · click to add
+                    </a>
                   )}
                 </td>
                 <td class="px-3 py-2.5">
