@@ -39,12 +39,16 @@ const [
     .order('name'),
 ]);
 
-// Per-card: latest month, charge count, total, unreviewed count.
+// Per-card: latest month, charge count, total, unreviewed count across ALL
+// months (so older unreviewed charges don't get forgotten), plus the month
+// we should deep-link to.
 type CardSummary = {
   name: string;
   label: string | null;
   latestMonth: string | null;
+  linkMonth: string | null;
   unreviewed: number;
+  unreviewedLatest: number;
   total: number;
   count: number;
 };
@@ -58,16 +62,24 @@ if (ownedMethods && ownedMethods.length > 0) {
   for (const m of ownedMethods as { name: string; label: string | null }[]) {
     const rows = (myCharges ?? []).filter((c: any) => c.method === m.name);
     if (rows.length === 0) {
-      cardSummaries.push({ name: m.name, label: m.label, latestMonth: null, unreviewed: 0, total: 0, count: 0 });
+      cardSummaries.push({ name: m.name, label: m.label, latestMonth: null, linkMonth: null, unreviewed: 0, unreviewedLatest: 0, total: 0, count: 0 });
       continue;
     }
     const latestMonth = rows.reduce((a: string, c: any) => (c.month > a ? c.month : a), rows[0].month);
     const latestRows = rows.filter((c: any) => c.month === latestMonth);
+    const unreviewedRows = rows.filter((c: any) => c.status === 'none');
+    // If there are unreviewed charges anywhere, deep-link to the most recent
+    // month that has any — otherwise just land on the latest month.
+    const latestUnreviewedMonth = unreviewedRows.length > 0
+      ? unreviewedRows.reduce((a: string, c: any) => (c.month > a ? c.month : a), unreviewedRows[0].month)
+      : latestMonth;
     cardSummaries.push({
       name: m.name,
       label: m.label,
       latestMonth,
-      unreviewed: latestRows.filter((c: any) => c.status === 'none').length,
+      linkMonth: latestUnreviewedMonth,
+      unreviewed: unreviewedRows.length,
+      unreviewedLatest: latestRows.filter((c: any) => c.status === 'none').length,
       total: latestRows.reduce((s: number, c: any) => s + (Number(c.amount) || 0), 0),
       count: latestRows.length,
     });
@@ -131,11 +143,13 @@ const firstName = user.fullName?.split(' ')[0] || 'there';
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         {cardSummaries.map((c) => {
-          const href = c.latestMonth
-            ? `/expenses/${c.latestMonth}?method=${encodeURIComponent(c.name)}`
+          const targetMonth = c.linkMonth ?? c.latestMonth;
+          const href = targetMonth
+            ? `/expenses/${targetMonth}?method=${encodeURIComponent(c.name)}${c.unreviewed > 0 ? '&status=none' : ''}`
             : null;
           const cardClass = 'group bg-white border border-stone-200 rounded-2xl px-5 py-4 flex items-center justify-between transition' +
             (href ? ' hover:border-emerald-300 hover:shadow-sm' : ' opacity-70');
+          const olderCount = c.unreviewed - c.unreviewedLatest;
           const inner = (
             <>
               <div class="flex items-center gap-3 min-w-0">
@@ -160,8 +174,11 @@ const firstName = user.fullName?.split(' ')[0] || 'there';
               </div>
               <div class="flex items-center gap-3 shrink-0">
                 {c.unreviewed > 0 && (
-                  <span class="inline-flex items-center gap-1 text-xs font-medium bg-amber-50 border border-amber-200 text-amber-700 rounded-full px-2.5 py-1">
-                    {c.unreviewed} to review
+                  <span
+                    class="inline-flex items-center gap-1 text-xs font-medium bg-amber-50 border border-amber-200 text-amber-700 rounded-full px-2.5 py-1"
+                    title={olderCount > 0 ? `${c.unreviewedLatest} in ${fmtMonth(c.latestMonth!)} · ${olderCount} in earlier months` : undefined}
+                  >
+                    {c.unreviewed} to review{olderCount > 0 ? ' (incl. older)' : ''}
                   </span>
                 )}
                 {href && <ArrowRight size={16} class="text-stone-300 group-hover:text-emerald-600 transition" />}
