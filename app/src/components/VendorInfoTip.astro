@@ -1,0 +1,59 @@
+---
+import { Info } from 'lucide-svelte';
+
+type Vendor = {
+  description?: string | null;
+  frequency?: string | null;
+  status?: string | null;
+  group_name?: string | null;
+  latest_update?: string | null;
+  to_do?: string | null;
+  review_again?: string | null;
+  tags?: string[] | null;
+  person?: { full_name: string } | { full_name: string }[] | null;
+};
+
+interface Props { vendor: Vendor; name: string; }
+const { vendor, name } = Astro.props;
+
+const p = Array.isArray(vendor.person) ? vendor.person[0] : vendor.person;
+const rows: { label: string; value: string }[] = [];
+if (vendor.description) rows.push({ label: 'Description', value: vendor.description });
+if (vendor.group_name && vendor.group_name !== 'Unknown') rows.push({ label: 'Group', value: vendor.group_name });
+if (p?.full_name) rows.push({ label: 'Owner', value: p.full_name });
+if (vendor.frequency) rows.push({ label: 'Frequency', value: vendor.frequency });
+if (vendor.status) rows.push({ label: 'Status', value: vendor.status });
+if (vendor.tags && vendor.tags.length > 0) rows.push({ label: 'Tags', value: vendor.tags.join(', ') });
+if (vendor.latest_update) rows.push({ label: 'Latest update', value: vendor.latest_update });
+if (vendor.to_do) rows.push({ label: 'To do', value: vendor.to_do });
+if (vendor.review_again) rows.push({ label: 'Review again', value: vendor.review_again });
+
+// Only render the tooltip trigger if we actually have something to show.
+const hasContent = rows.length > 0;
+---
+{hasContent && (
+  <span class="relative inline-flex items-center group/tip align-middle">
+    <button
+      type="button"
+      aria-label={`About ${name}`}
+      tabindex="0"
+      class="ml-1 text-stone-300 hover:text-violet-500 focus:text-violet-500 focus:outline-none"
+    >
+      <Info size={13} />
+    </button>
+    <div
+      role="tooltip"
+      class="pointer-events-none opacity-0 group-hover/tip:opacity-100 group-focus-within/tip:opacity-100 transition absolute z-30 left-4 top-5 w-72 bg-stone-900 text-stone-100 text-[11px] rounded-lg shadow-xl p-3 leading-relaxed"
+    >
+      <div class="font-semibold text-white mb-1.5">{name}</div>
+      <dl class="space-y-1">
+        {rows.map((r) => (
+          <div>
+            <dt class="text-stone-400 uppercase tracking-wide text-[9px]">{r.label}</dt>
+            <dd class="text-stone-100 whitespace-pre-wrap break-words">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  </span>
+)}

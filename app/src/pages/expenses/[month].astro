@@ -2,7 +2,8 @@
 import AppLayout from '~/layouts/AppLayout.astro';
 import ExpenseStatusPicker from '~/components/ExpenseStatusPicker.svelte';
 import ExpenseNotes from '~/components/ExpenseNotes.svelte';
-import { Wallet, ArrowLeft, Calendar, TrendingUp, CreditCard, X, Check, CircleHelp, Circle, ArrowRightLeft, ChevronLeft, ChevronRight } from 'lucide-svelte';
+import VendorInfoTip from '~/components/VendorInfoTip.astro';
+import { Wallet, ArrowLeft, Calendar, TrendingUp, CreditCard, X, Check, CircleHelp, Circle, ArrowRightLeft, ChevronLeft, ChevronRight, Info } from 'lucide-svelte';
 import { supabase } from '~/lib/supabase';
 import { resolveMethodFilter } from '~/lib/expense-method';
 import { canAccessExpenses, getOwnedMethods } from '~/lib/permissions';
@@ -57,7 +58,7 @@ const [{ data: expenses }, { data: vendors }, { data: methods }] = await Promise
   expQuery,
   supabase
     .from('expenses_vendors')
-    .select('vendor_id, name, person_employee_id, description, frequency, status, group_name, aliases, report_matches, person:employees!expenses_vendors_person_employee_id_fkey(id, full_name)'),
+    .select('vendor_id, name, person_employee_id, description, frequency, status, group_name, latest_update, to_do, review_again, tags, aliases, report_matches, person:employees!expenses_vendors_person_employee_id_fkey(id, full_name)'),
   supabase
     .from('expense_methods')
     .select('name, label, notes, employee:employees(id, full_name)'),
@@ -125,6 +126,10 @@ type Vendor = {
   frequency: string | null;
   status: string | null;
   group_name: string | null;
+  latest_update: string | null;
+  to_do: string | null;
+  review_again: string | null;
+  tags: string[] | null;
   aliases: string[] | null;
   report_matches: string[] | null;
 };
@@ -398,6 +403,7 @@ const fmtMonthLabel = (m: string) => {
                     >
                       {v.canonical}
                     </a>
+                    {v.matched && <VendorInfoTip vendor={v.matched} name={v.canonical} />}
                     {v.matched && (
                       <div class="flex items-center gap-2 text-[11px] text-stone-500 mt-0.5">
                         {v.matched.group_name && v.matched.group_name !== 'Unknown' && (
@@ -518,8 +524,9 @@ const fmtMonthLabel = (m: string) => {
               <tr class="border-t border-stone-100 hover:bg-stone-50/60">
                 <td class="px-5 py-2.5 text-stone-500 whitespace-nowrap">{fmtDate(c.date)}</td>
                 <td class="px-3 py-2.5">
-                  <div class="font-medium text-stone-900">
-                    {c.canonical}
+                  <div class="font-medium text-stone-900 flex items-center flex-wrap">
+                    <span>{c.canonical}</span>
+                    {c.matched && <VendorInfoTip vendor={c.matched} name={c.canonical} />}
                     {c.matched && c.matched.name.toLowerCase() !== c.vendor.toLowerCase() && (
                       <span class="ml-1.5 text-xs font-normal text-stone-400">(raw: {c.vendor})</span>
                     )}
