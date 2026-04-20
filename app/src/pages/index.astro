@@ -47,11 +47,15 @@ type CardSummary = {
   label: string | null;
   latestMonth: string | null;
   linkMonth: string | null;
+  linkStatus: 'none' | 'to_review' | null;
   unreviewed: number;
   unreviewedLatest: number;
   total: number;
   count: number;
 };
+// "Needs attention" = anything the reviewer hasn't settled yet: 'none'
+// (untouched) or 'to_review' (flagged for further investigation).
+const NEEDS_REVIEW = new Set(['none', 'to_review']);
 const cardSummaries: CardSummary[] = [];
 if (ownedMethods && ownedMethods.length > 0) {
   const methodNames = ownedMethods.map((m: any) => m.name);
@@ -62,24 +66,33 @@ if (ownedMethods && ownedMethods.length > 0) {
   for (const m of ownedMethods as { name: string; label: string | null }[]) {
     const rows = (myCharges ?? []).filter((c: any) => c.method === m.name);
     if (rows.length === 0) {
-      cardSummaries.push({ name: m.name, label: m.label, latestMonth: null, linkMonth: null, unreviewed: 0, unreviewedLatest: 0, total: 0, count: 0 });
+      cardSummaries.push({ name: m.name, label: m.label, latestMonth: null, linkMonth: null, linkStatus: null, unreviewed: 0, unreviewedLatest: 0, total: 0, count: 0 });
       continue;
     }
     const latestMonth = rows.reduce((a: string, c: any) => (c.month > a ? c.month : a), rows[0].month);
     const latestRows = rows.filter((c: any) => c.month === latestMonth);
-    const unreviewedRows = rows.filter((c: any) => c.status === 'none');
-    // If there are unreviewed charges anywhere, deep-link to the most recent
-    // month that has any — otherwise just land on the latest month.
-    const latestUnreviewedMonth = unreviewedRows.length > 0
-      ? unreviewedRows.reduce((a: string, c: any) => (c.month > a ? c.month : a), unreviewedRows[0].month)
-      : latestMonth;
+    const pending = rows.filter((c: any) => NEEDS_REVIEW.has(c.status));
+    // Deep-link to the most recent month that has anything pending. If only
+    // one status kind exists there, pre-filter the page to it; if both, no
+    // status filter so the user can see them stacked.
+    let linkMonth = latestMonth;
+    let linkStatus: 'none' | 'to_review' | null = null;
+    if (pending.length > 0) {
+      linkMonth = pending.reduce((a: string, c: any) => (c.month > a ? c.month : a), pending[0].month);
+      const atLink = pending.filter((c: any) => c.month === linkMonth);
+      const hasNone = atLink.some((c: any) => c.status === 'none');
+      const hasReview = atLink.some((c: any) => c.status === 'to_review');
+      if (hasNone && !hasReview) linkStatus = 'none';
+      else if (hasReview && !hasNone) linkStatus = 'to_review';
+    }
     cardSummaries.push({
       name: m.name,
       label: m.label,
       latestMonth,
-      linkMonth: latestUnreviewedMonth,
-      unreviewed: unreviewedRows.length,
-      unreviewedLatest: latestRows.filter((c: any) => c.status === 'none').length,
+      linkMonth,
+      linkStatus,
+      unreviewed: pending.length,
+      unreviewedLatest: latestRows.filter((c: any) => NEEDS_REVIEW.has(c.status)).length,
       total: latestRows.reduce((s: number, c: any) => s + (Number(c.amount) || 0), 0),
       count: latestRows.length,
     });
@@ -145,7 +158,7 @@ const firstName = user.fullName?.split(' ')[0] || 'there';
         {cardSummaries.map((c) => {
           const targetMonth = c.linkMonth ?? c.latestMonth;
           const href = targetMonth
-            ? `/expenses/${targetMonth}?method=${encodeURIComponent(c.name)}${c.unreviewed > 0 ? '&status=none' : ''}`
+            ? `/expenses/${targetMonth}?method=${encodeURIComponent(c.name)}${c.linkStatus ? `&status=${c.linkStatus}` : ''}`
             : null;
           const cardClass = 'group bg-white border border-stone-200 rounded-2xl px-5 py-4 flex items-center justify-between transition' +
             (href ? ' hover:border-emerald-300 hover:shadow-sm' : ' opacity-70');
