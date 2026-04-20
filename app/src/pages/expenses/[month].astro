@@ -2,7 +2,7 @@
 import AppLayout from '~/layouts/AppLayout.astro';
 import ExpenseStatusPicker from '~/components/ExpenseStatusPicker.svelte';
 import ExpenseNotes from '~/components/ExpenseNotes.svelte';
-import { Wallet, ArrowLeft, Calendar, TrendingUp, CreditCard, X, Check, CircleHelp, Circle, ArrowRightLeft } from 'lucide-svelte';
+import { Wallet, ArrowLeft, Calendar, TrendingUp, CreditCard, X, Check, CircleHelp, Circle, ArrowRightLeft, ChevronLeft, ChevronRight } from 'lucide-svelte';
 import { supabase } from '~/lib/supabase';
 import { resolveMethodFilter } from '~/lib/expense-method';
 import { canAccessExpenses, getOwnedMethods } from '~/lib/permissions';
@@ -66,6 +66,23 @@ const [{ data: expenses }, { data: vendors }, { data: methods }] = await Promise
 if (!expenses) {
   return new Response(`No expenses for ${month}`, { status: 404 });
 }
+
+// Prev/next month navigation scoped to the current method filter (if any) so
+// you only jump between months that actually have data for the card you're on.
+let monthsQuery = supabase.from('expenses').select('month');
+if (methodFilter) monthsQuery = monthsQuery.eq('method', methodFilter);
+const { data: allMonthRows } = await monthsQuery;
+const distinctMonths = Array.from(new Set((allMonthRows ?? []).map((r: any) => r.month as string))).sort();
+const currentIdx = distinctMonths.indexOf(month);
+const prevMonth = currentIdx > 0 ? distinctMonths[currentIdx - 1] : null;
+const nextMonth = currentIdx >= 0 && currentIdx < distinctMonths.length - 1 ? distinctMonths[currentIdx + 1] : null;
+const monthQueryString = (() => {
+  const p = new URLSearchParams();
+  if (methodFilter) p.set('method', methodFilter);
+  if (statusFilter !== 'all') p.set('status', statusFilter);
+  const s = p.toString();
+  return s ? '?' + s : '';
+})();
 
 // Note counts per expense_id for the charges showing in this view.
 const noteCounts = new Map<number, number>();
@@ -225,6 +242,12 @@ const fmtMoney = (n: number) =>
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 const pct = (n: number) => ((n / total) * 100).toFixed(1) + '%';
+const fmtMonthLabel = (m: string) => {
+  const [y, mo] = m.split('-').map(Number);
+  return new Date(Date.UTC(y, (mo ?? 1) - 1, 1)).toLocaleDateString('en-US', {
+    month: 'short', year: 'numeric', timeZone: 'UTC',
+  });
+};
 ---
 <AppLayout title={`${label} Expenses · GYE EOS`}>
   <a href={isFinance ? '/expenses' : '/'} class="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-900 mb-6">
@@ -237,7 +260,31 @@ const pct = (n: number) => ((n / total) * 100).toFixed(1) + '%';
         <Wallet class="text-emerald-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">{label}</h1>
+        <div class="flex items-center gap-2">
+          {prevMonth ? (
+            <a
+              href={`/expenses/${prevMonth}${monthQueryString}`}
+              title={`← ${fmtMonthLabel(prevMonth)}`}
+              class="w-7 h-7 grid place-items-center rounded-lg text-stone-400 hover:text-stone-800 hover:bg-stone-100"
+            >
+              <ChevronLeft size={18} />
+            </a>
+          ) : (
+            <span class="w-7 h-7 grid place-items-center text-stone-200"><ChevronLeft size={18} /></span>
+          )}
+          <h1 class="text-2xl font-semibold text-stone-900">{label}</h1>
+          {nextMonth ? (
+            <a
+              href={`/expenses/${nextMonth}${monthQueryString}`}
+              title={`${fmtMonthLabel(nextMonth)} →`}
+              class="w-7 h-7 grid place-items-center rounded-lg text-stone-400 hover:text-stone-800 hover:bg-stone-100"
+            >
+              <ChevronRight size={18} />
+            </a>
+          ) : (
+            <span class="w-7 h-7 grid place-items-center text-stone-200"><ChevronRight size={18} /></span>
+          )}
+        </div>
         <p class="text-stone-500 text-sm">{count} charges{methodFilter ? ' · filtered' : ''}</p>
       </div>
     </div>
