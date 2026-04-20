@@ -80,6 +80,13 @@ if (expenseIds.length > 0) {
   }
 }
 
+// Lightweight charge info lookup so the group-mode notes modal can label each
+// note with the charge it's attached to (date + amount).
+const chargeInfo: Record<number, { date: string; amount: number }> = {};
+for (const e of expenses as any[]) {
+  chargeInfo[e.expense_id] = { date: e.date, amount: Number(e.amount) || 0 };
+}
+
 const currentEmployeeId = Astro.locals.user?.employeeId ?? '';
 
 type Expense = {
@@ -323,12 +330,14 @@ const pct = (n: number) => ((n / total) * 100).toFixed(1) + '%';
             <th class="text-right font-medium px-3 py-2 w-12">#</th>
             <th class="text-right font-medium px-3 py-2 w-16">%</th>
             <th class="text-right font-medium px-3 py-2 w-28">Total</th>
+            <th class="text-center font-medium px-2 py-2 w-12">Notes</th>
             <th class="text-right font-medium px-5 py-2 w-40">Status</th>
           </tr>
         </thead>
         <tbody>
           {vendorRollup.map((v) => {
             const barPct = Math.max(1, (v.total / vendorRollup[0].total) * 100);
+            const vendorNoteCount = v.ids.reduce((s, id) => s + (noteCounts.get(id) ?? 0), 0);
             return (
               <tr class="border-t border-stone-100 hover:bg-stone-50/60">
                 <td class="px-5 py-2.5 relative">
@@ -360,6 +369,18 @@ const pct = (n: number) => ((n / total) * 100).toFixed(1) + '%';
                 <td class="px-3 py-2.5 text-right text-stone-500 tabular-nums relative">{pct(v.total)}</td>
                 <td class="px-3 py-2.5 text-right font-medium text-stone-900 tabular-nums relative">
                   {fmtMoney(v.total)}
+                </td>
+                <td class="px-2 py-2.5 text-center relative">
+                  {vendorNoteCount > 0 && (
+                    <ExpenseNotes
+                      client:load
+                      expenseIds={v.ids}
+                      initialCount={vendorNoteCount}
+                      currentEmployeeId={currentEmployeeId}
+                      title={`Notes · ${v.canonical}`}
+                      chargeInfo={chargeInfo}
+                    />
+                  )}
                 </td>
                 <td class="px-5 py-2.5 text-right relative">
                   <ExpenseStatusPicker

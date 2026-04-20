@@ -11,11 +11,18 @@
     updated_at: string;
   };
 
-  let { expenseId, initialCount = 0, currentEmployeeId } = $props<{
-    expenseId: number;
+  type ChargeInfo = { date: string; amount: number | string; vendor?: string };
+
+  let { expenseId, expenseIds, initialCount = 0, currentEmployeeId, title, chargeInfo } = $props<{
+    expenseId?: number;
+    expenseIds?: number[];
     initialCount?: number;
     currentEmployeeId: string;
+    title?: string;
+    chargeInfo?: Record<number, ChargeInfo>;
   }>();
+
+  const isGroup = $derived(Array.isArray(expenseIds) && expenseIds.length > 0);
 
   let count = $state<number>(initialCount);
   let open = $state(false);
@@ -29,7 +36,10 @@
 
   async function load() {
     loading = true;
-    const res = await fetch(`/api/expense-notes?expense_id=${expenseId}`);
+    const url = isGroup
+      ? `/api/expense-notes?expense_ids=${(expenseIds as number[]).join(',')}`
+      : `/api/expense-notes?expense_id=${expenseId}`;
+    const res = await fetch(url);
     if (res.ok) {
       const json = await res.json();
       notes = json.notes ?? [];
@@ -105,6 +115,15 @@
       ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   }
 
+  function fmtChargeLabel(eid: number): string | null {
+    const info = chargeInfo?.[eid];
+    if (!info) return null;
+    const d = new Date(info.date);
+    const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const amt = '$' + Number(info.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${date} · ${amt}`;
+  }
+
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') closePanel();
   }
@@ -144,7 +163,7 @@
       <div class="flex items-center gap-2 px-5 py-3 border-b border-stone-100">
         <MessageSquare size={16} class="text-stone-400" />
         <h3 class="text-sm font-semibold text-stone-800">
-          Notes
+          {title ?? 'Notes'}
           <span class="text-stone-400 font-normal">· {count}</span>
         </h3>
         <button
@@ -161,10 +180,18 @@
         {#if loading && !loaded}
           <div class="text-sm text-stone-400">Loading…</div>
         {:else if notes.length === 0}
-          <div class="text-sm text-stone-400">No notes yet. Add the first one below.</div>
+          <div class="text-sm text-stone-400">
+            {isGroup ? 'No notes on any charge for this vendor yet.' : 'No notes yet. Add the first one below.'}
+          </div>
         {:else}
           {#each notes as n (n.id)}
+            {@const chargeLabel = isGroup ? fmtChargeLabel(n.expense_id) : null}
             <div class="border border-stone-200 rounded-xl p-3 bg-stone-50/60">
+              {#if chargeLabel}
+                <div class="text-[11px] font-medium text-violet-700 bg-violet-50 inline-flex items-center rounded-full px-2 py-0.5 mb-1.5">
+                  {chargeLabel}
+                </div>
+              {/if}
               <div class="flex items-center gap-2 text-[11px] text-stone-500 mb-1.5">
                 <span class="font-medium text-stone-700">{n.author_name ?? 'Unknown'}</span>
                 <span>·</span>
@@ -219,21 +246,27 @@
         {/if}
       </div>
 
-      <form onsubmit={submit} class="border-t border-stone-100 px-5 py-3">
-        <textarea
-          bind:value={draft}
-          rows="2"
-          placeholder="Add a note about this charge…"
-          class="w-full text-sm border border-stone-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200"
-        ></textarea>
-        <div class="mt-2 flex items-center justify-end gap-2">
-          <button
-            type="submit"
-            disabled={!draft.trim() || submitting}
-            class="text-xs font-medium bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >{submitting ? 'Saving…' : 'Add note'}</button>
+      {#if isGroup}
+        <div class="border-t border-stone-100 px-5 py-3 text-[11px] text-stone-500">
+          To add a new note, open a specific charge in the table below.
         </div>
-      </form>
+      {:else}
+        <form onsubmit={submit} class="border-t border-stone-100 px-5 py-3">
+          <textarea
+            bind:value={draft}
+            rows="2"
+            placeholder="Add a note about this charge…"
+            class="w-full text-sm border border-stone-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200"
+          ></textarea>
+          <div class="mt-2 flex items-center justify-end gap-2">
+            <button
+              type="submit"
+              disabled={!draft.trim() || submitting}
+              class="text-xs font-medium bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >{submitting ? 'Saving…' : 'Add note'}</button>
+          </div>
+        </form>
+      {/if}
     </div>
   </div>
 {/if}

@@ -26,15 +26,24 @@ function shapeNote(n: NoteRow) {
 }
 
 // GET /api/expense-notes?expense_id=123
+//     /api/expense-notes?expense_ids=1,2,3   (comma-separated, for vendor rollups)
 export const GET: APIRoute = async ({ url, locals }) => {
-  const expenseId = Number(url.searchParams.get('expense_id'));
-  if (!Number.isInteger(expenseId)) return new Response('expense_id required', { status: 400 });
-  if (!(await canMutateExpenses(locals, [expenseId]))) return new Response('Forbidden', { status: 403 });
+  const singleRaw = url.searchParams.get('expense_id');
+  const multiRaw = url.searchParams.get('expense_ids');
+  let ids: number[] = [];
+  if (multiRaw) {
+    ids = multiRaw.split(',').map((v) => Number(v.trim())).filter((v) => Number.isInteger(v));
+  } else if (singleRaw != null) {
+    const n = Number(singleRaw);
+    if (Number.isInteger(n)) ids = [n];
+  }
+  if (ids.length === 0) return new Response('expense_id or expense_ids required', { status: 400 });
+  if (!(await canMutateExpenses(locals, ids))) return new Response('Forbidden', { status: 403 });
 
   const { data, error } = await supabase
     .from('expense_notes')
     .select('id, expense_id, author_employee_id, body, created_at, updated_at, author:employees!expense_notes_author_employee_id_fkey(id, full_name)')
-    .eq('expense_id', expenseId)
+    .in('expense_id', ids)
     .order('created_at', { ascending: true });
   if (error) return new Response(error.message, { status: 500 });
 
