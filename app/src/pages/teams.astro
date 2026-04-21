@@ -2,26 +2,31 @@
 import AppLayout from '~/layouts/AppLayout.astro';
 import { Users, Crown, Plus, Pencil, X, Trash2, UserPlus } from 'lucide-svelte';
 import { supabase } from '~/lib/supabase';
+import { isSystemAdmin } from '~/lib/permissions';
 
 const url = Astro.url;
 const creating = url.searchParams.get('new') === '1';
 const editId = url.searchParams.get('edit');
 
+const adminView = isSystemAdmin(Astro.locals.user?.email);
 const allowedIds = Astro.locals.allowedTeams.map((t) => t.id);
 
-const { data: teams } = allowedIds.length
-  ? await supabase
-      .from('teams')
-      .select(`
-        id, name, description,
-        memberships:team_memberships(
-          id, role, role_description, display_order,
-          employee:employees(id, full_name, email)
-        )
-      `)
-      .in('id', allowedIds)
-      .order('name')
-  : { data: [] };
+const teamsQuery = supabase
+  .from('teams')
+  .select(`
+    id, name, description,
+    memberships:team_memberships(
+      id, role, role_description, display_order,
+      employee:employees(id, full_name, email)
+    )
+  `)
+  .order('name');
+
+const { data: teams } = adminView
+  ? await teamsQuery
+  : allowedIds.length
+    ? await teamsQuery.in('id', allowedIds)
+    : { data: [] };
 
 const { data: allEmployees } = await supabase
   .from('employees')
@@ -51,7 +56,7 @@ const editBack = editing ? `/teams?edit=${editing.id}` : back;
       </div>
       <div>
         <h1 class="text-2xl font-semibold text-stone-900">Teams</h1>
-        <p class="text-stone-500 text-sm">All teams you're a member of</p>
+        <p class="text-stone-500 text-sm">{adminView ? 'All teams (admin view)' : "All teams you're a member of"}</p>
       </div>
     </div>
     <a

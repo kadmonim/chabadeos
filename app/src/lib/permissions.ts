@@ -11,6 +11,18 @@ export function canEditVto(email: string | undefined | null): boolean {
   return VTO_EDITOR_EMAILS.has(email.toLowerCase());
 }
 
+// System admins can manage membership on any team, regardless of whether
+// they're a member. Scoping for issues/todos/rocks/etc. still goes through
+// allowedTeams — this only affects team-management surfaces.
+export const SYSTEM_ADMIN_EMAILS = new Set<string>([
+  'mendy@guardyoureyes.org',
+]);
+
+export function isSystemAdmin(email: string | undefined | null): boolean {
+  if (!email) return false;
+  return SYSTEM_ADMIN_EMAILS.has(email.toLowerCase());
+}
+
 // Access to all /expenses routes (pages + API) is gated to members of the
 // "Finance" team. Membership is the single source of truth — add/remove people
 // via /teams to change who can review spend.

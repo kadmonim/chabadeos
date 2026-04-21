@@ -4,6 +4,7 @@
 
 import type { AstroCookies } from 'astro';
 import { supabase } from './supabase';
+import { isSystemAdmin } from './permissions';
 
 const COOKIE = 'gye_team';
 
@@ -38,5 +39,6 @@ export function setCurrentTeam(cookies: AstroCookies, teamId: string) {
 
 export function canAccessTeam(locals: App.Locals, teamId: string | null | undefined): boolean {
   if (!teamId) return true; // null team_id = no team scoping
+  if (isSystemAdmin(locals.user?.email)) return true;
   return locals.allowedTeams.some((t) => t.id === teamId);
 }
