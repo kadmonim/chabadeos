@@ -69,12 +69,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 // ============================================================
 // POST /api/v1/issues — create a new issue
 // body: { title (required), description?, owner_email?, team_id? or team_name?,
-//         term_type? ('short_term' | 'long_term', default 'short_term'),
+//         term_type? ('short_term' | 'long_term' | 'idea_backlog', default 'short_term'),
 //         type? ('problem'|'idea'|'question'|'brainstorm'|'update'),
 //         priority? (1-5) }
 // ============================================================
 const ALLOWED_ISSUE_TYPES = new Set(['problem', 'idea', 'question', 'brainstorm', 'update']);
-const ALLOWED_TERMS = new Set(['short_term', 'long_term']);
+const ALLOWED_TERMS = new Set(['short_term', 'long_term', 'idea_backlog']);
 
 export const POST: APIRoute = async ({ request }) => {
   const unauth = requireApiKey(request);
