@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 
 // Who can edit the V/TO. Keep this short and explicit — if it grows, move to a DB flag.
 export const VTO_EDITOR_EMAILS = new Set<string>([
-  'mendy@guardyoureyes.org',
+  'mendye@gmail.com',
 ]);
 
 export function canEditVto(email: string | undefined | null): boolean {
@@ -14,7 +14,7 @@ export function canEditVto(email: string | undefined | null): boolean {
 // they're a member. Scoping for issues/todos/rocks/etc. still goes through
 // allowedTeams — this only affects team-management surfaces.
 export const SYSTEM_ADMIN_EMAILS = new Set<string>([
-  'mendy@guardyoureyes.org',
+  'mendye@gmail.com',
 ]);
 
 export function isSystemAdmin(email: string | undefined | null): boolean {
