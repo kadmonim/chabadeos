@@ -1,4 +1,4 @@
-# GYE EOS
+# Chabad Central
 
 ## Database
 - This project uses **Supabase** (NOT Neon). Do NOT use Neon MCP tools.

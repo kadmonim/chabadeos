@@ -6,6 +6,6 @@ import { supabase } from '~/lib/supabase';
 const { data: catRows } = await supabase.from('posts').select('category');
 const categories = Array.from(new Set((catRows ?? []).map((c) => c.category).filter(Boolean))).sort() as string[];
 ---
-<AppLayout title="New post · GYE EOS">
+<AppLayout title="New post · Chabad Central">
   <PostEditor mode="new" categories={categories} />
 </AppLayout>

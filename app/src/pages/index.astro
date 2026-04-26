@@ -1,6 +1,6 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
-import { Target, AlertCircle, ListTodo, Users, ArrowRight, Megaphone, Calendar, Plane, MapPin, CreditCard } from 'lucide-svelte';
+import { Target, AlertCircle, ListTodo, Users, ArrowRight, Megaphone, Calendar, CreditCard } from 'lucide-svelte';
 import { supabase } from '~/lib/supabase';
 const team = Astro.locals.currentTeam;
 const teamFilter = (q: any) => (team ? q.eq('team_id', team.id) : q);
@@ -14,7 +14,6 @@ const [
   { count: openIssues },
   { count: employeesCount },
   { data: posts },
-  { data: upcomingTrips },
   { data: ownedMethods },
 ] = await Promise.all([
   supabase.from('rocks').select('*', { count: 'exact', head: true }).eq('is_archived', false),
@@ -26,12 +25,6 @@ const [
     .select('id, kind, slug, headline, summary, category, date, image_url, screenshot_url, from_username, source, video_url')
     .order('date', { ascending: false, nullsFirst: false })
     .limit(10),
-  supabase
-    .from('trips')
-    .select('id, city, start_date, end_date, people')
-    .or(`start_date.gte.${today},end_date.gte.${today}`)
-    .order('start_date', { ascending: true, nullsFirst: false })
-    .limit(5),
   supabase
     .from('expense_methods')
     .select('name, label')
@@ -107,7 +100,7 @@ const stats = [
 const user = Astro.locals.user!;
 const firstName = user.fullName?.split(' ')[0] || 'there';
 ---
-<AppLayout title="Home · GYE EOS">
+<AppLayout title="Home · Chabad Central">
   <header class="mb-8">
     <h1 class="text-3xl font-semibold text-stone-900">Welcome back, {firstName}.</h1>
     <p class="text-stone-500 mt-1">
@@ -226,46 +219,6 @@ const firstName = user.fullName?.split(' ')[0] || 'there';
               </div>
             )}
           </div>
-        ))}
-      </div>
-    </section>
-  )}
-
-  {upcomingTrips && upcomingTrips.length > 0 && (
-    <section class="mb-10">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-2">
-          <Plane size={18} class="text-sky-600" />
-          <h2 class="text-lg font-semibold text-stone-900">Upcoming Trips</h2>
-        </div>
-        <a href="/trips" class="text-sm font-medium text-sky-600 hover:text-sky-700">All trips →</a>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {upcomingTrips.map((t: any) => (
-          <a
-            href="/trips"
-            class="bg-white border border-stone-200 rounded-2xl p-4 hover:border-sky-300 hover:shadow-sm transition block"
-          >
-            <div class="flex items-center gap-2 text-stone-900 font-semibold">
-              <MapPin size={15} class="text-sky-600" /> {t.city}
-            </div>
-            {(t.start_date || t.end_date) && (
-              <div class="flex items-center gap-1.5 text-sm text-stone-500 mt-1">
-                <Calendar size={13} />
-                {fmtDate(t.start_date)}{t.end_date && ` → ${fmtDate(t.end_date)}`}
-              </div>
-            )}
-            {t.people && t.people.length > 0 && (
-              <div class="flex flex-wrap gap-1.5 mt-3">
-                {t.people.slice(0, 4).map((p: string) => (
-                  <span class="text-xs bg-stone-50 border border-stone-200 rounded-full px-2 py-0.5 text-stone-700">{p}</span>
-                ))}
-                {t.people.length > 4 && (
-                  <span class="text-xs text-stone-400 px-1">+{t.people.length - 4}</span>
-                )}
-              </div>
-            )}
-          </a>
         ))}
       </div>
     </section>

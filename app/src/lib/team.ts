@@ -6,7 +6,7 @@ import type { AstroCookies } from 'astro';
 import { supabase } from './supabase';
 import { isSystemAdmin } from './permissions';
 
-const COOKIE = 'gye_team';
+const COOKIE = 'chabad_team';
 
 export type Team = { id: string; name: string; description: string | null };
 

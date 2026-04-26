@@ -2,7 +2,7 @@
 
 Focused guide for reading and writing **issues** and **todos** scoped to the **Support** team via the machine API. For the full endpoint catalog see [`api.md`](./api.md).
 
-**Base URL:** `https://eos.gye.org/api/v1`
+**Base URL:** `https://your-host/api/v1`
 
 ## 1. Auth
 
@@ -15,7 +15,7 @@ Authorization: Bearer $EOS_API_KEY
 Tokens come from the server's `API_KEYS` env var (comma-separated list). Ask an admin for a token; do not commit it. A convenient local setup:
 
 ```bash
-export EOS_API_URL="https://eos.gye.org/api/v1"
+export EOS_API_URL="https://your-host/api/v1"
 export EOS_API_KEY="…"   # supplied out-of-band
 ```
 
@@ -76,7 +76,7 @@ Response shape:
       "created_at": "2026-04-18T09:12:00Z",
       "updated_at": "2026-04-20T14:10:00Z",
       "team": { "id": "…", "name": "Support" },
-      "owner": { "id": "…", "name": "Alice Doe", "email": "alice@gye.org" }
+      "owner": { "id": "…", "name": "Alice Doe", "email": "alice@example.com" }
     }
   ]
 }
@@ -93,7 +93,7 @@ curl -s -X POST "$EOS_API_URL/issues" \
   -d '{
     "title": "User reports 500 on password reset",
     "description": "Reproducible from Safari 17. Ticket #4821.",
-    "owner_email": "alice@gye.org",
+    "owner_email": "alice@example.com",
     "team_name": "Support",
     "term_type": "short_term",
     "type": "problem",
@@ -168,7 +168,7 @@ Response shape:
       "created_at": "2026-04-21T12:00:00Z",
       "updated_at": "2026-04-21T12:00:00Z",
       "team": { "id": "…", "name": "Support" },
-      "assignee": { "id": "…", "name": "Bob Roe", "email": "bob@gye.org" }
+      "assignee": { "id": "…", "name": "Bob Roe", "email": "bob@example.com" }
     }
   ]
 }
@@ -184,7 +184,7 @@ curl -s -X POST "$EOS_API_URL/todos" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Draft macro for common auth reset reply",
-    "assignee_email": "bob@gye.org",
+    "assignee_email": "bob@example.com",
     "team_name": "Support",
     "due_date": "2026-04-30",
     "is_urgent": false
@@ -217,7 +217,7 @@ curl -s -X PATCH "$EOS_API_URL/todos" \
 curl -s -X PATCH "$EOS_API_URL/todos" \
   -H "Authorization: Bearer $EOS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"id":"<todo-id>","due_date":"2026-05-05","assignee_email":"carol@gye.org"}'
+  -d '{"id":"<todo-id>","due_date":"2026-05-05","assignee_email":"carol@example.com"}'
 
 # Unassign (pass empty string or null)
 curl -s -X PATCH "$EOS_API_URL/todos" \
@@ -264,7 +264,7 @@ ISSUE_ID=$(curl -s -X POST "$EOS_API_URL/issues" \
 curl -s -X POST "$EOS_API_URL/todos" \
   -H "Authorization: Bearer $EOS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d "{\"title\":\"Triage Acme SSO outage (issue $ISSUE_ID)\",\"team_id\":\"$SUPPORT_TEAM_ID\",\"assignee_email\":\"bob@gye.org\",\"is_urgent\":true,\"due_date\":\"$(date -I -d '+1 day')\"}"
+  -d "{\"title\":\"Triage Acme SSO outage (issue $ISSUE_ID)\",\"team_id\":\"$SUPPORT_TEAM_ID\",\"assignee_email\":\"bob@example.com\",\"is_urgent\":true,\"due_date\":\"$(date -I -d '+1 day')\"}"
 ```
 
 When the work is done:

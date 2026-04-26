@@ -86,7 +86,7 @@ const statusLabel = { on_track: 'On Track', off_track: 'Off Track', done: 'Done'
 
 const back = '/rocks';
 ---
-<AppLayout title="Rocks · GYE EOS">
+<AppLayout title="Rocks · Chabad Central">
   <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
@@ -169,7 +169,7 @@ const back = '/rocks';
        ============================================================ -->
   <section>
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold text-stone-900">GYE Rocks</h2>
+      <h2 class="text-lg font-semibold text-stone-900">Rocks</h2>
       <form method="GET" class="flex gap-2">
         {sortMilestones !== 'priority' && <input type="hidden" name="sort_milestones" value={sortMilestones} />}
         <select name="sort_rocks" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-sm">

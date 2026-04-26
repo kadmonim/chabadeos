@@ -14,7 +14,7 @@ else q = q.eq('team_id', '__none__'); // force empty result
 if (search) q = q.ilike('name', `%${search}%`);
 const { data: processes } = await q;
 ---
-<AppLayout title="Processes · GYE EOS">
+<AppLayout title="Processes · Chabad Central">
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-indigo-100 grid place-items-center">

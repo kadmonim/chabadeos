@@ -1,12 +1,12 @@
 {
-  "name": "gye-eos-app",
+  "name": "chabad-central-app",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev --port 6133 --host",
+    "dev": "astro dev --port 7703 --host",
     "build": "astro build",
-    "preview": "astro preview --port 6133",
+    "preview": "astro preview --port 7703",
     "astro": "astro",
     "typecheck": "astro check"
   },

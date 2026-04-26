@@ -1,4 +1,4 @@
--- GYE EOS schema v1
+-- Chabad Central schema v1
 -- Base44 IDs (24-char hex) preserved as text PKs; new rows default to gen_random_uuid()::text.
 -- Auth is handled by the Astro app (Google OAuth + signed cookies). All DB access goes
 -- through server endpoints using the service role key, which bypasses RLS. RLS is left
@@ -73,7 +73,6 @@ create table contacts (
   employee_id         text references employees(id) on delete set null,
   name                text not null,
   category            text,
-  gye_username        text,
   real_first_name     text,
   nicknames           text,
   private_cell_number text,

@@ -2,7 +2,7 @@
 
 import type { AstroCookies } from 'astro';
 
-export const METHOD_COOKIE = 'gye_expense_method';
+export const METHOD_COOKIE = 'chabad_expense_method';
 
 /**
  * Resolve the method filter for the current request:

@@ -13,14 +13,14 @@ export const GET: APIRoute = async ({ request, url }) => {
   let query = supabase
     .from('contacts')
     .select(`
-      id, name, category, gye_username, real_first_name, nicknames,
+      id, name, category, real_first_name, nicknames,
       private_cell_number, anonymous_number, whatsapp_number,
       private_email, anonymous_email, location, about, is_private,
       employee_id, created_at, updated_at
     `)
     .order('name');
 
-  if (q) query = query.or(`name.ilike.%${q}%,nicknames.ilike.%${q}%,private_email.ilike.%${q}%,gye_username.ilike.%${q}%`);
+  if (q) query = query.or(`name.ilike.%${q}%,nicknames.ilike.%${q}%,private_email.ilike.%${q}%`);
   if (category) query = query.eq('category', category);
   if (employeeId) query = query.eq('employee_id', employeeId);
 

@@ -1,6 +1,6 @@
-# Supabase setup — GYE EOS
+# Supabase setup — Chabad Central
 
-Project: **GYE EOS**
+Project: **Chabad Central**
 Project ref: `tvvjjlgivctpmsdxqsks`
 URL: https://tvvjjlgivctpmsdxqsks.supabase.co
 

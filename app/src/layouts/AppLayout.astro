@@ -1,6 +1,6 @@
 ---
 import '~/styles/global.css';
-import { Mountain, Target, AlertCircle, ListTodo, ChartBar, Focus, Eye, LogOut } from 'lucide-svelte';
+import { Target, AlertCircle, ListTodo, ChartBar, Focus, Eye, LogOut } from 'lucide-svelte';
 import MoreMenu from '~/components/MoreMenu.svelte';
 import MobileMenu from '~/components/MobileMenu.svelte';
 import { canAccessExpenses } from '~/lib/permissions';
@@ -9,7 +9,7 @@ interface Props {
   title?: string;
   fullWidth?: boolean;
 }
-const { title = 'GYE EOS', fullWidth = false } = Astro.props;
+const { title = 'Chabad Central', fullWidth = false } = Astro.props;
 const user = Astro.locals.user;
 const path = Astro.url.pathname;
 const teams = Astro.locals.allowedTeams;
@@ -54,11 +54,8 @@ const initials = (n: string) =>
         </div>
 
         <!-- Logo -->
-        <a href="/" class="flex items-center gap-2 md:mr-6">
-          <div class="w-8 h-8 rounded-lg bg-violet-600 grid place-items-center">
-            <Mountain size={18} class="text-white" />
-          </div>
-          <span class="font-semibold text-stone-900 hidden sm:inline">GYE.org</span>
+        <a href="/" class="flex items-center md:mr-6">
+          <img src="/logo.png" alt="צעירי אגודת חב״ד" class="h-8 w-auto" />
         </a>
 
         <!-- Desktop nav -->

@@ -7,7 +7,7 @@ export default defineConfig({
   output: 'server',
   adapter: netlify(),
   integrations: [svelte()],
-  server: { port: 6133, host: true },
+  server: { port: 7703, host: true },
   vite: {
     plugins: [tailwindcss()],
   },

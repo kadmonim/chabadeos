@@ -82,7 +82,7 @@ const addingUnder = addUnderId ? seatById.get(addUnderId) ?? null : null;
 
 const back = '/chart';
 ---
-<AppLayout title="Org Chart · GYE EOS" fullWidth={true}>
+<AppLayout title="Org Chart · Chabad Central" fullWidth={true}>
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
@@ -234,7 +234,7 @@ const back = '/chart';
         const today = new Date().toISOString().slice(0, 10);
         const md =
           '# Accountability Chart\n' +
-          '_GYE EOS · Exported ' + today + '_\n\n' +
+          '_Chabad Central · Exported ' + today + '_\n\n' +
           '---\n\n' +
           seatMd(tree, 0, []);
 

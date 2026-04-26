@@ -5,7 +5,7 @@ export const GET: APIRoute = async ({ request }) => {
   const unauth = requireApiKey(request);
   if (unauth) return unauth;
   return json({
-    name: 'GYE EOS Read API',
+    name: 'Chabad Central Read API',
     version: 1,
     docs: 'https://github.com/webshadoworg/eos',
     auth: 'Authorization: Bearer <API_KEY>',

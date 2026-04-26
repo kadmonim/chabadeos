@@ -4,7 +4,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import type { AstroCookies } from 'astro';
 
-const COOKIE_NAME = 'gye_session';
+const COOKIE_NAME = 'chabad_session';
 const MAX_AGE_DAYS = 30;
 
 const secret = () => new TextEncoder().encode(import.meta.env.SESSION_SECRET);

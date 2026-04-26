@@ -1,4 +1,4 @@
-# GYE EOS API — Third-Party Integration
+# Chabad Central API — Third-Party Integration
 
 **Base URL:** `https://<your-deployment>/api/v1` (locally: `http://localhost:6133/api/v1`)
 
@@ -40,7 +40,7 @@ Valid keys come from the `API_KEYS` environment variable on the server — a com
 {
   "title": "string (required)",
   "description": "string (optional)",
-  "owner_email": "alice@gye.org",
+  "owner_email": "alice@example.com",
   "team_id": "…",
   "team_name": "Finance",
   "term_type": "short_term | long_term (default short_term)",
@@ -65,7 +65,7 @@ Returns `{ "id": "…" }`. `team_id` and `team_name` are mutually exclusive.
 {
   "title": "string (required)",
   "description": "string (optional)",
-  "assignee_email": "alice@gye.org",
+  "assignee_email": "alice@example.com",
   "team_id": "…",
   "team_name": "Finance",
   "due_date": "2026-04-20",
@@ -93,11 +93,11 @@ curl -H "Authorization: Bearer $EOS_API_KEY" https://your-host/api/v1
 curl -X POST https://your-host/api/v1/todos \
   -H "Authorization: Bearer $EOS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"title":"Follow up with vendor","assignee_email":"alice@gye.org","team_name":"Finance","due_date":"2026-04-20"}'
+  -d '{"title":"Follow up with vendor","assignee_email":"alice@example.com","team_name":"Finance","due_date":"2026-04-20"}'
 
 # List open todos for a user
 curl -H "Authorization: Bearer $EOS_API_KEY" \
-  "https://your-host/api/v1/todos?assignee=alice@gye.org&status=open"
+  "https://your-host/api/v1/todos?assignee=alice@example.com&status=open"
 
 # Mark a todo done
 curl -X PATCH https://your-host/api/v1/todos \

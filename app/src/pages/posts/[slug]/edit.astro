@@ -16,6 +16,6 @@ if (!post) return new Response('Not found', { status: 404 });
 const { data: catRows } = await supabase.from('posts').select('category');
 const categories = Array.from(new Set((catRows ?? []).map((c) => c.category).filter(Boolean))).sort() as string[];
 ---
-<AppLayout title={`Edit · ${post.headline || 'post'} · GYE EOS`}>
+<AppLayout title={`Edit · ${post.headline || 'post'} · Chabad Central`}>
   <PostEditor mode="edit" post={post} categories={categories} />
 </AppLayout>

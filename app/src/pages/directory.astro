@@ -1,6 +1,6 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
-import { Contact, Search, Mail, Phone, MapPin, Globe } from 'lucide-svelte';
+import { Contact, Search, Mail, Phone, MapPin } from 'lucide-svelte';
 import { supabase } from '~/lib/supabase';
 
 const url = Astro.url;
@@ -24,7 +24,7 @@ const categories = Array.from(
 const initials = (name: string) =>
   name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 ---
-<AppLayout title="Directory · GYE EOS">
+<AppLayout title="Directory · Chabad Central">
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-sky-100 grid place-items-center">
@@ -32,7 +32,7 @@ const initials = (name: string) =>
       </div>
       <div>
         <h1 class="text-2xl font-semibold text-stone-900">Directory</h1>
-        <p class="text-stone-500 text-sm">People and contacts across GYE</p>
+        <p class="text-stone-500 text-sm">People and contacts across Chabad Central</p>
       </div>
     </div>
   </header>
@@ -82,11 +82,6 @@ const initials = (name: string) =>
             {c.location && (
               <div class="flex items-center gap-2 text-stone-600">
                 <MapPin size={14} class="shrink-0" /> {c.location}
-              </div>
-            )}
-            {c.gye_username && (
-              <div class="flex items-center gap-2 text-stone-500">
-                <Globe size={14} class="shrink-0" /> {c.gye_username}
               </div>
             )}
           </div>

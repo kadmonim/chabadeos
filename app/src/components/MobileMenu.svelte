@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     Menu, X, Target, AlertCircle, ListTodo, ChartBar, Focus, Eye,
-    ListChecks, Contact, Newspaper, BookOpen, Users, Link2, Plane, Network, Wallet, Lightbulb, LogOut,
+    ListChecks, Contact, Newspaper, BookOpen, Users, Link2, Network, Wallet, Lightbulb, LogOut,
   } from 'lucide-svelte';
 
   type Team = { id: string; name: string };
@@ -57,7 +57,6 @@
     { href: '/processes',      label: 'Processes',             icon: BookOpen,    always: true },
     { href: '/teams',          label: 'Teams & People',        icon: Users,       always: true },
     { href: '/links',          label: 'Links',                 icon: Link2,       always: true },
-    { href: '/trips',          label: 'Add a Trip',            icon: Plane,       always: true },
     { href: '/feature-ideas',  label: 'Feature Ideas',          icon: Lightbulb,   always: true },
   ];
   const secondary = $derived(allSecondary.filter((i) => i.always || (i.href === '/expenses' && canSeeExpenses)));
@@ -86,7 +85,7 @@
     <aside class="absolute left-0 top-0 bottom-0 w-[85%] max-w-xs bg-white shadow-2xl flex flex-col overflow-y-auto">
       <header class="flex items-center justify-between p-4 border-b border-stone-200">
         <div>
-          <div class="font-semibold text-stone-900">GYE EOS</div>
+          <div class="font-semibold text-stone-900">Chabad Central</div>
           {#if userName}
             <div class="text-xs text-stone-500 mt-0.5 truncate max-w-[200px]">{userName}</div>
           {/if}
