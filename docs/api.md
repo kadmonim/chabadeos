@@ -10,7 +10,7 @@ Every request must send:
 Authorization: Bearer <API_KEY>
 ```
 
-Valid keys come from the `API_KEYS` environment variable on the server — a comma-separated list of allowed tokens. Each third-party consumer should get its own key so access can be revoked independently.
+Valid keys come from the `CHABADEOS_API_KEYS` environment variable on the server — a comma-separated list of allowed tokens. Each third-party consumer should get its own key so access can be revoked independently.
 
 ## Discovery
 
@@ -118,7 +118,7 @@ All errors are JSON:
 |---|---|
 | `401` | Missing or invalid `Authorization` header |
 | `400` | Validation error (missing required field, bad id, mutually-exclusive fields both set) |
-| `500` | Server error, or `API_KEYS` not configured |
+| `500` | Server error, or `CHABADEOS_API_KEYS` not configured |
 
 ## Notes & limits
 
@@ -131,5 +131,5 @@ All errors are JSON:
 
 | Var | Purpose |
 |---|---|
-| `API_KEYS` | Comma-separated list of valid bearer tokens. Missing → API returns 500. |
+| `CHABADEOS_API_KEYS` | Comma-separated list of valid bearer tokens. Missing → API returns 500. |
 | `EOS_API_URL`, `EOS_API_KEY` | Consumer-side convention for clients that call this API. |

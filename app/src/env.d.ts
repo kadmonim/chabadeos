@@ -7,7 +7,7 @@ interface ImportMetaEnv {
   readonly GOOGLE_CLIENT_SECRET: string;
   readonly SESSION_SECRET: string;
   readonly PUBLIC_SITE_URL: string;
-  readonly API_KEYS: string;
+  readonly CHABADEOS_API_KEYS: string;
 }
 
 interface ImportMeta {

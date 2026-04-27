@@ -1,12 +1,12 @@
 // Shared auth helper for the /api/v1/* machine API.
 // Callers pass `Authorization: Bearer <key>`; valid keys come from the
-// comma-separated API_KEYS env var.
+// comma-separated CHABADEOS_API_KEYS env var.
 
 export function requireApiKey(request: Request): Response | null {
-  const raw = import.meta.env.API_KEYS || '';
+  const raw = import.meta.env.CHABADEOS_API_KEYS || '';
   const keys = new Set(raw.split(',').map((s) => s.trim()).filter(Boolean));
   if (keys.size === 0) {
-    return json({ error: 'API_KEYS env var not configured' }, 500);
+    return json({ error: 'CHABADEOS_API_KEYS env var not configured' }, 500);
   }
   const auth = request.headers.get('authorization') || '';
   const match = auth.match(/^Bearer\s+(.+)$/i);
