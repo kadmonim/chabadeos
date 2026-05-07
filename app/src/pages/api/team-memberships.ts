@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '~/lib/supabase';
 import { canAccessTeam } from '~/lib/team';
+import { isSystemAdmin } from '~/lib/permissions';
 
 async function assertMembershipAccess(id: string, locals: App.Locals) {
   const { data } = await supabase.from('team_memberships').select('team_id').eq('id', id).maybeSingle();
@@ -46,6 +47,30 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     if (!(await assertMembershipAccess(id, locals))) return new Response('Forbidden', { status: 403 });
     const { error } = await supabase.from('team_memberships').delete().eq('id', id);
     if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    return redirect(back);
+  }
+
+  if (action === 'add_new_employee') {
+    if (!isSystemAdmin(locals.user?.email)) return new Response('Forbidden', { status: 403 });
+    const team_id = String(form.get('team_id') ?? '');
+    const full_name = String(form.get('full_name') ?? '').trim();
+    const email = String(form.get('email') ?? '').trim().toLowerCase();
+    const role = String(form.get('role') ?? 'member') as 'admin' | 'member';
+    const role_description = String(form.get('role_description') ?? '') || null;
+    if (!team_id || !full_name || !email) return redirect(back);
+    if (!canAccessTeam(locals, team_id)) return new Response('Forbidden', { status: 403 });
+
+    const { data: emp, error: empErr } = await supabase
+      .from('employees')
+      .upsert({ full_name, email }, { onConflict: 'email' })
+      .select('id')
+      .single();
+    if (empErr) return new Response(`Error: ${empErr.message}`, { status: 500 });
+
+    const { error: memErr } = await supabase
+      .from('team_memberships')
+      .upsert({ team_id, employee_id: emp.id, role, role_description }, { onConflict: 'team_id,employee_id' });
+    if (memErr) return new Response(`Error: ${memErr.message}`, { status: 500 });
     return redirect(back);
   }
 

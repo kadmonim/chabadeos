@@ -7,6 +7,7 @@ import { isSystemAdmin } from '~/lib/permissions';
 const url = Astro.url;
 const creating = url.searchParams.get('new') === '1';
 const editId = url.searchParams.get('edit');
+const addingNew = url.searchParams.get('addNew') === '1';
 
 const adminView = isSystemAdmin(Astro.locals.user?.email);
 const allowedIds = Astro.locals.allowedTeams.map((t) => t.id);
@@ -47,6 +48,7 @@ const initials = (name: string) =>
 
 const back = '/teams';
 const editBack = editing ? `/teams?edit=${editing.id}` : back;
+const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
 ---
 <AppLayout title="Teams · Chabad Central">
   <header class="flex items-start justify-between mb-8">
@@ -241,34 +243,90 @@ const editBack = editing ? `/teams?edit=${editing.id}` : back;
             </div>
 
             <!-- Add member -->
-            {availableEmployees.length > 0 ? (
-              <form method="POST" action="/api/team-memberships" class="bg-white border border-stone-200 rounded-lg p-3 space-y-2">
-                <input type="hidden" name="_action" value="create" />
+            {!addingNew && (
+              <>
+                {availableEmployees.length > 0 ? (
+                  <form method="POST" action="/api/team-memberships" class="bg-white border border-stone-200 rounded-lg p-3 space-y-2">
+                    <input type="hidden" name="_action" value="create" />
+                    <input type="hidden" name="team_id" value={editing.id} />
+                    <input type="hidden" name="back" value={editBack} />
+                    <div class="text-xs font-semibold text-stone-600 flex items-center gap-1">
+                      <UserPlus size={13} /> Add a member
+                    </div>
+                    <div class="flex gap-2">
+                      <select name="employee_id" required class="flex-1 bg-white border border-stone-300 rounded px-2 py-1.5 text-sm">
+                        <option value="">Pick an employee…</option>
+                        {availableEmployees.map((e) => <option value={e.id}>{e.full_name}</option>)}
+                      </select>
+                      <select name="role" class="bg-white border border-stone-300 rounded px-2 py-1.5 text-sm">
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                      <button class="bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-1.5 text-sm font-medium">Add</button>
+                    </div>
+                    <input
+                      type="text"
+                      name="role_description"
+                      placeholder="Role description (optional)"
+                      class="w-full bg-white border border-stone-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </form>
+                ) : (
+                  <p class="text-xs text-stone-400 italic">All employees are already members of this team.</p>
+                )}
+                {adminView && (
+                  <a
+                    href={`/teams?edit=${editing.id}&addNew=1`}
+                    class="flex items-center gap-1.5 text-xs text-stone-500 hover:text-emerald-700 mt-1"
+                  >
+                    <UserPlus size={13} /> Add a new person
+                  </a>
+                )}
+              </>
+            )}
+
+            <!-- Add NEW person (creates employee + membership) -->
+            {addingNew && adminView && (
+              <form method="POST" action="/api/team-memberships" class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-2">
+                <input type="hidden" name="_action" value="add_new_employee" />
                 <input type="hidden" name="team_id" value={editing.id} />
                 <input type="hidden" name="back" value={editBack} />
-                <div class="text-xs font-semibold text-stone-600 flex items-center gap-1">
-                  <UserPlus size={13} /> Add a member
+                <div class="flex items-center justify-between">
+                  <div class="text-xs font-semibold text-emerald-800 flex items-center gap-1">
+                    <UserPlus size={13} /> New person
+                  </div>
+                  <a href={editBack} class="text-xs text-stone-400 hover:text-stone-600">Cancel</a>
                 </div>
+                <input
+                  type="text"
+                  name="full_name"
+                  required
+                  placeholder="Full name"
+                  class="w-full bg-white border border-stone-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-emerald-400"
+                />
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  placeholder="Email (must match their Google account)"
+                  class="w-full bg-white border border-stone-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-emerald-400"
+                />
                 <div class="flex gap-2">
-                  <select name="employee_id" required class="flex-1 bg-white border border-stone-300 rounded px-2 py-1.5 text-sm">
-                    <option value="">Pick an employee…</option>
-                    {availableEmployees.map((e) => <option value={e.id}>{e.full_name}</option>)}
-                  </select>
                   <select name="role" class="bg-white border border-stone-300 rounded px-2 py-1.5 text-sm">
                     <option value="member">Member</option>
                     <option value="admin">Admin</option>
                   </select>
-                  <button class="bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-1.5 text-sm font-medium">Add</button>
+                  <input
+                    type="text"
+                    name="role_description"
+                    placeholder="Role description (optional)"
+                    class="flex-1 bg-white border border-stone-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-400"
+                  />
                 </div>
-                <input
-                  type="text"
-                  name="role_description"
-                  placeholder="Role description (optional)"
-                  class="w-full bg-white border border-stone-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-400"
-                />
+                <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded py-2 text-sm font-medium">
+                  Create &amp; add to team
+                </button>
               </form>
-            ) : (
-              <p class="text-xs text-stone-400 italic">All employees are already members of this team.</p>
             )}
           </div>
 
