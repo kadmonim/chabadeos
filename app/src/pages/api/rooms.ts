@@ -3,7 +3,7 @@ import { sql } from '~/lib/db';
 import { isSystemAdmin } from '~/lib/permissions';
 import {
   findClash, clashMessage, generateSlots, isValidDate, isValidTime, weekdayOf,
-  addMonths, todayInJerusalem, HORIZON_MONTHS,
+  addMonths, todayInJerusalem, isOverlapError, HORIZON_MONTHS,
 } from '~/lib/rooms';
 
 // Form-post endpoint behind the /rooms screen. Everyone logged in can create;
@@ -61,6 +61,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
           values (${roomId}, ${date}, ${startTime}, ${endTime}, ${title}, ${inCharge}, ${notes}, ${user.employeeId})`;
         return ok(back, 'ההזמנה נוספה.');
       }
+
+      // The first week has to fit, or there's nothing to start. Checking before
+      // creating the series avoids leaving one behind that can never place a slot.
+      const firstClash = await findClash(roomId, date, startTime, endTime);
+      if (firstClash) return bad(back, clashMessage(firstClash, await roomName(roomId)));
 
       const rows = await sql`
         insert into booking_series
@@ -222,8 +227,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     return bad(back, 'פעולה לא מוכרת.');
   } catch (e) {
-    const code = (e as any)?.code;
-    if (code === '23P01') return bad(back, 'החדר תפוס בשעה הזו.');
+    if (isOverlapError(e)) return bad(back, 'החדר תפוס בשעה הזו.');
     return bad(back, `שגיאה: ${(e as Error).message}`);
   }
 };

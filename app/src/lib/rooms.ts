@@ -30,6 +30,20 @@ export type Occurrence = {
 
 export const WEEKDAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
+// The driver wraps query failures in its own Error ("Failed query: …") and keeps
+// the Postgres error as the cause, so `e.code` alone misses the real code.
+export function pgErrorCode(e: unknown): string | undefined {
+  let cur: any = e;
+  for (let depth = 0; cur && depth < 5; depth++) {
+    if (typeof cur.code === 'string') return cur.code;
+    cur = cur.cause;
+  }
+  return undefined;
+}
+
+// 23P01 = the room-overlap exclusion constraint.
+export const isOverlapError = (e: unknown) => pgErrorCode(e) === '23P01';
+
 // ---------- dates ----------
 // Netlify functions run in UTC, so "today" and "now" must be derived in
 // Jerusalem time or the page is wrong for three hours every evening.
@@ -150,7 +164,12 @@ export async function ensureHorizon(throughDate?: string): Promise<void> {
   for (const s of series as any[]) {
     const last = s.ends_on && s.ends_on < horizon ? s.ends_on : horizon;
     const begin = s.starts_on > today ? s.starts_on : today;
-    await generateSlots(s, begin, last);
+    try {
+      await generateSlots(s, begin, last);
+    } catch {
+      // Topping the horizon up is a side effect of reading the calendar. One
+      // awkward series must not take the whole page down with it.
+    }
   }
 }
 
@@ -165,20 +184,32 @@ export async function generateSlots(
   const skipped: string[] = [];
   if (from > to) return skipped;
 
-  let date = from;
-  const offset = (series.weekday - weekdayOf(from) + 7) % 7;
-  date = addDays(from, offset);
+  // Weeks this series already owns. They're left completely alone — including
+  // ones that were moved or cancelled — and don't count as clashes with itself.
+  const rows = await sql`
+    select series_date::text as d from bookings
+    where series_id = ${series.id} and series_date >= ${from} and series_date <= ${to}`;
+  const existing = new Set((rows as any[]).map((r) => r.d));
+
+  let date = addDays(from, (series.weekday - weekdayOf(from) + 7) % 7);
 
   while (date <= to) {
-    try {
-      await sql`
-        insert into bookings (series_id, series_date, room_id, event_date, start_time, end_time)
-        values (${series.id}, ${date}, ${series.room_id}, ${date}, ${series.start_time}, ${series.end_time})
-        on conflict (series_id, series_date) where series_id is not null do nothing`;
-    } catch (e) {
-      // 23P01 = the overlap exclusion constraint: something else has the room.
-      if ((e as any)?.code === '23P01') skipped.push(date);
-      else throw e;
+    if (!existing.has(date)) {
+      const clash = await findClash(series.room_id, date, series.start_time, series.end_time);
+      if (clash) {
+        skipped.push(date);
+      } else {
+        try {
+          await sql`
+            insert into bookings (series_id, series_date, room_id, event_date, start_time, end_time)
+            values (${series.id}, ${date}, ${series.room_id}, ${date}, ${series.start_time}, ${series.end_time})
+            on conflict (series_id, series_date) where series_id is not null do nothing`;
+        } catch (e) {
+          // Someone claimed the room between the check and the insert.
+          if (isOverlapError(e)) skipped.push(date);
+          else throw e;
+        }
+      }
     }
     date = addDays(date, 7);
   }

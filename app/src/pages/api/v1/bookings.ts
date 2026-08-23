@@ -4,7 +4,7 @@ import { requireApiKey, json } from '~/lib/api-auth';
 import {
   listRooms, occurrencesBetween, ensureHorizon, generateSlots, findClash, clashMessage,
   isValidDate, isValidTime, weekdayOf, weekStart, addDays, addMonths, todayInJerusalem,
-  hhmm, HORIZON_MONTHS,
+  hhmm, isOverlapError, HORIZON_MONTHS,
 } from '~/lib/rooms';
 
 // Room bookings for machines. Occurrences are returned as real dated slots, not
@@ -109,6 +109,10 @@ export const POST: APIRoute = async ({ request }) => {
       return json({ id: (rows[0] as any).id, weekly: false }, 201);
     }
 
+    // The first week has to fit, or the series has nothing to start from.
+    const firstClash = await findClash(room.id, date, startTime, endTime);
+    if (firstClash) return json({ error: clashMessage(firstClash, room.name), conflict: firstClash }, 409);
+
     const weekday = weekdayOf(date);
     const rows = await sql`
       insert into booking_series
@@ -125,7 +129,7 @@ export const POST: APIRoute = async ({ request }) => {
     );
     return json({ series_id: seriesId, weekly: true, weekday, skipped_dates: skipped }, 201);
   } catch (e) {
-    if ((e as any)?.code === '23P01') return json({ error: `${room.name} is already booked then` }, 409);
+    if (isOverlapError(e)) return json({ error: `${room.name} is already booked then` }, 409);
     return json({ error: (e as Error).message }, 500);
   }
 };
@@ -154,7 +158,7 @@ export const PATCH: APIRoute = async ({ request }) => {
     if (seriesId) return await patchSeries(seriesId, body);
     return await patchOccurrence(id, body);
   } catch (e) {
-    if ((e as any)?.code === '23P01') return json({ error: 'that room is already booked then' }, 409);
+    if (isOverlapError(e)) return json({ error: 'that room is already booked then' }, 409);
     return json({ error: (e as Error).message }, 500);
   }
 };
