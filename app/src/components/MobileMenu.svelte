@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     Menu, X, Target, AlertCircle, ListTodo, ChartBar, Eye, Settings,
-    ListChecks, Contact, BookOpen, Users, Link2, Network, Wallet, LogOut,
+    ListChecks, BookOpen, Users, Link2, Network, Wallet, LogOut,
   } from 'lucide-svelte';
 
   type Team = { id: string; name: string };
@@ -57,7 +57,6 @@
     { href: '/chart',          label: 'מבנה ארגוני',   icon: Network,     always: true },
     { href: '/my-tasks',       label: 'המשימות שלי',   icon: ListChecks,  always: true },
     { href: '/expenses',       label: 'הוצאות',        icon: Wallet,      always: false },
-    { href: '/directory',      label: 'אנשי קשר',      icon: Contact,     always: true },
     { href: '/processes',      label: 'תהליכים',       icon: BookOpen,    always: true },
     { href: '/teams',          label: 'צוותים ואנשים', icon: Users,       always: true },
     { href: '/links',          label: 'קישורים',       icon: Link2,       always: true },

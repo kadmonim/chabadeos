@@ -11,7 +11,6 @@ export const GET: APIRoute = async ({ request }) => {
     auth: 'Authorization: Bearer <API_KEY>',
     endpoints: {
       'GET /api/v1/employees':            'List employees. Optional ?email= filter.',
-      'GET /api/v1/contacts':             'List contacts. Optional ?q= name search, ?category=, ?employee_id=.',
       'GET /api/v1/teams':                'List teams with members.',
       'GET /api/v1/rocks':                'List non-archived rocks with milestones.',
       'GET /api/v1/issues':               'List issues. Optional ?assignee=<email>, ?team_id=, ?status=, ?term=short_term|long_term|idea_backlog.',
