@@ -3,6 +3,7 @@ import AppLayout from '~/layouts/AppLayout.astro';
 import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import { ListChecks, Search, Flag } from 'lucide-svelte';
 import { sql, pool } from '~/lib/db';
+import { fmtDualDate } from '~/lib/dates';
 
 const user = Astro.locals.user;
 if (!user) return Astro.redirect('/login');
@@ -44,8 +45,7 @@ const { rows: todos } = await pool.query(
 );
 const teams = allowedTeams;
 
-const fmt = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' }) : '';
+const fmt = (d: string | null) => fmtDualDate(d, { year: false });
 
 // Fetch open/done counts for the subtitle regardless of active filter
 const openCountRows = await sql`

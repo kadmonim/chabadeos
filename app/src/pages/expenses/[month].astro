@@ -6,6 +6,7 @@ import VendorInfoTip from '~/components/VendorInfoTip.astro';
 import VendorEditPanel from '~/components/VendorEditPanel.svelte';
 import { Wallet, ArrowRight, Calendar, TrendingUp, CreditCard, X, Check, CircleHelp, Circle, ArrowRightLeft, ChevronLeft, ChevronRight, Info } from 'lucide-svelte';
 import { sql, pool } from '~/lib/db';
+import { fmtDualDate } from '~/lib/dates';
 import { resolveMethodFilter } from '~/lib/expense-method';
 import { canAccessExpenses, getOwnedMethods } from '~/lib/permissions';
 
@@ -260,8 +261,7 @@ const label = new Date(Date.UTC(yyyy, (mm ?? 1) - 1, 1)).toLocaleDateString('he-
 
 const fmtMoney = (n: number) =>
   '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' });
+const fmtDate = (d: string) => fmtDualDate(d, { year: false });
 const pct = (n: number) => ((n / total) * 100).toFixed(1) + '%';
 const fmtMonthLabel = (m: string) => {
   const [y, mo] = m.split('-').map(Number);

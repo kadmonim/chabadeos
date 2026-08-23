@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fmtDualDate } from '~/lib/dates';
   import { MessageSquare, MessageSquarePlus, X, Pencil, Trash2 } from 'lucide-svelte';
 
   type Note = {
@@ -119,7 +120,7 @@
     const info = chargeInfo?.[eid];
     if (!info) return null;
     const d = new Date(info.date);
-    const date = d.toLocaleDateString('he-IL', { month: 'short', day: 'numeric' });
+    const date = fmtDualDate(d, { year: false });
     const amt = '$' + Number(info.amount).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return `${date} · ${amt}`;
   }

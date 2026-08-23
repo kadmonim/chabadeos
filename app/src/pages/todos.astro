@@ -4,6 +4,7 @@ import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import RichTextEditor from '~/components/RichTextEditor.svelte';
 import { CheckSquare, Plus, Search, Flag, X, Trash2, Archive, Copy } from 'lucide-svelte';
 import { sql, pool } from '~/lib/db';
+import { fmtDualDate } from '~/lib/dates';
 const team = Astro.locals.currentTeam;
 const teams = Astro.locals.allowedTeams;
 if (!team) return Astro.redirect('/');
@@ -48,8 +49,7 @@ if (detailId) {
   detail = rows[0] ?? null;
 }
 
-const fmt = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' }) : '';
+const fmt = (d: string | null) => fmtDualDate(d, { year: false });
 const todayYmd = new Date().toISOString().slice(0, 10);
 const isOverdue = (d: string | null) => !!d && d <= todayYmd;
 const initials = (name: string) =>

@@ -4,6 +4,7 @@ import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import RichTextEditor from '~/components/RichTextEditor.svelte';
 import { Mountain, Flag, Plus, X, Trash2, Calendar, User } from 'lucide-svelte';
 import { sql, pool } from '~/lib/db';
+import { fmtDualDate } from '~/lib/dates';
 
 const url = Astro.url;
 const team = Astro.locals.currentTeam;
@@ -63,8 +64,7 @@ if (editMilestoneId && !loadedMilestone) {
   loadedMilestone = rows[0] ?? null;
 }
 
-const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+const fmtDate = (d: string | null) => fmtDualDate(d);
 const initials = (name: string) =>
   name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 

@@ -4,6 +4,7 @@ import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import RichTextEditor from '~/components/RichTextEditor.svelte';
 import { AlertCircle, Plus, Search, Zap, Clock, Target, Archive, X, Trash2, Copy, Share2 } from 'lucide-svelte';
 import { sql, pool } from '~/lib/db';
+import { fmtDualDate } from '~/lib/dates';
 const team = Astro.locals.currentTeam;
 const teams = Astro.locals.allowedTeams;
 if (!team) return Astro.redirect('/');
@@ -106,8 +107,7 @@ if (detailId) {
   }
 }
 
-const fmt = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' }) : '';
+const fmt = (d: string | null) => fmtDualDate(d, { year: false });
 const initials = (name: string) =>
   name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 const back = url.pathname + url.search;

@@ -6,6 +6,7 @@ import VendorInfoTip from '~/components/VendorInfoTip.astro';
 import VendorEditPanel from '~/components/VendorEditPanel.svelte';
 import { Wallet, ArrowRight, Calendar, AlertCircle, Circle, CircleHelp, ArrowRightLeft, CreditCard, X } from 'lucide-svelte';
 import { sql } from '~/lib/db';
+import { fmtDualDate } from '~/lib/dates';
 import { resolveMethodFilter } from '~/lib/expense-method';
 import { canAccessExpenses, getOwnedMethods } from '~/lib/permissions';
 
@@ -145,8 +146,7 @@ const grandCount = enriched.length;
 
 const fmtMoney = (n: number) =>
   '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' });
+const fmtDate = (d: string) => fmtDualDate(d, { year: false });
 const fmtMonth = (m: string) => {
   const [y, mo] = m.split('-').map(Number);
   return new Date(Date.UTC(y, (mo ?? 1) - 1, 1)).toLocaleDateString('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
