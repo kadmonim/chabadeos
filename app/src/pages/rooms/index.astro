@@ -1,0 +1,534 @@
+---
+import RoomsLayout from '~/layouts/RoomsLayout.astro';
+import { Plus, ChevronRight, ChevronLeft, X, Trash2, Repeat, Ban, Pencil, CircleAlert } from 'lucide-svelte';
+import { sql } from '~/lib/db';
+import { fmtDualDate, fmtHebrewDate } from '~/lib/dates';
+import { isSystemAdmin } from '~/lib/permissions';
+import {
+  listRooms, occurrencesBetween, ensureHorizon, statusNow, weekDates, weekStart,
+  addDays, todayInJerusalem, nowTimeInJerusalem, isValidDate, hhmm, WEEKDAY_NAMES,
+} from '~/lib/rooms';
+
+const url = Astro.url;
+const user = Astro.locals.user!;
+const admin = isSystemAdmin(user.email);
+
+const today = todayInJerusalem();
+const nowTime = nowTimeInJerusalem();
+
+const anchorParam = url.searchParams.get('d');
+const anchor = isValidDate(anchorParam) ? anchorParam : today;
+const days = weekDates(anchor);
+const from = days[0];
+const to = days[6];
+
+// Keep the materialised window ahead of whatever week is being viewed.
+await ensureHorizon(to);
+
+const rooms = await listRooms();
+const occurrences = await occurrencesBetween(from, to, { includeCancelled: true });
+const todayList = await occurrencesBetween(today, today);
+const statuses = statusNow(rooms, todayList, nowTime);
+
+const cellFor = (date: string, roomId: string) =>
+  occurrences.filter((o) => o.event_date === date && o.room_id === roomId);
+
+const canEdit = (createdBy: string | null) => admin || createdBy === user.employeeId;
+
+// ---- panel state, driven entirely by the URL so there's no client JS ----
+const adding = url.searchParams.get('add') === '1';
+const editId = url.searchParams.get('edit');
+const seriesId = url.searchParams.get('series');
+const prefillDate = isValidDate(url.searchParams.get('date')) ? url.searchParams.get('date')! : today;
+const prefillRoom = url.searchParams.get('room') ?? rooms[0]?.id ?? '';
+
+let editing: any = null;
+if (editId) {
+  const rows = await sql`
+    select b.*, b.event_date::text as event_date, b.start_time::text as start_time,
+           b.end_time::text as end_time,
+           coalesce(b.title, s.title) as shown_title,
+           coalesce(b.in_charge_name, s.in_charge_name) as shown_in_charge,
+           coalesce(b.created_by, s.created_by) as created_by,
+           r.name as room_name
+    from bookings b
+    join rooms r on r.id = b.room_id
+    left join booking_series s on s.id = b.series_id
+    where b.id = ${editId}`;
+  editing = rows[0] ?? null;
+}
+
+let editingSeries: any = null;
+if (seriesId) {
+  const rows = await sql`
+    select id, room_id, title, in_charge_name, notes, weekday,
+           start_time::text as start_time, end_time::text as end_time,
+           starts_on::text as starts_on, created_by
+    from booking_series where id = ${seriesId}`;
+  editingSeries = rows[0] ?? null;
+}
+
+const back = `/rooms?d=${anchor}`;
+const msg = url.searchParams.get('msg');
+const err = url.searchParams.get('err');
+const panelOpen = adding || !!editing || !!editingSeries;
+---
+<RoomsLayout title={'חדרים · חב"ד כרמיאל'}>
+  <a
+    slot="header-action"
+    href={`/rooms?d=${anchor}&add=1&date=${today}`}
+    class="bg-teal-600 hover:bg-teal-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 shrink-0"
+  >
+    <Plus size={16} />
+    הוספה
+  </a>
+
+  {err && (
+    <div class="mb-4 bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
+      <CircleAlert size={16} class="mt-0.5 shrink-0" />
+      <span>{err}</span>
+    </div>
+  )}
+  {msg && (
+    <div class="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-xl px-4 py-3">
+      {msg}
+    </div>
+  )}
+
+  <!-- Right now: the answer most visits are looking for -->
+  <section class="grid gap-2 sm:grid-cols-2 mb-5">
+    {statuses.map(({ room, busy, next }) => (
+      <div class={`rounded-2xl border p-4 ${busy ? 'bg-white border-amber-200' : 'bg-white border-emerald-200'}`}>
+        <div class="flex items-center justify-between gap-2">
+          <span class="font-medium text-stone-900">{room.name}</span>
+          <span class={`text-xs font-semibold px-2 py-0.5 rounded-full ${busy ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+            {busy ? 'תפוס' : 'פנוי'}
+          </span>
+        </div>
+        <p class="text-sm text-stone-600 mt-1.5">
+          {busy
+            ? `${busy.title} — עד ${hhmm(busy.end_time)}`
+            : next
+              ? `פנוי עד ${hhmm(next.start_time)}`
+              : 'פנוי להמשך היום'}
+        </p>
+      </div>
+    ))}
+  </section>
+
+  <!-- Week navigation -->
+  <div class="flex items-center justify-between mb-3">
+    <a href={`/rooms?d=${addDays(anchor, -7)}`} class="p-2 rounded-lg hover:bg-white text-stone-500" title="שבוע קודם">
+      <ChevronRight size={18} />
+    </a>
+    <div class="text-center">
+      <div class="text-sm font-medium text-stone-800">
+        {fmtHebrewDate(from, { year: false })} – {fmtHebrewDate(to)}
+      </div>
+      {weekStart(today) !== weekStart(anchor) && (
+        <a href="/rooms" class="text-xs text-teal-700 hover:underline">חזרה לשבוע הנוכחי</a>
+      )}
+    </div>
+    <a href={`/rooms?d=${addDays(anchor, 7)}`} class="p-2 rounded-lg hover:bg-white text-stone-500" title="שבוע הבא">
+      <ChevronLeft size={18} />
+    </a>
+  </div>
+
+  <!-- Desktop: days × rooms grid -->
+  <div class="hidden md:block bg-white border border-stone-200 rounded-2xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-stone-200 bg-stone-50">
+          <th class="text-start px-4 py-2.5 font-medium text-stone-500 w-40">יום</th>
+          {rooms.map((r) => (
+            <th class="text-start px-4 py-2.5 font-medium text-stone-700">{r.name}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {days.map((date) => (
+          <tr class={`border-b border-stone-100 last:border-0 ${date === today ? 'bg-teal-50/40' : ''}`}>
+            <td class="px-4 py-3 align-top">
+              <div class={`font-medium ${date === today ? 'text-teal-800' : 'text-stone-800'}`}>
+                {WEEKDAY_NAMES[new Date(`${date}T00:00:00Z`).getUTCDay()]}
+              </div>
+              <div class="text-xs text-stone-500">{fmtDualDate(date, { year: false })}</div>
+            </td>
+            {rooms.map((room) => {
+              const items = cellFor(date, room.id);
+              return (
+                <td class="px-3 py-2.5 align-top">
+                  <div class="space-y-1.5">
+                    {items.map((o) => (
+                      <div
+                        class={`rounded-lg px-2.5 py-1.5 border text-xs ${
+                          o.is_cancelled
+                            ? 'bg-stone-50 border-stone-200 text-stone-400 line-through'
+                            : 'bg-teal-50 border-teal-200 text-teal-900'
+                        }`}
+                      >
+                        <div class="flex items-center gap-1.5">
+                          <span class="font-semibold tabular-nums">{hhmm(o.start_time)}–{hhmm(o.end_time)}</span>
+                          {o.weekly && <Repeat size={11} class="opacity-60" />}
+                          {canEdit(o.created_by) && (
+                            <a href={`/rooms?d=${anchor}&edit=${o.id}`} class="ms-auto opacity-50 hover:opacity-100" title="עריכה">
+                              <Pencil size={11} />
+                            </a>
+                          )}
+                        </div>
+                        <div class="font-medium truncate">{o.title}</div>
+                        <div class="opacity-70 truncate">{o.in_charge_name}</div>
+                      </div>
+                    ))}
+                    <a
+                      href={`/rooms?d=${anchor}&add=1&date=${date}&room=${room.id}`}
+                      class="block text-center text-xs text-stone-300 hover:text-teal-600 hover:bg-teal-50/50 rounded-lg py-1.5 border border-dashed border-transparent hover:border-teal-200"
+                    >
+                      {items.length === 0 ? 'פנוי' : '+'}
+                    </a>
+                  </div>
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Mobile: a card per day, because a 7-column grid is unreadable on a phone -->
+  <div class="md:hidden space-y-3">
+    {days.map((date) => (
+      <section class={`bg-white border rounded-2xl p-4 ${date === today ? 'border-teal-300' : 'border-stone-200'}`}>
+        <div class="flex items-baseline justify-between mb-2">
+          <h2 class={`font-semibold ${date === today ? 'text-teal-800' : 'text-stone-800'}`}>
+            {WEEKDAY_NAMES[new Date(`${date}T00:00:00Z`).getUTCDay()]}
+            {date === today && <span class="text-xs font-normal"> · היום</span>}
+          </h2>
+          <span class="text-xs text-stone-500">{fmtDualDate(date, { year: false })}</span>
+        </div>
+        <div class="space-y-2.5">
+          {rooms.map((room) => {
+            const items = cellFor(date, room.id);
+            return (
+              <div>
+                <div class="text-xs text-stone-500 mb-1">{room.name}</div>
+                {items.length === 0 ? (
+                  <a
+                    href={`/rooms?d=${anchor}&add=1&date=${date}&room=${room.id}`}
+                    class="block text-xs text-stone-400 border border-dashed border-stone-200 rounded-lg py-2 text-center"
+                  >
+                    פנוי
+                  </a>
+                ) : (
+                  <div class="space-y-1.5">
+                    {items.map((o) => (
+                      <div
+                        class={`rounded-lg px-3 py-2 border text-sm flex items-center gap-2 ${
+                          o.is_cancelled
+                            ? 'bg-stone-50 border-stone-200 text-stone-400 line-through'
+                            : 'bg-teal-50 border-teal-200 text-teal-900'
+                        }`}
+                      >
+                        <span class="font-semibold tabular-nums text-xs">{hhmm(o.start_time)}–{hhmm(o.end_time)}</span>
+                        <span class="flex-1 min-w-0">
+                          <span class="block font-medium truncate">{o.title}</span>
+                          <span class="block text-xs opacity-70 truncate">{o.in_charge_name}</span>
+                        </span>
+                        {o.weekly && <Repeat size={12} class="opacity-60 shrink-0" />}
+                        {canEdit(o.created_by) && (
+                          <a href={`/rooms?d=${anchor}&edit=${o.id}`} class="p-1 opacity-50 shrink-0"><Pencil size={13} /></a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    ))}
+  </div>
+
+  <p class="text-xs text-stone-400 mt-5 text-center">
+    כל המשתמשים רואים הכל. אפשר לערוך רק מה שיצרת.
+  </p>
+
+  {panelOpen && (
+    <div class="fixed inset-0 z-30">
+      <a href={back} class="absolute inset-0 bg-black/20"></a>
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+        <div class="p-6 space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-stone-900">
+              {editingSeries ? 'עריכת סדרה שבועית' : editing ? 'עריכת מופע' : 'הוספה'}
+            </h2>
+            <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
+          </div>
+
+          {adding && (
+            <form method="POST" action="/api/rooms" class="space-y-4">
+              <input type="hidden" name="_action" value="create" />
+              <input type="hidden" name="back" value={back} />
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">חדר</label>
+                <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  {rooms.map((r) => <option value={r.id} selected={r.id === prefillRoom}>{r.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">מה זה?</label>
+                <input type="text" name="title" required placeholder="לדוגמה: שיעור תניא"
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-400" />
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">מי באחריות</label>
+                <input type="text" name="in_charge_name" required placeholder="שם המרצה או האחראי"
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-400" />
+              </div>
+
+              <div class="flex gap-2">
+                <label class="flex-1 flex items-center gap-2 text-sm border border-stone-300 rounded-lg px-3 py-2 cursor-pointer has-checked:border-teal-500 has-checked:bg-teal-50">
+                  <input type="radio" name="repeat" value="once" checked />
+                  חד־פעמי
+                </label>
+                <label class="flex-1 flex items-center gap-2 text-sm border border-stone-300 rounded-lg px-3 py-2 cursor-pointer has-checked:border-teal-500 has-checked:bg-teal-50">
+                  <input type="radio" name="repeat" value="weekly" />
+                  כל שבוע
+                </label>
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">תאריך</label>
+                <input type="date" name="event_date" required value={prefillDate}
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                <p class="text-xs text-stone-500 mt-1">
+                  {fmtDualDate(prefillDate)} · בחירת "כל שבוע" תיצור מופע בכל אותו יום בשבוע מהתאריך הזה והלאה.
+                </p>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-sm font-medium text-stone-700">משעה</label>
+                  <input type="time" name="start_time" required value="19:00"
+                    class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-stone-700">עד שעה</label>
+                  <input type="time" name="end_time" required value="20:30"
+                    class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">הערות</label>
+                <textarea name="notes" rows="2"
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"></textarea>
+              </div>
+
+              <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
+                שמירה
+              </button>
+            </form>
+          )}
+
+          {editing && (
+            <div class="space-y-5">
+              {!canEdit(editing.created_by) ? (
+                <p class="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded-xl p-4">
+                  {editing.shown_title} — באחריות {editing.shown_in_charge}. רק מי שיצר את ההזמנה יכול לערוך אותה.
+                </p>
+              ) : editing.is_cancelled ? (
+                <form method="POST" action="/api/rooms" class="space-y-4">
+                  <input type="hidden" name="_action" value="restore_occurrence" />
+                  <input type="hidden" name="id" value={editing.id} />
+                  <input type="hidden" name="back" value={back} />
+                  <p class="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded-xl p-4">
+                    {editing.shown_title} · {fmtDualDate(editing.event_date, { year: false })} — המופע הזה בוטל.
+                  </p>
+                  <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
+                    החזרת המופע
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <form method="POST" action="/api/rooms" class="space-y-4">
+                    <input type="hidden" name="_action" value="update_occurrence" />
+                    <input type="hidden" name="id" value={editing.id} />
+                    <input type="hidden" name="back" value={back} />
+
+                    <p class="text-sm text-stone-500">
+                      {editing.shown_title} · {editing.room_name}
+                      {editing.series_id && <span class="text-teal-700"> · מופע מתוך סדרה שבועית</span>}
+                    </p>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">תאריך</label>
+                      <input type="date" name="event_date" required value={editing.event_date}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <label class="text-sm font-medium text-stone-700">משעה</label>
+                        <input type="time" name="start_time" required value={hhmm(editing.start_time)}
+                          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label class="text-sm font-medium text-stone-700">עד שעה</label>
+                        <input type="time" name="end_time" required value={hhmm(editing.end_time)}
+                          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    </div>
+
+                    {!editing.series_id && (
+                      <>
+                        <div>
+                          <label class="text-sm font-medium text-stone-700">מה זה?</label>
+                          <input type="text" name="title" required value={editing.title ?? ''}
+                            class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                          <label class="text-sm font-medium text-stone-700">מי באחריות</label>
+                          <input type="text" name="in_charge_name" required value={editing.in_charge_name ?? ''}
+                            class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                      </>
+                    )}
+
+                    <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
+                      שמירת המופע הזה
+                    </button>
+                  </form>
+
+                  {editing.series_id ? (
+                    <div class="space-y-2 pt-2 border-t border-stone-200">
+                      <form method="POST" action="/api/rooms">
+                        <input type="hidden" name="_action" value="cancel_occurrence" />
+                        <input type="hidden" name="id" value={editing.id} />
+                        <input type="hidden" name="back" value={back} />
+                        <button class="w-full border border-amber-300 text-amber-800 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
+                          <Ban size={14} /> ביטול המופע הזה בלבד
+                        </button>
+                      </form>
+                      <a href={`/rooms?d=${anchor}&series=${editing.series_id}`}
+                        class="block text-center border border-stone-300 text-stone-700 rounded-lg py-2 text-sm font-medium">
+                        עריכת כל הסדרה
+                      </a>
+                    </div>
+                  ) : (
+                    <form method="POST" action="/api/rooms" class="pt-2 border-t border-stone-200">
+                      <input type="hidden" name="_action" value="delete_occurrence" />
+                      <input type="hidden" name="id" value={editing.id} />
+                      <input type="hidden" name="back" value={back} />
+                      <button
+                        onclick="if(!confirm('למחוק את ההזמנה?')) return false;"
+                        class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
+                        <Trash2 size={14} /> מחיקה
+                      </button>
+                    </form>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {editingSeries && (
+            <div class="space-y-5">
+              {!canEdit(editingSeries.created_by) ? (
+                <p class="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded-xl p-4">
+                  רק מי שיצר את הסדרה יכול לערוך אותה.
+                </p>
+              ) : (
+                <>
+                  <form method="POST" action="/api/rooms" class="space-y-4">
+                    <input type="hidden" name="_action" value="update_series" />
+                    <input type="hidden" name="id" value={editingSeries.id} />
+                    <input type="hidden" name="back" value={back} />
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">מה זה?</label>
+                      <input type="text" name="title" required value={editingSeries.title}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      <p class="text-xs text-stone-500 mt-1">שינוי השם משנה את כל המופעים, כולל אלה שעברו.</p>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">מי באחריות</label>
+                      <input type="text" name="in_charge_name" required value={editingSeries.in_charge_name}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">חדר</label>
+                      <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                        {rooms.map((r) => <option value={r.id} selected={r.id === editingSeries.room_id}>{r.name}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">יום בשבוע</label>
+                      <select name="weekday" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                        {WEEKDAY_NAMES.map((n, i) => (
+                          <option value={i} selected={i === editingSeries.weekday}>{n}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <label class="text-sm font-medium text-stone-700">משעה</label>
+                        <input type="time" name="start_time" required value={hhmm(editingSeries.start_time)}
+                          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label class="text-sm font-medium text-stone-700">עד שעה</label>
+                        <input type="time" name="end_time" required value={hhmm(editingSeries.end_time)}
+                          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">בתוקף מתאריך</label>
+                      <input type="date" name="effective_from" required value={today}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      <p class="text-xs text-stone-500 mt-1">
+                        מופעים שלפני התאריך הזה נשארים כמו שהיו. מופעים שהוזזו או בוטלו ידנית לא ישתנו.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">הערות</label>
+                      <textarea name="notes" rows="2"
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
+                      >{editingSeries.notes ?? ''}</textarea>
+                    </div>
+
+                    <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
+                      שמירת הסדרה
+                    </button>
+                  </form>
+
+                  <form method="POST" action="/api/rooms" class="pt-2 border-t border-stone-200">
+                    <input type="hidden" name="_action" value="delete_series" />
+                    <input type="hidden" name="id" value={editingSeries.id} />
+                    <input type="hidden" name="back" value={back} />
+                    <button
+                      onclick="if(!confirm('להפסיק את הסדרה? המופעים העתידיים יימחקו, וההיסטוריה תישאר.')) return false;"
+                      class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
+                      <Trash2 size={14} /> הפסקת הסדרה
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>
+  )}
+</RoomsLayout>

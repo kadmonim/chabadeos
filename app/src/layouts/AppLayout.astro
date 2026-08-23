@@ -1,6 +1,6 @@
 ---
 import '~/styles/global.css';
-import { Target, AlertCircle, ListTodo, ChartBar, Eye, LogOut } from 'lucide-svelte';
+import { Target, AlertCircle, ListTodo, ChartBar, Eye, CalendarDays, LogOut } from 'lucide-svelte';
 import MoreMenu from '~/components/MoreMenu.svelte';
 import MobileMenu from '~/components/MobileMenu.svelte';
 import { canAccessExpenses } from '~/lib/permissions';
@@ -24,10 +24,12 @@ const nav = [
   { href: '/issues',    label: 'נושאים',      icon: AlertCircle },
   { href: '/todos',     label: 'משימות',      icon: ListTodo },
   { href: '/scorecard', label: 'לוח מדדים',   icon: ChartBar },
+  { href: '/rooms',     label: 'חדרים',       icon: CalendarDays },
 ].filter(
   (i) =>
     !(i.href === '/vto' && uiPrefs.hide_vto) &&
-    !(i.href === '/scorecard' && uiPrefs.hide_scorecard),
+    !(i.href === '/scorecard' && uiPrefs.hide_scorecard) &&
+    !(i.href === '/rooms' && uiPrefs.hide_rooms),
 );
 
 const initials = (n: string) =>
@@ -56,6 +58,7 @@ const initials = (n: string) =>
             canSeeExpenses={canSeeExpenses}
             hideVto={uiPrefs.hide_vto ?? false}
             hideScorecard={uiPrefs.hide_scorecard ?? false}
+            hideRooms={uiPrefs.hide_rooms ?? false}
           />
         </div>
 

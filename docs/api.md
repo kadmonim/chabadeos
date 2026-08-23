@@ -45,6 +45,11 @@ Valid keys come from the `CHABADEOS_API_KEYS` environment variable on the server
 | GET | `/api/v1/feature-ideas` | Optional `?owner=<email>` (or `?assignee=`), `?status=`, `?term=`, `?tag=`. |
 | POST | `/api/v1/feature-ideas` | Create a feature idea. |
 | PATCH | `/api/v1/feature-ideas` | Update a feature idea. |
+| GET | `/api/v1/rooms` | List bookable rooms. |
+| GET | `/api/v1/bookings` | Room bookings as dated occurrences. `?from=&to=` (default this week), `?room=` (id **or** name), `?include_cancelled=1`. |
+| POST | `/api/v1/bookings` | Book a room, once or weekly. Double bookings are rejected with `409`. |
+| PATCH | `/api/v1/bookings` | Edit one occurrence (`id`) or a whole weekly series (`series_id`). |
+| DELETE | `/api/v1/bookings` | Cancel an occurrence (`id`) or stop a series (`series_id`). |
 | GET | `/api/v1/org-seats` | Org chart as a nested tree. `?flat=1` for a flat list. |
 | POST | `/api/v1/org-seats` | Create a seat. |
 | PATCH | `/api/v1/org-seats` | Update a seat, or move it under a different parent. |
@@ -281,6 +286,75 @@ Identify the seat with `id` or `title`; use `new_title` to rename it. Setting `p
 
 Deleting a seat deletes every seat beneath it. If it has reports, the call is refused with `409` and the descendant count until you resend with `"cascade": true`.
 
+### Room bookings
+
+`GET /api/v1/bookings` returns real dated slots, already expanded — you never have to interpret a recurrence rule:
+
+```json
+{
+  "from": "2026-08-23", "to": "2026-08-29",
+  "bookings": [
+    {
+      "id": "…", "room": { "id": "…", "name": "חדר פעילות" },
+      "date": "2026-08-24", "start_time": "19:00", "end_time": "20:30",
+      "title": "שיעור תניא", "in_charge_name": "הרב כהן", "notes": null,
+      "weekly": true, "series_id": "…", "is_cancelled": false
+    }
+  ],
+  "count": 1
+}
+```
+
+**`POST /api/v1/bookings`**
+
+```json
+{
+  "room": "חדר פעילות",
+  "title": "שיעור תניא",
+  "in_charge_name": "הרב כהן",
+  "date": "2026-08-24",
+  "start_time": "19:00",
+  "end_time": "20:30",
+  "notes": "optional",
+  "weekly": false,
+  "ends_on": "2027-06-30"
+}
+```
+
+`room` takes an id or an exact room name. `in_charge_name` is free text — the person running it doesn't have to be in the system. Times are Jerusalem wall-clock and the range is half-open, so an event ending at 20:00 doesn't clash with one starting at 20:00.
+
+A clash is a hard failure, never a merge: the response is `409` with the blocking booking, e.g. `{ "error": "חדר פעילות תפוס בשעה הזו — שיעור תניא (19:00–20:30), באחריות הרב כהן.", "conflict": { … } }`.
+
+With `"weekly": true` the `date` sets the weekday and the first occurrence; slots are materialised through a rolling six-month horizon and returned as `{ "series_id": …, "weekday": 1, "skipped_dates": [] }`. Dates already taken by something else appear in `skipped_dates` rather than failing the whole series.
+
+**`PATCH /api/v1/bookings`** — one occurrence:
+
+```json
+{ "id": "…", "date": "2026-08-25", "start_time": "19:30", "end_time": "21:00", "is_cancelled": false }
+```
+
+Editing a single occurrence marks it as an exception, so later series-wide edits leave it alone.
+
+**`PATCH /api/v1/bookings`** — a whole series:
+
+```json
+{
+  "series_id": "…", "title": "…", "in_charge_name": "…", "room": "לובי",
+  "weekday": 2, "start_time": "19:00", "end_time": "20:30",
+  "effective_from": "2026-09-01", "is_active": true
+}
+```
+
+`weekday` is 0 = Sunday through 6 = Saturday. `effective_from` (default today) is the point from which the change applies: earlier occurrences stay as they happened, so moving a class from Monday to Tuesday doesn't rewrite history. `"is_active": false` stops the series.
+
+**`DELETE /api/v1/bookings`**
+
+```json
+{ "id": "…" }
+```
+
+For a series occurrence this cancels that one week (the slot stays reserved as a tombstone so it isn't regenerated); a one-off is deleted outright. `{ "series_id": "…" }` stops the whole series — future occurrences go, past ones remain as history.
+
 ## Examples
 
 ```bash
@@ -296,6 +370,15 @@ curl -X POST https://eos.karmiel.co.il/api/v1/todos \
 # List open todos for a user
 curl -H "Authorization: Bearer $EOS_API_KEY" \
   "https://eos.karmiel.co.il/api/v1/todos?assignee=alice@example.com&status=open"
+
+# What's booked this week
+curl -H "Authorization: Bearer $EOS_API_KEY" https://eos.karmiel.co.il/api/v1/bookings
+
+# Book a room for one evening
+curl -X POST https://eos.karmiel.co.il/api/v1/bookings \
+  -H "Authorization: Bearer $EOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"room":"לובי","title":"התוועדות","in_charge_name":"הרב כהן","date":"2026-08-26","start_time":"20:00","end_time":"22:00"}'
 
 # Create a project (rock)
 curl -X POST https://eos.karmiel.co.il/api/v1/rocks \

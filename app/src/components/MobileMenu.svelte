@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    Menu, X, Target, AlertCircle, ListTodo, ChartBar, Eye, Settings,
+    Menu, X, Target, AlertCircle, ListTodo, ChartBar, Eye, Settings, CalendarDays,
     ListChecks, BookOpen, Users, Link2, Network, Wallet, LogOut,
   } from 'lucide-svelte';
 
@@ -14,6 +14,7 @@
     canSeeExpenses = false,
     hideVto = false,
     hideScorecard = false,
+    hideRooms = false,
   } = $props<{
     teams: Team[];
     currentTeamId: string | null;
@@ -23,6 +24,7 @@
     canSeeExpenses?: boolean;
     hideVto?: boolean;
     hideScorecard?: boolean;
+    hideRooms?: boolean;
   }>();
 
   let open = $state(false);
@@ -49,8 +51,12 @@
     { href: '/issues',    label: 'נושאים',      icon: AlertCircle, match: (p: string) => p.startsWith('/issues') },
     { href: '/todos',     label: 'משימות',      icon: ListTodo,    match: (p: string) => p.startsWith('/todos') },
     { href: '/scorecard', label: 'לוח מדדים',   icon: ChartBar,    match: (p: string) => p.startsWith('/scorecard') },
+    { href: '/rooms',     label: 'חדרים',       icon: CalendarDays, match: (p: string) => p.startsWith('/rooms') },
   ].filter(
-    (i) => !(i.href === '/vto' && hideVto) && !(i.href === '/scorecard' && hideScorecard),
+    (i) =>
+      !(i.href === '/vto' && hideVto) &&
+      !(i.href === '/scorecard' && hideScorecard) &&
+      !(i.href === '/rooms' && hideRooms),
   );
 
   const allSecondary = [

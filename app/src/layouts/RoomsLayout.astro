@@ -1,0 +1,57 @@
+---
+// Deliberately not AppLayout: the rooms screen is meant to feel like a small
+// single-purpose app you can land on by URL, not another EOS tab. Same fonts and
+// colours, none of the furniture.
+import '~/styles/global.css';
+import { CalendarDays, ArrowLeft } from 'lucide-svelte';
+
+interface Props {
+  title?: string;
+  subtitle?: string;
+  showBackToEos?: boolean;
+  noindex?: boolean;
+}
+const {
+  title = 'חדרים · חב"ד כרמיאל',
+  subtitle = 'זמינות חדרים',
+  showBackToEos = false,
+  noindex = false,
+} = Astro.props;
+---
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    <title>{title}</title>
+  </head>
+  <body class="min-h-screen bg-stone-50">
+    <header class="bg-white border-b border-stone-200">
+      <div class="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-teal-100 grid place-items-center shrink-0">
+          <CalendarDays class="text-teal-700" size={20} />
+        </div>
+        <div class="flex-1 min-w-0">
+          <h1 class="text-lg font-semibold text-stone-900 leading-tight">{subtitle}</h1>
+          <p class="text-xs text-stone-500">חב"ד כרמיאל</p>
+        </div>
+        <slot name="header-action" />
+      </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-5 pb-16">
+      <slot />
+    </main>
+
+    {showBackToEos && (
+      <footer class="max-w-5xl mx-auto px-4 pb-8">
+        <a href="/" class="inline-flex items-center gap-1.5 text-xs text-stone-400 hover:text-stone-600">
+          <ArrowLeft size={13} />
+          חזרה למערכת
+        </a>
+      </footer>
+    )}
+  </body>
+</html>

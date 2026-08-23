@@ -9,6 +9,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
   const prefs: UiPrefs = {};
   if (form.get('show_vto') === null) prefs.hide_vto = true;
   if (form.get('show_scorecard') === null) prefs.hide_scorecard = true;
+  if (form.get('show_rooms') === null) prefs.hide_rooms = true;
 
   try {
     await setUiPrefs(user.employeeId, prefs);

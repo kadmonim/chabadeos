@@ -1,0 +1,162 @@
+---
+// Public, no login. Deliberately selects only room, date and times — the titles
+// and the people in charge are never sent to the browser, so they can't be read
+// out of the page source either.
+import RoomsLayout from '~/layouts/RoomsLayout.astro';
+import { ChevronRight, ChevronLeft } from 'lucide-svelte';
+import { sql } from '~/lib/db';
+import { fmtDualDate, fmtHebrewDate } from '~/lib/dates';
+import {
+  listRooms, ensureHorizon, weekDates, weekStart, addDays, todayInJerusalem,
+  nowTimeInJerusalem, isValidDate, hhmm, WEEKDAY_NAMES,
+} from '~/lib/rooms';
+
+type Slot = { room_id: string; event_date: string; start_time: string; end_time: string };
+
+const url = Astro.url;
+const today = todayInJerusalem();
+const nowTime = nowTimeInJerusalem();
+
+const anchorParam = url.searchParams.get('d');
+const anchor = isValidDate(anchorParam) ? anchorParam : today;
+const days = weekDates(anchor);
+
+await ensureHorizon(days[6]);
+
+const rooms = await listRooms();
+const slots = (await sql`
+  select room_id, event_date::text as event_date,
+         start_time::text as start_time, end_time::text as end_time
+  from bookings
+  where not is_cancelled and event_date >= ${days[0]} and event_date <= ${days[6]}
+  order by event_date, start_time`) as unknown as Slot[];
+
+const cellFor = (date: string, roomId: string) =>
+  slots.filter((s) => s.event_date === date && s.room_id === roomId);
+
+const statusNowFor = (roomId: string) => {
+  const mine = cellFor(today, roomId);
+  const busy = mine.find((s) => hhmm(s.start_time) <= nowTime && hhmm(s.end_time) > nowTime) ?? null;
+  const next = mine.find((s) => hhmm(s.start_time) > nowTime) ?? null;
+  return { busy, next };
+};
+---
+<RoomsLayout title={'זמינות חדרים · חב"ד כרמיאל'} subtitle="זמינות חדרים" noindex={true}>
+  <section class="grid gap-2 sm:grid-cols-2 mb-5">
+    {rooms.map((room) => {
+      const { busy, next } = statusNowFor(room.id);
+      return (
+        <div class={`rounded-2xl border p-4 bg-white ${busy ? 'border-amber-200' : 'border-emerald-200'}`}>
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-medium text-stone-900">{room.name}</span>
+            <span class={`text-xs font-semibold px-2 py-0.5 rounded-full ${busy ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+              {busy ? 'תפוס' : 'פנוי'}
+            </span>
+          </div>
+          <p class="text-sm text-stone-600 mt-1.5">
+            {busy ? `תפוס עד ${hhmm(busy.end_time)}` : next ? `פנוי עד ${hhmm(next.start_time)}` : 'פנוי להמשך היום'}
+          </p>
+        </div>
+      );
+    })}
+  </section>
+
+  <div class="flex items-center justify-between mb-3">
+    <a href={`/rooms/open?d=${addDays(anchor, -7)}`} class="p-2 rounded-lg hover:bg-white text-stone-500" title="שבוע קודם">
+      <ChevronRight size={18} />
+    </a>
+    <div class="text-center">
+      <div class="text-sm font-medium text-stone-800">
+        {fmtHebrewDate(days[0], { year: false })} – {fmtHebrewDate(days[6])}
+      </div>
+      {weekStart(today) !== weekStart(anchor) && (
+        <a href="/rooms/open" class="text-xs text-teal-700 hover:underline">חזרה לשבוע הנוכחי</a>
+      )}
+    </div>
+    <a href={`/rooms/open?d=${addDays(anchor, 7)}`} class="p-2 rounded-lg hover:bg-white text-stone-500" title="שבוע הבא">
+      <ChevronLeft size={18} />
+    </a>
+  </div>
+
+  <div class="hidden md:block bg-white border border-stone-200 rounded-2xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-stone-200 bg-stone-50">
+          <th class="text-start px-4 py-2.5 font-medium text-stone-500 w-40">יום</th>
+          {rooms.map((r) => <th class="text-start px-4 py-2.5 font-medium text-stone-700">{r.name}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {days.map((date) => (
+          <tr class={`border-b border-stone-100 last:border-0 ${date === today ? 'bg-teal-50/40' : ''}`}>
+            <td class="px-4 py-3 align-top">
+              <div class={`font-medium ${date === today ? 'text-teal-800' : 'text-stone-800'}`}>
+                {WEEKDAY_NAMES[new Date(`${date}T00:00:00Z`).getUTCDay()]}
+              </div>
+              <div class="text-xs text-stone-500">{fmtDualDate(date, { year: false })}</div>
+            </td>
+            {rooms.map((room) => {
+              const items = cellFor(date, room.id);
+              return (
+                <td class="px-3 py-2.5 align-top">
+                  {items.length === 0 ? (
+                    <span class="text-xs text-emerald-700">פנוי</span>
+                  ) : (
+                    <div class="space-y-1.5">
+                      {items.map((s) => (
+                        <div class="rounded-lg px-2.5 py-1.5 border border-amber-200 bg-amber-50 text-amber-900 text-xs">
+                          <span class="font-semibold tabular-nums">{hhmm(s.start_time)}–{hhmm(s.end_time)}</span>
+                          <span class="ms-1.5">תפוס</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="md:hidden space-y-3">
+    {days.map((date) => (
+      <section class={`bg-white border rounded-2xl p-4 ${date === today ? 'border-teal-300' : 'border-stone-200'}`}>
+        <div class="flex items-baseline justify-between mb-2">
+          <h2 class={`font-semibold ${date === today ? 'text-teal-800' : 'text-stone-800'}`}>
+            {WEEKDAY_NAMES[new Date(`${date}T00:00:00Z`).getUTCDay()]}
+            {date === today && <span class="text-xs font-normal"> · היום</span>}
+          </h2>
+          <span class="text-xs text-stone-500">{fmtDualDate(date, { year: false })}</span>
+        </div>
+        <div class="space-y-2.5">
+          {rooms.map((room) => {
+            const items = cellFor(date, room.id);
+            return (
+              <div>
+                <div class="text-xs text-stone-500 mb-1">{room.name}</div>
+                {items.length === 0 ? (
+                  <div class="text-xs text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-lg py-2 text-center">פנוי</div>
+                ) : (
+                  <div class="space-y-1.5">
+                    {items.map((s) => (
+                      <div class="rounded-lg px-3 py-2 border border-amber-200 bg-amber-50 text-amber-900 text-sm flex items-center gap-2">
+                        <span class="font-semibold tabular-nums text-xs">{hhmm(s.start_time)}–{hhmm(s.end_time)}</span>
+                        <span class="text-xs">תפוס</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    ))}
+  </div>
+
+  <p class="text-xs text-stone-400 mt-5 text-center">
+    תצוגה לצפייה בלבד. לפרטים ולהזמנת חדר יש להתחבר למערכת.
+  </p>
+</RoomsLayout>

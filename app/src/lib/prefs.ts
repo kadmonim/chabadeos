@@ -5,6 +5,7 @@ import { sql } from './db';
 export type UiPrefs = {
   hide_vto?: boolean;
   hide_scorecard?: boolean;
+  hide_rooms?: boolean;
 };
 
 export async function getUiPrefs(employeeId: string): Promise<UiPrefs> {

@@ -3,7 +3,9 @@ import { readSession } from '~/lib/session';
 import { fetchAllowedTeams, resolveCurrentTeam } from '~/lib/team';
 import { getUiPrefs } from '~/lib/prefs';
 
-const PUBLIC_PATHS = new Set<string>(['/login', '/auth/google', '/auth/callback']);
+// /rooms/open is the view-only room availability page: busy/free times with no
+// details, deliberately readable without a login.
+const PUBLIC_PATHS = new Set<string>(['/login', '/auth/google', '/auth/callback', '/rooms/open']);
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const session = await readSession(context.cookies);
