@@ -41,7 +41,7 @@
   const primary = [
     { href: '/',          label: 'דף הבית',     icon: Target,      match: (p: string) => p === '/' },
     { href: '/vto',       label: 'חזון (V/TO)', icon: Eye,         match: (p: string) => p.startsWith('/vto') },
-    { href: '/rocks',     label: 'סלעים',       icon: Target,      match: (p: string) => p.startsWith('/rocks') },
+    { href: '/rocks',     label: 'פרוייקטים',       icon: Target,      match: (p: string) => p.startsWith('/rocks') },
     { href: '/issues',    label: 'נושאים',      icon: AlertCircle, match: (p: string) => p.startsWith('/issues') },
     { href: '/todos',     label: 'משימות',      icon: ListTodo,    match: (p: string) => p.startsWith('/todos') },
     { href: '/scorecard', label: 'לוח מדדים',   icon: ChartBar,    match: (p: string) => p.startsWith('/scorecard') },

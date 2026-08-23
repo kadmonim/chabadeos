@@ -77,14 +77,14 @@ const statusLabel = { on_track: 'במסלול', off_track: 'לא במסלול', 
 
 const back = '/rocks';
 ---
-<AppLayout title="סלעים · מרכז חב&quot;ד">
+<AppLayout title="פרוייקטים · מרכז חב&quot;ד">
   <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
         <Mountain class="text-violet-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">סלעים</h1>
+        <h1 class="text-2xl font-semibold text-stone-900">פרוייקטים</h1>
         <p class="text-stone-500 text-sm">עדיפויות רבעוניות לארגון</p>
       </div>
     </div>
@@ -101,7 +101,7 @@ const back = '/rocks';
         class="bg-stone-800 hover:bg-stone-900 text-white rounded-xl px-4 py-2 text-sm font-medium flex items-center gap-1.5"
       >
         <Plus size={15} />
-        הוספת סלע
+        הוספת פרוייקט
       </a>
     </div>
   </header>
@@ -160,7 +160,7 @@ const back = '/rocks';
        ============================================================ -->
   <section>
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold text-stone-900">סלעים</h2>
+      <h2 class="text-lg font-semibold text-stone-900">פרוייקטים</h2>
       <form method="GET" class="flex gap-2">
         {sortMilestones !== 'priority' && <input type="hidden" name="sort_milestones" value={sortMilestones} />}
         <select name="sort_rocks" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-sm">
@@ -203,7 +203,7 @@ const back = '/rocks';
         ))
       ) : (
         <div class="bg-white border border-stone-200 rounded-xl px-4 py-12 text-center text-sm text-stone-400">
-          עדיין אין סלעים.
+          עדיין אין פרוייקטים.
         </div>
       )}
     </div>
@@ -218,7 +218,7 @@ const back = '/rocks';
       <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold text-stone-900">{editingRock ? 'עריכת סלע' : 'הוספת סלע'}</h2>
+            <h2 class="text-xl font-semibold text-stone-900">{editingRock ? 'עריכת פרוייקט' : 'הוספת פרוייקט'}</h2>
             <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
 
@@ -273,7 +273,7 @@ const back = '/rocks';
             </div>
 
             <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              {editingRock ? 'שמירת שינויים' : 'יצירת סלע'}
+              {editingRock ? 'שמירת שינויים' : 'יצירת פרוייקט'}
             </button>
           </form>
 
@@ -282,13 +282,13 @@ const back = '/rocks';
               method="POST"
               action="/api/rocks"
               class="pt-4 border-t border-stone-200"
-              onsubmit="return confirm('למחוק סלע זה?');"
+              onsubmit="return confirm('למחוק פרוייקט זה?');"
             >
               <input type="hidden" name="_action" value="delete" />
               <input type="hidden" name="id" value={editingRock.id} />
               <input type="hidden" name="back" value={back} />
               <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
-                <Trash2 size={14} /> מחיקת סלע
+                <Trash2 size={14} /> מחיקת פרוייקט
               </button>
             </form>
           )}
@@ -335,9 +335,9 @@ const back = '/rocks';
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">סלע אב</label>
+              <label class="text-sm font-medium text-stone-700">פרוייקט אב</label>
               <select name="rock_id" required class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">בחירת סלע...</option>
+                <option value="">בחירת פרוייקט...</option>
                 {rocks?.map((r) => <option value={r.id} selected={r.id === loadedMilestone?.rock_id}>{r.title}</option>)}
               </select>
             </div>
