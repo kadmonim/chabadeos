@@ -21,8 +21,18 @@ Valid keys come from the `CHABADEOS_API_KEYS` environment variable on the server
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/v1/employees` | List employees. Optional `?email=` filter. |
+| POST | `/api/v1/employees` | Create an employee, optionally adding them to a team. |
+| PATCH | `/api/v1/employees` | Rename an employee or change their email. |
 | GET | `/api/v1/teams` | List teams with members. |
+| POST | `/api/v1/teams` | Create a team, optionally with its starting members. |
+| PATCH | `/api/v1/teams` | Rename a team or change its description. |
+| DELETE | `/api/v1/teams` | Delete a team. Requires `confirm_name`. |
+| GET | `/api/v1/teams/:id/members` | List a team's members. `:id` accepts a team id **or** name. |
+| POST | `/api/v1/teams/:id/members` | Add someone to a team. |
+| DELETE | `/api/v1/teams/:id/members` | Remove someone from a team. |
 | GET | `/api/v1/rocks` | List non-archived rocks (projects). Optional `?include_archived=1`. |
+| POST | `/api/v1/rocks` | Create a rock (project). |
+| PATCH | `/api/v1/rocks` | Update a rock — including archiving it. |
 | GET | `/api/v1/issues` | Optional `?assignee=<email>`, `?team_id=`, `?status=`, `?term=short_term\|long_term\|idea_backlog`. |
 | POST | `/api/v1/issues` | Create an issue. |
 | PATCH | `/api/v1/issues` | Mark an issue solved/open. |
@@ -65,6 +75,106 @@ Returns `{ "id": "…" }`. `team_id` and `team_name` are mutually exclusive.
 ```
 
 `solved` defaults to `true` if omitted.
+
+**`POST /api/v1/employees`**
+
+```json
+{
+  "full_name": "string (required)",
+  "email": "alice@example.com (required, unique)",
+  "team_id": "…",
+  "team_name": "Finance",
+  "role": "admin | member (default member)"
+}
+```
+
+Returns `{ "id": "…", "team_id": … }`. `team_id`/`team_name` are optional — pass one to also add the new person to that team. A duplicate email returns `409` along with the id of the existing employee.
+
+**`PATCH /api/v1/employees`**
+
+```json
+{ "id": "…", "email": "old@example.com", "full_name": "New Name", "new_email": "new@example.com" }
+```
+
+Identify the person with either `id` or `email`; then send `full_name` and/or `new_email`. There is no DELETE — removing an employee would cascade to their assignments, so do it from the UI deliberately.
+
+**`POST /api/v1/teams`**
+
+```json
+{
+  "name": "string (required, unique)",
+  "description": "string (optional)",
+  "members": [
+    { "email": "alice@example.com", "role": "admin", "role_description": "Team lead" }
+  ]
+}
+```
+
+Returns `{ "id": "…", "members_added": n }`. `members` is optional; every email in it is checked before the team is created, so a typo fails cleanly instead of leaving a half-populated team. A duplicate name returns `409` with the existing id.
+
+**`PATCH /api/v1/teams`**
+
+```json
+{ "team_name": "Finance", "name": "Finance & Ops", "description": "…" }
+```
+
+Identify the team with `id` or `team_name`.
+
+**`DELETE /api/v1/teams`**
+
+```json
+{ "team_name": "Finance", "confirm_name": "Finance" }
+```
+
+`confirm_name` must match the team's exact name (case-sensitive) — a guard against deleting the wrong team. Memberships are deleted with it; issues, todos and scorecard items survive but lose their team assignment.
+
+**`POST /api/v1/teams/:id/members`**
+
+```json
+{ "email": "alice@example.com", "role": "member", "role_description": "Bookkeeping" }
+```
+
+`:id` may be a team id or a team name. Use `employee_id` instead of `email` if you have it. Idempotent — posting again for the same person updates their role rather than erroring.
+
+**`DELETE /api/v1/teams/:id/members`**
+
+```json
+{ "email": "alice@example.com" }
+```
+
+Returns `204`, or `404` if that person wasn't on the team.
+
+**`POST /api/v1/rocks`**
+
+```json
+{
+  "title": "string (required)",
+  "description": "string (optional)",
+  "owner_email": "alice@example.com",
+  "due_date": "2026-12-31",
+  "status": "on_track | off_track | done (default on_track)",
+  "priority_order": 0
+}
+```
+
+Returns `{ "id": "…" }`. Rocks are org-wide, not team-scoped, so there is no `team_id`.
+
+**`PATCH /api/v1/rocks`**
+
+```json
+{
+  "id": "…",
+  "title": "…",
+  "description": "…",
+  "owner_email": "alice@example.com",
+  "due_date": "2026-12-31",
+  "status": "on_track | off_track | done",
+  "priority_order": 3,
+  "is_archived": false
+}
+```
+
+Every field except `id` is optional — only what you send is changed. Pass `""` or `null` for `owner_email`, `due_date` or `description` to clear them. There is no DELETE; retire a rock with `{"is_archived": true}`. Returns the fields that were applied, or `404` if the id doesn't exist.
 
 **`POST /api/v1/todos`**
 
@@ -127,6 +237,18 @@ curl -X POST https://eos.karmiel.co.il/api/v1/todos \
 curl -H "Authorization: Bearer $EOS_API_KEY" \
   "https://eos.karmiel.co.il/api/v1/todos?assignee=alice@example.com&status=open"
 
+# Create a project (rock)
+curl -X POST https://eos.karmiel.co.il/api/v1/rocks \
+  -H "Authorization: Bearer $EOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Open the new campus wing","owner_email":"alice@example.com","due_date":"2026-12-31"}'
+
+# Move a project off track
+curl -X PATCH https://eos.karmiel.co.il/api/v1/rocks \
+  -H "Authorization: Bearer $EOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"<rock-id>","status":"off_track"}'
+
 # Mark a todo done
 curl -X PATCH https://eos.karmiel.co.il/api/v1/todos \
   -H "Authorization: Bearer $EOS_API_KEY" \
@@ -153,7 +275,8 @@ All errors are JSON:
 
 - Responses are pretty-printed JSON with `cache-control: no-store`.
 - `team_name` lookups are case-insensitive exact matches.
-- **Read-only resources** (no POST/PATCH/DELETE): employees, teams, rocks, V/TO.
+- **Read-only resources** (no POST/PATCH/DELETE): V/TO.
+- Anywhere a path takes `:id` for a team, a team *name* works too.
 - No per-key scoping or rate limiting — every valid key gets the full surface. Hand keys only to trusted integrations.
 - The UI is Hebrew; the API contract (field names, status values, error strings) is English and stable.
 
