@@ -15,7 +15,7 @@ const { rows: [emp] } = await client.query(
   `insert into employees (full_name, email) values ($1, $2)
    on conflict (email) do update set full_name = excluded.full_name
    returning id`,
-  ['Mendy', 'mendye@gmail.com'],
+  ['מענדי', 'mendye@gmail.com'],
 );
 console.log('employee:', emp.id);
 
