@@ -262,7 +262,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
             <h2 class="text-xl font-semibold text-stone-900">
-              {editingSeries ? 'עריכת סדרה שבועית' : editing ? 'עריכת מופע' : 'הוספה'}
+              {editingSeries ? 'עריכת סדרה שבועית' : editing ? 'עריכת אירוע' : 'הוספה'}
             </h2>
             <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
@@ -307,7 +307,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                 <input type="date" name="event_date" required value={prefillDate}
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                 <p class="text-xs text-stone-500 mt-1">
-                  {fmtDualDate(prefillDate)} · בחירת "כל שבוע" תיצור מופע בכל אותו יום בשבוע מהתאריך הזה והלאה.
+                  {fmtDualDate(prefillDate)} · בחירת "כל שבוע" תיצור אירוע בכל אותו יום בשבוע מהתאריך הזה והלאה.
                 </p>
               </div>
 
@@ -348,10 +348,10 @@ const panelOpen = adding || !!editing || !!editingSeries;
                   <input type="hidden" name="id" value={editing.id} />
                   <input type="hidden" name="back" value={back} />
                   <p class="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded-xl p-4">
-                    {editing.shown_title} · {fmtDualDate(editing.event_date, { year: false })} — המופע הזה בוטל.
+                    {editing.shown_title} · {fmtDualDate(editing.event_date, { year: false })} — האירוע הזה בוטל.
                   </p>
                   <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
-                    החזרת המופע
+                    החזרת האירוע
                   </button>
                 </form>
               ) : (
@@ -362,9 +362,19 @@ const panelOpen = adding || !!editing || !!editingSeries;
                     <input type="hidden" name="back" value={back} />
 
                     <p class="text-sm text-stone-500">
-                      {editing.shown_title} · {editing.room_name}
-                      {editing.series_id && <span class="text-teal-700"> · מופע מתוך סדרה שבועית</span>}
+                      {editing.shown_title}
+                      {editing.series_id && <span class="text-teal-700"> · אירוע מתוך סדרה שבועית</span>}
                     </p>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">חדר</label>
+                      <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                        {rooms.map((r) => <option value={r.id} selected={r.id === editing.room_id}>{r.name}</option>)}
+                      </select>
+                      {editing.series_id && (
+                        <p class="text-xs text-stone-500 mt-1">שינוי כאן חל על האירוע הזה בלבד.</p>
+                      )}
+                    </div>
 
                     <div>
                       <label class="text-sm font-medium text-stone-700">תאריך</label>
@@ -397,11 +407,17 @@ const panelOpen = adding || !!editing || !!editingSeries;
                           <input type="text" name="in_charge_name" required value={editing.in_charge_name ?? ''}
                             class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                         </div>
+                        <div>
+                          <label class="text-sm font-medium text-stone-700">הערות</label>
+                          <textarea name="notes" rows="2"
+                            class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
+                          >{editing.notes ?? ''}</textarea>
+                        </div>
                       </>
                     )}
 
                     <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
-                      שמירת המופע הזה
+                      שמירת האירוע הזה
                     </button>
                   </form>
 
@@ -412,7 +428,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                         <input type="hidden" name="id" value={editing.id} />
                         <input type="hidden" name="back" value={back} />
                         <button class="w-full border border-amber-300 text-amber-800 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
-                          <Ban size={14} /> ביטול המופע הזה בלבד
+                          <Ban size={14} /> ביטול האירוע הזה בלבד
                         </button>
                       </form>
                       <a href={`/rooms?d=${anchor}&series=${editing.series_id}`}
@@ -454,7 +470,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                       <label class="text-sm font-medium text-stone-700">מה זה?</label>
                       <input type="text" name="title" required value={editingSeries.title}
                         class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
-                      <p class="text-xs text-stone-500 mt-1">שינוי השם משנה את כל המופעים, כולל אלה שעברו.</p>
+                      <p class="text-xs text-stone-500 mt-1">שינוי השם משנה את כל האירועים, כולל אלה שעברו.</p>
                     </div>
 
                     <div>
@@ -497,7 +513,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                       <input type="date" name="effective_from" required value={today}
                         class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                       <p class="text-xs text-stone-500 mt-1">
-                        מופעים שלפני התאריך הזה נשארים כמו שהיו. מופעים שהוזזו או בוטלו ידנית לא ישתנו.
+                        אירועים שלפני התאריך הזה נשארים כמו שהיו. אירועים שהוזזו או בוטלו ידנית לא ישתנו.
                       </p>
                     </div>
 
@@ -518,7 +534,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                     <input type="hidden" name="id" value={editingSeries.id} />
                     <input type="hidden" name="back" value={back} />
                     <button
-                      onclick="if(!confirm('להפסיק את הסדרה? המופעים העתידיים יימחקו, וההיסטוריה תישאר.')) return false;"
+                      onclick="if(!confirm('להפסיק את הסדרה? האירועים העתידיים יימחקו, וההיסטוריה תישאר.')) return false;"
                       class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
                       <Trash2 size={14} /> הפסקת הסדרה
                     </button>

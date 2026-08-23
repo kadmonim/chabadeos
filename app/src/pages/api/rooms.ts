@@ -84,7 +84,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return ok(
         back,
         skipped.length
-          ? `הסדרה נוצרה. ${skipped.length} מופעים לא נוספו בגלל התנגשות: ${skipped.join(', ')}`
+          ? `הסדרה נוצרה. ${skipped.length} אירועים לא נוספו בגלל התנגשות: ${skipped.join(', ')}`
           : 'הסדרה השבועית נוצרה.',
       );
     }
@@ -102,20 +102,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const date = str('event_date');
       const startTime = str('start_time');
       const endTime = str('end_time');
+      const roomId = str('room_id') || row.room_id;
       if (!isValidDate(date)) return bad(back, 'תאריך לא תקין.');
       if (!isValidTime(startTime) || !isValidTime(endTime)) return bad(back, 'שעה לא תקינה.');
       if (endTime <= startTime) return bad(back, 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.');
 
-      const clash = await findClash(row.room_id, date, startTime, endTime, id);
-      if (clash) return bad(back, clashMessage(clash, await roomName(row.room_id)));
+      const clash = await findClash(roomId, date, startTime, endTime, id);
+      if (clash) return bad(back, clashMessage(clash, await roomName(roomId)));
 
       if (row.series_id) {
         // Flagged as modified so regenerating the series leaves this week alone.
         await sql`
           update bookings
-          set event_date = ${date}, start_time = ${startTime}, end_time = ${endTime}, is_modified = true
+          set room_id = ${roomId}, event_date = ${date}, start_time = ${startTime},
+              end_time = ${endTime}, is_modified = true
           where id = ${id}`;
-        return ok(back, 'המופע עודכן.');
+        return ok(back, 'האירוע עודכן.');
       }
 
       const title = str('title');
@@ -123,8 +125,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (!title || !inCharge) return bad(back, 'שם ואחראי הם שדות חובה.');
       await sql`
         update bookings
-        set event_date = ${date}, start_time = ${startTime}, end_time = ${endTime},
-            title = ${title}, in_charge_name = ${inCharge}, is_modified = true
+        set room_id = ${roomId}, event_date = ${date}, start_time = ${startTime},
+            end_time = ${endTime}, title = ${title}, in_charge_name = ${inCharge},
+            notes = ${str('notes') || null}, is_modified = true
         where id = ${id}`;
       return ok(back, 'ההזמנה עודכנה.');
     }
@@ -145,13 +148,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         const clash = await findClash(row.room_id, row.event_date, row.start_time, row.end_time, id);
         if (clash) return bad(back, clashMessage(clash, await roomName(row.room_id)));
         await sql`update bookings set is_cancelled = false where id = ${id}`;
-        return ok(back, 'המופע הוחזר.');
+        return ok(back, 'האירוע הוחזר.');
       }
 
       // Cancelling keeps the row as a tombstone: the slot stays claimed, so the
       // horizon top-up won't quietly regenerate it.
       await sql`update bookings set is_cancelled = true, is_modified = true where id = ${id}`;
-      return ok(back, 'המופע בוטל.');
+      return ok(back, 'האירוע בוטל.');
     }
 
     if (action === 'delete_occurrence') {
@@ -159,7 +162,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const rows = await sql`select series_id, created_by from bookings where id = ${id}`;
       const row = rows[0] as any;
       if (!row) return bad(back, 'ההזמנה לא נמצאה.');
-      if (row.series_id) return bad(back, 'מופע מתוך סדרה מבוטלים ולא נמחקים.');
+      if (row.series_id) return bad(back, 'אירוע מתוך סדרה מבוטל ולא נמחק.');
       if (!mayTouch(row.created_by)) return bad(back, 'רק מי שיצר את ההזמנה יכול למחוק אותה.');
       await sql`delete from bookings where id = ${id}`;
       return ok(back, 'ההזמנה נמחקה.');
@@ -206,7 +209,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return ok(
         back,
         skipped.length
-          ? `הסדרה עודכנה. ${skipped.length} מופעים לא נוספו בגלל התנגשות: ${skipped.join(', ')}`
+          ? `הסדרה עודכנה. ${skipped.length} אירועים לא נוספו בגלל התנגשות: ${skipped.join(', ')}`
           : 'הסדרה עודכנה.',
       );
     }
@@ -222,7 +225,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const today = todayInJerusalem();
       await sql`update booking_series set is_active = false where id = ${id}`;
       await sql`delete from bookings where series_id = ${id} and event_date >= ${today}`;
-      return ok(back, 'הסדרה הופסקה. המופעים שהיו נשארו בהיסטוריה.');
+      return ok(back, 'הסדרה הופסקה. האירועים שהיו נשארו בהיסטוריה.');
     }
 
     return bad(back, 'פעולה לא מוכרת.');
