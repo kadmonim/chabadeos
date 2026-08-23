@@ -56,7 +56,7 @@
       vendor = json.vendor;
       employees = json.employees;
     } else {
-      err = await res.text() || 'Failed to load vendor.';
+      err = await res.text() || 'טעינת הספק נכשלה.';
     }
     loading = false;
   }
@@ -72,7 +72,7 @@
       employees = json.employees;
       vendor = emptyVendor(name);
     } else {
-      err = await res.text() || 'Failed to initialize form.';
+      err = await res.text() || 'אתחול הטופס נכשל.';
     }
     loading = false;
   }
@@ -121,7 +121,7 @@
         const json = await res.json().catch(() => null);
         if (json?.duplicate && json?.vendor_id) {
           await loadEdit(json.vendor_id);
-          err = 'A vendor with that name already exists — editing it instead.';
+          err = 'ספק בשם זה קיים כבר — עורכים אותו במקום.';
           saving = false;
           return;
         }
@@ -129,14 +129,14 @@
       close();
       location.reload();
     } else {
-      err = await res.text() || 'Save failed.';
+      err = await res.text() || 'השמירה נכשלה.';
     }
     saving = false;
   }
 
   async function del() {
     if (!vendor) return;
-    if (!confirm(`Delete vendor "${vendor.name}"?`)) return;
+    if (!confirm(`למחוק את הספק "${vendor.name}"?`)) return;
     const form = new FormData();
     form.set('_action', 'delete');
     form.set('vendor_id', String(vendor.vendor_id));
@@ -146,7 +146,7 @@
       close();
       location.reload();
     } else {
-      err = await res.text() || 'Delete failed.';
+      err = await res.text() || 'המחיקה נכשלה.';
     }
   }
 
@@ -160,17 +160,17 @@
   <div class="fixed inset-0 z-40" onkeydown={onKey} role="presentation">
     <div class="absolute inset-0 bg-black/30" onclick={close} role="presentation"></div>
     <aside
-      class="absolute right-0 top-0 bottom-0 w-full max-w-lg bg-white shadow-2xl overflow-y-auto"
+      class="absolute end-0 top-0 bottom-0 w-full max-w-lg bg-white shadow-2xl overflow-y-auto"
       role="dialog"
       aria-modal="true"
-      aria-label="Edit vendor"
+      aria-label="עריכת ספק"
     >
       <div class="p-6 space-y-5">
         <div class="flex items-center justify-between">
           <h2 class="text-xl font-semibold text-stone-900">
-            {loading ? 'Loading…' : (mode === 'new' ? 'New vendor' : `Edit ${vendor?.name ?? ''}`)}
+            {loading ? 'טוען…' : (mode === 'new' ? 'ספק חדש' : `עריכת ${vendor?.name ?? ''}`)}
           </h2>
-          <button type="button" onclick={close} class="p-1 text-stone-400 hover:text-stone-700" aria-label="Close">
+          <button type="button" onclick={close} class="p-1 text-stone-400 hover:text-stone-700" aria-label="סגירה">
             <X size={20} />
           </button>
         </div>
@@ -180,91 +180,91 @@
         {/if}
 
         {#if loading}
-          <div class="text-sm text-stone-400">Loading…</div>
+          <div class="text-sm text-stone-400">טוען…</div>
         {:else if vendor}
           <form onsubmit={save} class="space-y-4">
             <div>
-              <label class="text-sm font-medium text-stone-700" for="v-name">Name</label>
+              <label class="text-sm font-medium text-stone-700" for="v-name">שם</label>
               <input id="v-name" type="text" name="name" required value={vendor.name}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
             </div>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-sm font-medium text-stone-700" for="v-group">Group</label>
+                <label class="text-sm font-medium text-stone-700" for="v-group">קבוצה</label>
                 <input id="v-group" type="text" name="group_name" value={vendor.group_name ?? ''}
-                  placeholder="e.g. Software, Hosting"
+                  placeholder="למשל: תוכנה, אירוח"
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700" for="v-person">Person</label>
+                <label class="text-sm font-medium text-stone-700" for="v-person">איש קשר</label>
                 <select id="v-person" name="person_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
-                  <option value="">— none —</option>
+                  <option value="">— ללא —</option>
                   {#each employees as e}
                     <option value={e.id} selected={e.id === vendor.person_employee_id}>{e.full_name}</option>
                   {/each}
                 </select>
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700" for="v-freq">Frequency</label>
+                <label class="text-sm font-medium text-stone-700" for="v-freq">תדירות</label>
                 <input id="v-freq" type="text" name="frequency" value={vendor.frequency ?? ''}
-                  placeholder="monthly, annual, one-off"
+                  placeholder="חודשי, שנתי, חד-פעמי"
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700" for="v-status">Status</label>
+                <label class="text-sm font-medium text-stone-700" for="v-status">סטטוס</label>
                 <input id="v-status" type="text" name="status" value={vendor.status ?? ''}
-                  placeholder="Active, Cancelled, ..."
+                  placeholder="פעיל, בוטל, ..."
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
               </div>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700" for="v-desc">Description</label>
+              <label class="text-sm font-medium text-stone-700" for="v-desc">תיאור</label>
               <textarea id="v-desc" name="description" rows="2"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
               >{vendor.description ?? ''}</textarea>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700" for="v-latest">Latest update</label>
+              <label class="text-sm font-medium text-stone-700" for="v-latest">עדכון אחרון</label>
               <textarea id="v-latest" name="latest_update" rows="2"
-                placeholder="What's the current state / last change"
+                placeholder="מה המצב הנוכחי / השינוי האחרון"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
               >{vendor.latest_update ?? ''}</textarea>
             </div>
 
             <div class="grid grid-cols-[1fr_160px] gap-3">
               <div>
-                <label class="text-sm font-medium text-stone-700" for="v-todo">To-do</label>
+                <label class="text-sm font-medium text-stone-700" for="v-todo">משימה</label>
                 <textarea id="v-todo" name="to_do" rows="2"
-                  placeholder="What needs to happen next"
+                  placeholder="מה צריך לקרות הלאה"
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
                 >{vendor.to_do ?? ''}</textarea>
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700" for="v-review">Review again</label>
+                <label class="text-sm font-medium text-stone-700" for="v-review">לבדיקה חוזרת בתאריך</label>
                 <input id="v-review" type="date" name="review_again" value={vendor.review_again ?? ''}
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
               </div>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700" for="v-reports">Report matches <span class="text-xs text-stone-400">(one per line)</span></label>
+              <label class="text-sm font-medium text-stone-700" for="v-reports">התאמות בדוחות <span class="text-xs text-stone-400">(שורה אחת לכל ערך)</span></label>
               <textarea id="v-reports" name="report_matches" rows="3"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-400"
               >{arrToLines(vendor.report_matches)}</textarea>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700" for="v-aliases">Aliases <span class="text-xs text-stone-400">(one per line)</span></label>
+              <label class="text-sm font-medium text-stone-700" for="v-aliases">כינויים <span class="text-xs text-stone-400">(שורה אחת לכל ערך)</span></label>
               <textarea id="v-aliases" name="aliases" rows="2"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-400"
               >{arrToLines(vendor.aliases)}</textarea>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700" for="v-tags">Tags <span class="text-xs text-stone-400">(one per line)</span></label>
+              <label class="text-sm font-medium text-stone-700" for="v-tags">תגיות <span class="text-xs text-stone-400">(שורה אחת לכל ערך)</span></label>
               <textarea id="v-tags" name="tags" rows="2"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-400"
               >{arrToLines(vendor.tags)}</textarea>
@@ -272,7 +272,7 @@
 
             <button type="submit" disabled={saving}
               class="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-60">
-              {saving ? 'Saving…' : (mode === 'new' ? 'Create vendor' : 'Save changes')}
+              {saving ? 'שומר…' : (mode === 'new' ? 'יצירת ספק' : 'שמירת שינויים')}
             </button>
           </form>
 
@@ -282,7 +282,7 @@
               onclick={del}
               class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2 hover:bg-rose-50"
             >
-              <Trash2 size={14} /> Delete vendor
+              <Trash2 size={14} /> מחיקת ספק
             </button>
           {/if}
         {/if}

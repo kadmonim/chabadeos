@@ -64,7 +64,7 @@ if (editMilestoneId && !loadedMilestone) {
 }
 
 const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  d ? new Date(d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 const initials = (name: string) =>
   name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
@@ -73,19 +73,19 @@ const statusStyles = {
   off_track: 'bg-rose-50 text-rose-700 border-rose-200',
   done: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 } as const;
-const statusLabel = { on_track: 'On Track', off_track: 'Off Track', done: 'Done' } as const;
+const statusLabel = { on_track: 'במסלול', off_track: 'לא במסלול', done: 'בוצע' } as const;
 
 const back = '/rocks';
 ---
-<AppLayout title="Rocks · Chabad Central">
+<AppLayout title="סלעים · מרכז חב&quot;ד">
   <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
         <Mountain class="text-violet-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Rocks</h1>
-        <p class="text-stone-500 text-sm">Quarterly priorities for the organization</p>
+        <h1 class="text-2xl font-semibold text-stone-900">סלעים</h1>
+        <p class="text-stone-500 text-sm">עדיפויות רבעוניות לארגון</p>
       </div>
     </div>
     <div class="flex items-center gap-2">
@@ -94,14 +94,14 @@ const back = '/rocks';
         class="border border-stone-300 bg-white hover:bg-stone-50 rounded-xl px-4 py-2 text-sm font-medium flex items-center gap-1.5 text-stone-700"
       >
         <Plus size={15} />
-        Add Milestone
+        הוספת אבן דרך
       </a>
       <a
         href="/rocks?add_rock=1"
         class="bg-stone-800 hover:bg-stone-900 text-white rounded-xl px-4 py-2 text-sm font-medium flex items-center gap-1.5"
       >
         <Plus size={15} />
-        Add Rock
+        הוספת סלע
       </a>
     </div>
   </header>
@@ -113,22 +113,22 @@ const back = '/rocks';
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-lg font-semibold text-stone-900 flex items-center gap-2">
         <Flag size={18} class="text-amber-500" />
-        Milestones
+        אבני דרך
         {team && <span class="text-sm text-stone-400 font-normal">— {team.name}</span>}
       </h2>
       <form method="GET" class="flex gap-2">
         {sortRocks !== 'priority' && <input type="hidden" name="sort_rocks" value={sortRocks} />}
         <select name="sort_milestones" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-sm">
-          <option value="priority" selected={sortMilestones === 'priority'}>Priority</option>
-          <option value="due_date" selected={sortMilestones === 'due_date'}>Due date</option>
-          <option value="status"   selected={sortMilestones === 'status'}>Status</option>
+          <option value="priority" selected={sortMilestones === 'priority'}>עדיפות</option>
+          <option value="due_date" selected={sortMilestones === 'due_date'}>תאריך יעד</option>
+          <option value="status"   selected={sortMilestones === 'status'}>סטטוס</option>
         </select>
       </form>
     </div>
     <div class="space-y-3">
       {milestones && milestones.length > 0 ? (
         milestones.map((m: any) => (
-          <div class="bg-white border border-stone-200 border-l-4 border-l-amber-500 rounded-xl p-4 flex items-center gap-3 hover:border-stone-300 hover:shadow-sm transition">
+          <div class="bg-white border border-stone-200 border-s-4 border-s-amber-500 rounded-xl p-4 flex items-center gap-3 hover:border-stone-300 hover:shadow-sm transition">
             <StatusCheckbox client:load id={m.id} status={m.status} endpoint="/api/milestones" doneValue="done" openValue="on_track" />
             <a href={`/rocks?milestone=${m.id}`} class="flex-1 min-w-0">
               <div class={`font-semibold ${m.status === 'done' ? 'text-stone-400 line-through' : 'text-stone-900'}`}>{m.title}</div>
@@ -136,7 +136,7 @@ const back = '/rocks';
                 <span class={`px-2 py-0.5 rounded-full border ${statusStyles[m.status as keyof typeof statusStyles]}`}>
                   {statusLabel[m.status as keyof typeof statusLabel]}
                 </span>
-                {m.rock && <span>under <span class="text-stone-700 font-medium">{m.rock.title}</span></span>}
+                {m.rock && <span>תחת <span class="text-stone-700 font-medium">{m.rock.title}</span></span>}
                 {m.due_date && (
                   <span class="flex items-center gap-1"><Calendar size={12} /> {fmtDate(m.due_date)}</span>
                 )}
@@ -149,7 +149,7 @@ const back = '/rocks';
         ))
       ) : (
         <div class="bg-white border border-stone-200 rounded-xl px-4 py-10 text-center text-sm text-stone-400">
-          {team ? <>No milestones yet for <span class="text-stone-600 font-medium">{team.name}</span>.</> : 'No team selected.'}
+          {team ? <>עדיין אין אבני דרך לצוות <span class="text-stone-600 font-medium">{team.name}</span>.</> : 'לא נבחר צוות.'}
         </div>
       )}
     </div>
@@ -160,13 +160,13 @@ const back = '/rocks';
        ============================================================ -->
   <section>
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold text-stone-900">Rocks</h2>
+      <h2 class="text-lg font-semibold text-stone-900">סלעים</h2>
       <form method="GET" class="flex gap-2">
         {sortMilestones !== 'priority' && <input type="hidden" name="sort_milestones" value={sortMilestones} />}
         <select name="sort_rocks" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-sm">
-          <option value="priority" selected={sortRocks === 'priority'}>Priority</option>
-          <option value="due_date" selected={sortRocks === 'due_date'}>Due date</option>
-          <option value="status"   selected={sortRocks === 'status'}>Status</option>
+          <option value="priority" selected={sortRocks === 'priority'}>עדיפות</option>
+          <option value="due_date" selected={sortRocks === 'due_date'}>תאריך יעד</option>
+          <option value="status"   selected={sortRocks === 'status'}>סטטוס</option>
         </select>
       </form>
     </div>
@@ -183,7 +183,7 @@ const back = '/rocks';
                   <span class={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${statusStyles[r.status as keyof typeof statusStyles]}`}>
                     {statusLabel[r.status as keyof typeof statusLabel]}
                   </span>
-                  {r.due_date && <span class="text-xs text-stone-400">Due {fmtDate(r.due_date)}</span>}
+                  {r.due_date && <span class="text-xs text-stone-400">יעד {fmtDate(r.due_date)}</span>}
                 </div>
                 <h3 class="text-base font-semibold text-stone-900">{r.title}</h3>
                 {r.description && (
@@ -203,7 +203,7 @@ const back = '/rocks';
         ))
       ) : (
         <div class="bg-white border border-stone-200 rounded-xl px-4 py-12 text-center text-sm text-stone-400">
-          No rocks yet.
+          עדיין אין סלעים.
         </div>
       )}
     </div>
@@ -215,10 +215,10 @@ const back = '/rocks';
   {(addingRock || editingRock) && (
     <div class="fixed inset-0 z-30">
       <a href={back} class="absolute inset-0 bg-black/20"></a>
-      <aside class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold text-stone-900">{editingRock ? 'Edit Rock' : 'Add Rock'}</h2>
+            <h2 class="text-xl font-semibold text-stone-900">{editingRock ? 'עריכת סלע' : 'הוספת סלע'}</h2>
             <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
 
@@ -228,13 +228,13 @@ const back = '/rocks';
             <input type="hidden" name="back" value={back} />
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Title</label>
+              <label class="text-sm font-medium text-stone-700">כותרת</label>
               <input type="text" name="title" required value={editingRock?.title ?? ''}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Description</label>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
               <div class="mt-1">
                 <RichTextEditor
                   client:only="svelte"
@@ -247,21 +247,21 @@ const back = '/rocks';
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Owner</label>
+              <label class="text-sm font-medium text-stone-700">אחראי</label>
               <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">Unassigned</option>
+                <option value="">ללא</option>
                 {employees?.map((e) => <option value={e.id} selected={e.id === editingRock?.owner_employee_id}>{e.full_name}</option>)}
               </select>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-sm font-medium text-stone-700">Due date</label>
+                <label class="text-sm font-medium text-stone-700">תאריך יעד</label>
                 <input type="date" name="due_date" value={editingRock?.due_date ?? ''}
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700">Status</label>
+                <label class="text-sm font-medium text-stone-700">סטטוס</label>
                 <select name="status" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                   {(['on_track', 'off_track', 'done'] as const).map((s) => (
                     <option value={s} selected={s === (editingRock?.status ?? 'on_track')}>
@@ -273,7 +273,7 @@ const back = '/rocks';
             </div>
 
             <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              {editingRock ? 'Save changes' : 'Create rock'}
+              {editingRock ? 'שמירת שינויים' : 'יצירת סלע'}
             </button>
           </form>
 
@@ -282,13 +282,13 @@ const back = '/rocks';
               method="POST"
               action="/api/rocks"
               class="pt-4 border-t border-stone-200"
-              onsubmit="return confirm('Delete this rock?');"
+              onsubmit="return confirm('למחוק סלע זה?');"
             >
               <input type="hidden" name="_action" value="delete" />
               <input type="hidden" name="id" value={editingRock.id} />
               <input type="hidden" name="back" value={back} />
               <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
-                <Trash2 size={14} /> Delete rock
+                <Trash2 size={14} /> מחיקת סלע
               </button>
             </form>
           )}
@@ -303,10 +303,10 @@ const back = '/rocks';
   {(addingMilestone || loadedMilestone) && (
     <div class="fixed inset-0 z-30">
       <a href={back} class="absolute inset-0 bg-black/20"></a>
-      <aside class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold text-stone-900">{loadedMilestone ? 'Edit Milestone' : 'Add Milestone'}</h2>
+            <h2 class="text-xl font-semibold text-stone-900">{loadedMilestone ? 'עריכת אבן דרך' : 'הוספת אבן דרך'}</h2>
             <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
 
@@ -316,13 +316,13 @@ const back = '/rocks';
             <input type="hidden" name="back" value={loadedMilestone ? `/rocks?milestone=${loadedMilestone.id}` : back} />
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Title</label>
+              <label class="text-sm font-medium text-stone-700">כותרת</label>
               <input type="text" name="title" required value={loadedMilestone?.title ?? ''}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Description</label>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
               <div class="mt-1">
                 <RichTextEditor
                   client:only="svelte"
@@ -335,17 +335,17 @@ const back = '/rocks';
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Parent rock</label>
+              <label class="text-sm font-medium text-stone-700">סלע אב</label>
               <select name="rock_id" required class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">Select a rock...</option>
+                <option value="">בחירת סלע...</option>
                 {rocks?.map((r) => <option value={r.id} selected={r.id === loadedMilestone?.rock_id}>{r.title}</option>)}
               </select>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Team</label>
+              <label class="text-sm font-medium text-stone-700">צוות</label>
               <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">No team</option>
+                <option value="">ללא צוות</option>
                 {allowedTeams.map((t) => (
                   <option
                     value={t.id}
@@ -358,9 +358,9 @@ const back = '/rocks';
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Owner</label>
+              <label class="text-sm font-medium text-stone-700">אחראי</label>
               <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">Unassigned</option>
+                <option value="">ללא</option>
                 {employees?.map((e) => (
                   <option value={e.id} selected={e.id === loadedMilestone?.owner_employee_id}>{e.full_name}</option>
                 ))}
@@ -369,12 +369,12 @@ const back = '/rocks';
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-sm font-medium text-stone-700">Due date</label>
+                <label class="text-sm font-medium text-stone-700">תאריך יעד</label>
                 <input type="date" name="due_date" value={loadedMilestone?.due_date ?? ''}
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700">Status</label>
+                <label class="text-sm font-medium text-stone-700">סטטוס</label>
                 <select name="status" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                   {(['on_track', 'off_track', 'done'] as const).map((s) => (
                     <option value={s} selected={s === (loadedMilestone?.status ?? 'on_track')}>{statusLabel[s]}</option>
@@ -384,7 +384,7 @@ const back = '/rocks';
             </div>
 
             <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              {loadedMilestone ? 'Save changes' : 'Create milestone'}
+              {loadedMilestone ? 'שמירת שינויים' : 'יצירת אבן דרך'}
             </button>
           </form>
 
@@ -393,13 +393,13 @@ const back = '/rocks';
               method="POST"
               action="/api/milestones"
               class="pt-4 border-t border-stone-200"
-              onsubmit="return confirm('Delete this milestone?');"
+              onsubmit="return confirm('למחוק אבן דרך זו?');"
             >
               <input type="hidden" name="_action" value="delete" />
               <input type="hidden" name="id" value={loadedMilestone.id} />
               <input type="hidden" name="back" value={back} />
               <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
-                <Trash2 size={14} /> Delete milestone
+                <Trash2 size={14} /> מחיקת אבן דרך
               </button>
             </form>
           )}

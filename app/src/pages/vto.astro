@@ -16,18 +16,18 @@ const vision = vto?.vision ?? {};
 const traction = vto?.traction ?? {};
 const swot = vto?.swot ?? {};
 ---
-<AppLayout title="V/TO · Chabad Central">
+<AppLayout title={'חזון (V/TO) · מרכז חב"ד'}>
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
         <Eye class="text-violet-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Vision/Traction Organizer</h1>
+        <h1 class="text-2xl font-semibold text-stone-900">מארגן חזון/מיצוי</h1>
         <p class="text-stone-500 text-sm">
           {editMode
-            ? 'Editing — changes autosave.'
-            : 'The one-page plan for Chabad Central.'}
+            ? 'במצב עריכה — שינויים נשמרים אוטומטית.'
+            : 'תוכנית העמוד האחד של מרכז חב"ד.'}
         </p>
       </div>
     </div>
@@ -38,7 +38,7 @@ const swot = vto?.swot ?? {};
           class="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
         >
           <Check size={16} />
-          Done editing
+          סיום עריכה
         </a>
       ) : (
         <a
@@ -46,7 +46,7 @@ const swot = vto?.swot ?? {};
           class="border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
         >
           <Pencil size={16} />
-          Edit V/TO
+          עריכת חזון (V/TO)
         </a>
       )
     )}

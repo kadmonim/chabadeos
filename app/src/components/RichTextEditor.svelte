@@ -5,7 +5,7 @@
   let {
     name,
     initial = '',
-    placeholder = 'Write something...',
+    placeholder = 'כתבו משהו...',
     autosaveUrl,
     autosaveId,
     autosaveField = 'description',
@@ -87,10 +87,10 @@
 
   const statusLabel = $derived.by(() => {
     switch (saveState) {
-      case 'dirty':  return 'Unsaved…';
-      case 'saving': return 'Saving…';
-      case 'saved':  return 'Saved';
-      case 'error':  return 'Error saving';
+      case 'dirty':  return 'לא נשמר…';
+      case 'saving': return 'שומר…';
+      case 'saved':  return 'נשמר';
+      case 'error':  return 'שגיאה בשמירה';
       default:       return '';
     }
   });
@@ -109,7 +109,7 @@
   <div bind:this={container} class="bg-white rounded-b-lg"></div>
   <input type="hidden" {name} value={html} />
   {#if canAutosave}
-    <div class="mt-1 text-xs text-right tabular-nums {statusColor} transition-colors h-4">
+    <div class="mt-1 text-xs text-end tabular-nums {statusColor} transition-colors h-4">
       {statusLabel}
     </div>
   {/if}

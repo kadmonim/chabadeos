@@ -26,14 +26,14 @@ const toggleId = `exp-${seat.id}`;
 ---
 <div class:list={['seat-wrapper', !hasChildren && 'leaf']}>
   {hasChildren && (
-    <input type="checkbox" id={toggleId} class="expand-toggle" aria-label={`Expand ${seat.title}`} />
+    <input type="checkbox" id={toggleId} class="expand-toggle" aria-label={`הרחבת ${seat.title}`} />
   )}
   <div class="seat-card">
     <div class="seat-actions">
-      <a href={`/chart?add_under=${seat.id}`} title="Add seat under this one">
+      <a href={`/chart?add_under=${seat.id}`} title="הוספת תפקיד תחת זה">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
       </a>
-      <a href={`/chart?edit=${seat.id}`} title="Edit seat">
+      <a href={`/chart?edit=${seat.id}`} title="עריכת תפקיד">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
       </a>
     </div>
@@ -51,7 +51,7 @@ const toggleId = `exp-${seat.id}`;
       <label
         for={toggleId}
         class="expand-button"
-        title={`Expand ${seat.title}`}
+        title={`הרחבת ${seat.title}`}
       >
         <span class="expand-plus">+</span>
         <span class="expand-minus">−</span>

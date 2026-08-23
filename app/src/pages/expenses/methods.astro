@@ -1,6 +1,6 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
-import { CreditCard, ArrowLeft, Plus, Pencil, X, Trash2 } from 'lucide-svelte';
+import { CreditCard, ArrowRight, Plus, Pencil, X, Trash2 } from 'lucide-svelte';
 import { sql } from '~/lib/db';
 import { canAccessExpenses } from '~/lib/permissions';
 
@@ -59,9 +59,9 @@ const initials = (name: string) =>
 
 const back = '/expenses/methods';
 ---
-<AppLayout title="Payment methods · Chabad Central">
+<AppLayout title={'אמצעי תשלום · מרכז חב"ד'}>
   <a href="/expenses" class="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-900 mb-6">
-    <ArrowLeft size={16} /> Back to Expenses
+    <ArrowRight size={16} /> חזרה להוצאות
   </a>
 
   <header class="flex items-start justify-between mb-8">
@@ -70,8 +70,8 @@ const back = '/expenses/methods';
         <CreditCard class="text-sky-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Payment methods</h1>
-        <p class="text-stone-500 text-sm">Label each card/account and assign an owner</p>
+        <h1 class="text-2xl font-semibold text-stone-900">אמצעי תשלום</h1>
+        <p class="text-stone-500 text-sm">תייגו כל כרטיס/חשבון והקצו אחראי</p>
       </div>
     </div>
     <a
@@ -79,7 +79,7 @@ const back = '/expenses/methods';
       class="bg-sky-600 hover:bg-sky-700 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
     >
       <Plus size={16} />
-      New method
+      אמצעי תשלום חדש
     </a>
   </header>
 
@@ -87,19 +87,19 @@ const back = '/expenses/methods';
     <table class="w-full text-sm">
       <thead>
         <tr class="text-[11px] uppercase tracking-wider text-stone-500 bg-stone-50">
-          <th class="text-left font-medium px-5 py-3 w-32">Method</th>
-          <th class="text-left font-medium px-3 py-3">Label</th>
-          <th class="text-left font-medium px-3 py-3">Owner</th>
-          <th class="text-right font-medium px-3 py-3 w-16">#</th>
-          <th class="text-right font-medium px-3 py-3 w-32">All-time</th>
-          <th class="text-right font-medium px-5 py-3 w-16"></th>
+          <th class="text-start font-medium px-5 py-3 w-32">אמצעי תשלום</th>
+          <th class="text-start font-medium px-3 py-3">תווית</th>
+          <th class="text-start font-medium px-3 py-3">אחראי</th>
+          <th class="text-end font-medium px-3 py-3 w-16">#</th>
+          <th class="text-end font-medium px-3 py-3 w-32">כל הזמנים</th>
+          <th class="text-end font-medium px-5 py-3 w-16"></th>
         </tr>
       </thead>
       <tbody>
         {list.length === 0 && (
           <tr>
             <td colspan="6" class="px-5 py-10 text-center text-sm text-stone-400">
-              No methods yet.
+              אין עדיין אמצעי תשלום.
             </td>
           </tr>
         )}
@@ -121,11 +121,11 @@ const back = '/expenses/methods';
                   <span class="text-stone-300">—</span>
                 )}
               </td>
-              <td class="px-3 py-3 text-right text-stone-500 tabular-nums">{s?.count ?? 0}</td>
-              <td class="px-3 py-3 text-right font-medium text-stone-900 tabular-nums">
+              <td class="px-3 py-3 text-end text-stone-500 tabular-nums">{s?.count ?? 0}</td>
+              <td class="px-3 py-3 text-end font-medium text-stone-900 tabular-nums">
                 {fmtMoney(s?.total ?? 0)}
               </td>
-              <td class="px-5 py-3 text-right">
+              <td class="px-5 py-3 text-end">
                 <a href={`/expenses/methods?edit=${m.id}`} class="p-1.5 rounded text-stone-400 hover:text-stone-800 hover:bg-stone-100 inline-block">
                   <Pencil size={14} />
                 </a>
@@ -140,10 +140,10 @@ const back = '/expenses/methods';
   {(editing || adding) && (
     <div class="fixed inset-0 z-30">
       <a href={back} class="absolute inset-0 bg-black/30"></a>
-      <aside class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold text-stone-900">{editing ? 'Edit method' : 'New method'}</h2>
+            <h2 class="text-xl font-semibold text-stone-900">{editing ? 'עריכת אמצעי תשלום' : 'אמצעי תשלום חדש'}</h2>
             <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={20} /></a>
           </div>
 
@@ -153,23 +153,23 @@ const back = '/expenses/methods';
             <input type="hidden" name="back" value={back} />
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Method (name in expenses.method)</label>
+              <label class="text-sm font-medium text-stone-700">אמצעי תשלום (השם בעמודת expenses.method)</label>
               <input type="text" name="name" required value={editing?.name ?? ''}
                 placeholder="e.g. 1018, PayPal, Amex-5555"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Label (display name)</label>
+              <label class="text-sm font-medium text-stone-700">תווית (שם לתצוגה)</label>
               <input type="text" name="label" value={editing?.label ?? ''}
                 placeholder="e.g. Chase Sapphire ·1018"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sky-400" />
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Owner</label>
+              <label class="text-sm font-medium text-stone-700">אחראי</label>
               <select name="employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">— none —</option>
+                <option value="">— ללא —</option>
                 {employees?.map((e) => (
                   <option value={e.id} selected={e.id === editing?.employee_id}>{e.full_name}</option>
                 ))}
@@ -177,14 +177,14 @@ const back = '/expenses/methods';
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Notes</label>
+              <label class="text-sm font-medium text-stone-700">הערות</label>
               <textarea name="notes" rows="3"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sky-400"
               >{editing?.notes ?? ''}</textarea>
             </div>
 
             <button class="w-full bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              {editing ? 'Save changes' : 'Create method'}
+              {editing ? 'שמירת שינויים' : 'יצירת אמצעי תשלום'}
             </button>
           </form>
 
@@ -193,13 +193,13 @@ const back = '/expenses/methods';
               method="POST"
               action="/api/expense-methods"
               class="pt-4 border-t border-stone-200"
-              onsubmit="return confirm('Delete this method?');"
+              onsubmit="return confirm('למחוק את אמצעי התשלום הזה?');"
             >
               <input type="hidden" name="_action" value="delete" />
               <input type="hidden" name="id" value={editing.id} />
               <input type="hidden" name="back" value={back} />
               <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
-                <Trash2 size={14} /> Delete method
+                <Trash2 size={14} /> מחיקת אמצעי תשלום
               </button>
             </form>
           )}

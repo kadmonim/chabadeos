@@ -30,32 +30,32 @@ const categories = Array.from(
 const initials = (name: string) =>
   name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 ---
-<AppLayout title="Directory · Chabad Central">
+<AppLayout title={'אנשי קשר · מרכז חב"ד'}>
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-sky-100 grid place-items-center">
         <Contact class="text-sky-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Directory</h1>
-        <p class="text-stone-500 text-sm">People and contacts across Chabad Central</p>
+        <h1 class="text-2xl font-semibold text-stone-900">אנשי קשר</h1>
+        <p class="text-stone-500 text-sm">אנשים ואנשי קשר במרכז חב"ד</p>
       </div>
     </div>
   </header>
 
   <form method="GET" class="flex gap-2 mb-6">
     <div class="flex-1 relative">
-      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+      <Search size={16} class="absolute start-3 top-1/2 -translate-y-1/2 text-stone-400" />
       <input
         type="text"
         name="q"
         value={search}
-        placeholder="Search by name..."
-        class="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-sky-400"
+        placeholder="חיפוש לפי שם..."
+        class="w-full bg-white border border-stone-200 rounded-xl ps-9 pe-4 py-2.5 text-sm focus:outline-none focus:border-sky-400"
       />
     </div>
     <select name="category" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="all" selected={category === 'all'}>All categories</option>
+      <option value="all" selected={category === 'all'}>כל הקטגוריות</option>
       {categories.map((c) => <option value={c} selected={category === c}>{c}</option>)}
     </select>
   </form>
@@ -96,7 +96,7 @@ const initials = (name: string) =>
       ))
     ) : (
       <div class="col-span-full bg-white border border-stone-200 rounded-xl px-4 py-12 text-center text-sm text-stone-400">
-        No contacts matching the filters.
+        אין אנשי קשר התואמים את הסינון.
       </div>
     )}
   </div>

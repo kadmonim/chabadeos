@@ -29,10 +29,10 @@
   let picking = $state(false); // true when choosing the target card
 
   const options = [
-    { value: 'good',      Icon: Check,      label: 'Good',      active: 'bg-emerald-500 text-white border-emerald-500', idle: 'text-stone-300 hover:text-emerald-500' },
-    { value: 'to_review', Icon: CircleHelp, label: 'To review', active: 'bg-amber-500 text-white border-amber-500',     idle: 'text-stone-300 hover:text-amber-500'   },
-    { value: 'cancelled', Icon: X,          label: 'Cancelled', active: 'bg-rose-500 text-white border-rose-500',       idle: 'text-stone-300 hover:text-rose-500'    },
-    { value: 'none',      Icon: Circle,     label: 'None',      active: 'bg-stone-200 text-stone-600 border-stone-300', idle: 'text-stone-300 hover:text-stone-500'   },
+    { value: 'good',      Icon: Check,      label: 'תקין',     active: 'bg-emerald-500 text-white border-emerald-500', idle: 'text-stone-300 hover:text-emerald-500' },
+    { value: 'to_review', Icon: CircleHelp, label: 'לבדיקה',   active: 'bg-amber-500 text-white border-amber-500',     idle: 'text-stone-300 hover:text-amber-500'   },
+    { value: 'cancelled', Icon: X,          label: 'בוטל',      active: 'bg-rose-500 text-white border-rose-500',       idle: 'text-stone-300 hover:text-rose-500'    },
+    { value: 'none',      Icon: Circle,     label: 'ללא',       active: 'bg-stone-200 text-stone-600 border-stone-300', idle: 'text-stone-300 hover:text-stone-500'   },
   ] as const;
 
   const btnSize = $derived(size === 'sm' ? 'w-5 h-5' : 'w-6 h-6');
@@ -108,15 +108,15 @@
 </script>
 
 {#if picking}
-  <div class="inline-flex items-center gap-1 bg-white border border-sky-300 rounded-full pl-2 pr-1 py-0.5 shadow-sm">
-    <span class="text-[10px] text-sky-700 font-medium">Move to</span>
+  <div class="inline-flex items-center gap-1 bg-white border border-sky-300 rounded-full ps-2 pe-1 py-0.5 shadow-sm">
+    <span class="text-[10px] text-sky-700 font-medium">העברה אל</span>
     <select
       onchange={(e) => {
         const v = (e.currentTarget as HTMLSelectElement).value;
         if (v) confirmMoveTarget(v);
       }}
       disabled={pending}
-      class="text-xs bg-transparent border-0 pr-1 focus:outline-none"
+      class="text-xs bg-transparent border-0 pe-1 focus:outline-none"
     >
       <option value="">—</option>
       {#each methods as m}
@@ -128,7 +128,7 @@
     <button
       type="button"
       onclick={() => (picking = false)}
-      aria-label="Cancel"
+      aria-label="ביטול"
       class="w-4 h-4 grid place-items-center text-stone-400 hover:text-stone-700"
     >
       <X size={11} />
@@ -155,16 +155,16 @@
         type="button"
         onclick={() => setStatus('to_move')}
         disabled={pending}
-        title={isActive && targetLabel ? `Move to ${targetLabel}` : 'Flag: move to another card'}
-        aria-label="Flag to move to another card"
+        title={isActive && targetLabel ? `העברה אל ${targetLabel}` : 'סימון: העברה לכרטיס אחר'}
+        aria-label="סימון להעברה לכרטיס אחר"
         class="{btnSize} rounded-full grid place-items-center border transition disabled:opacity-60 {isActive ? 'bg-sky-500 text-white border-sky-500' : 'border-transparent text-stone-300 hover:text-sky-500'}"
       >
         <ArrowRightLeft size={iconSize} strokeWidth={isActive ? 3 : 2.5} />
       </button>
     {/if}
     {#if status === 'to_move' && targetLabel}
-      <span class="ml-1 text-[10px] font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-full px-1.5 py-0.5 whitespace-nowrap">
-        → {targetLabel}
+      <span class="ms-1 text-[10px] font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-full px-1.5 py-0.5 whitespace-nowrap">
+        ← {targetLabel}
       </span>
     {/if}
   </div>

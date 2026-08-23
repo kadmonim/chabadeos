@@ -1,6 +1,6 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
-import { Target, AlertCircle, ListTodo, Users, ArrowRight, Megaphone, Calendar, CreditCard } from 'lucide-svelte';
+import { Target, AlertCircle, ListTodo, Users, ArrowLeft, Calendar, CreditCard } from 'lucide-svelte';
 import { sql } from '~/lib/db';
 const team = Astro.locals.currentTeam;
 
@@ -12,7 +12,6 @@ const [
   openTodosRows,
   openIssuesRows,
   employeesCountRows,
-  posts,
   ownedMethods,
 ] = await Promise.all([
   sql`select count(*)::int as count from rocks where is_archived = ${false}`,
@@ -23,11 +22,6 @@ const [
     ? sql`select count(*)::int as count from issues where status = 'open' and team_id = ${team.id}`
     : sql`select count(*)::int as count from issues where status = 'open'`,
   sql`select count(*)::int as count from employees`,
-  sql`
-    select id, kind, slug, headline, summary, category, date::text as date, image_url, screenshot_url, from_username, source, video_url
-    from posts
-    order by date desc nulls last
-    limit 10`,
   sql`
     select name, label
     from expense_methods
@@ -89,29 +83,26 @@ const fmtMoney = (n: number) =>
   '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtMonth = (m: string) => {
   const [yyyy, mm] = m.split('-').map(Number);
-  return new Date(Date.UTC(yyyy, (mm ?? 1) - 1, 1)).toLocaleDateString('en-US', {
+  return new Date(Date.UTC(yyyy, (mm ?? 1) - 1, 1)).toLocaleDateString('he-IL', {
     month: 'long', year: 'numeric', timeZone: 'UTC',
   });
 };
 
-const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-
 const stats = [
-  { label: 'Active Rocks',    value: rocksCount ?? 0,    href: '/rocks',    icon: Target,      color: 'text-violet-600 bg-violet-100' },
-  { label: 'Open To-Dos',     value: openTodos ?? 0,     href: '/todos',    icon: ListTodo,    color: 'text-emerald-600 bg-emerald-100' },
-  { label: 'Open Issues',     value: openIssues ?? 0,    href: '/issues',   icon: AlertCircle, color: 'text-amber-600 bg-amber-100' },
-  { label: 'Employees',       value: employeesCount ?? 0, href: '/teams',   icon: Users,       color: 'text-sky-600 bg-sky-100' },
+  { label: 'סלעים פעילים',   value: rocksCount ?? 0,    href: '/rocks',    icon: Target,      color: 'text-violet-600 bg-violet-100' },
+  { label: 'משימות פתוחות', value: openTodos ?? 0,     href: '/todos',    icon: ListTodo,    color: 'text-emerald-600 bg-emerald-100' },
+  { label: 'נושאים פתוחים', value: openIssues ?? 0,    href: '/issues',   icon: AlertCircle, color: 'text-amber-600 bg-amber-100' },
+  { label: 'עובדים',        value: employeesCount ?? 0, href: '/teams',   icon: Users,       color: 'text-sky-600 bg-sky-100' },
 ];
 
 const user = Astro.locals.user!;
-const firstName = user.fullName?.split(' ')[0] || 'there';
+const firstName = user.fullName?.split(' ')[0] || '';
 ---
-<AppLayout title="Home · Chabad Central">
+<AppLayout title={'דף הבית · מרכז חב"ד'}>
   <header class="mb-8">
-    <h1 class="text-3xl font-semibold text-stone-900">Welcome back, {firstName}.</h1>
+    <h1 class="text-3xl font-semibold text-stone-900">{firstName ? `שלום, ${firstName}.` : 'שלום.'}</h1>
     <p class="text-stone-500 mt-1">
-      {team ? <>Currently viewing <span class="font-medium text-stone-700">{team.name}</span>.</> : 'No team selected.'}
+      {team ? <>הצוות המוצג כעת: <span class="font-medium text-stone-700">{team.name}</span>.</> : 'לא נבחר צוות.'}
     </p>
   </header>
 
@@ -127,7 +118,7 @@ const firstName = user.fullName?.split(' ')[0] || 'there';
         <div class="mt-4 text-sm text-stone-500">{s.label}</div>
         <div class="mt-1 text-3xl font-semibold text-stone-900 flex items-baseline justify-between">
           {s.value}
-          <ArrowRight size={16} class="text-stone-300 group-hover:text-stone-500 transition" />
+          <ArrowLeft size={16} class="text-stone-300 group-hover:text-stone-500 transition" />
         </div>
       </a>
     ))}
@@ -138,7 +129,7 @@ const firstName = user.fullName?.split(' ')[0] || 'there';
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-2">
           <CreditCard size={18} class="text-emerald-600" />
-          <h2 class="text-lg font-semibold text-stone-900">Your Cards</h2>
+          <h2 class="text-lg font-semibold text-stone-900">הכרטיסים שלך</h2>
         </div>
       </div>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -156,8 +147,8 @@ const firstName = user.fullName?.split(' ')[0] || 'there';
                   </div>
                   <div class="text-[11px] text-stone-400 mt-0.5">
                     {c.pendingTotal > 0
-                      ? <>{c.pendingTotal} charge{c.pendingTotal === 1 ? '' : 's'} need your attention</>
-                      : 'All caught up'}
+                      ? <>{c.pendingTotal} חיובים דורשים את תשומת לבך</>
+                      : 'הכול מטופל'}
                   </div>
                 </div>
               </div>
@@ -166,16 +157,16 @@ const firstName = user.fullName?.split(' ')[0] || 'there';
                   href={`/expenses/review?method=${encodeURIComponent(c.name)}`}
                   class="text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-700 rounded-full px-2.5 py-1 hover:bg-amber-100"
                 >
-                  Review all →
+                  ← סקירת הכול
                 </a>
               ) : (
                 <span class="text-[11px] font-medium bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full px-2.5 py-1">
-                  ✓ clear
+                  ✓ נקי
                 </span>
               )}
             </div>
             {c.months.length === 0 ? (
-              <div class="px-5 py-6 text-sm text-stone-400 text-center">No charges yet.</div>
+              <div class="px-5 py-6 text-sm text-stone-400 text-center">אין עדיין חיובים.</div>
             ) : (
               <div class="divide-y divide-stone-100">
                 {c.months.map((b) => {
@@ -201,24 +192,24 @@ const firstName = user.fullName?.split(' ')[0] || 'there';
                       </div>
                       <div class="flex items-center gap-1.5 shrink-0 text-[11px] font-medium">
                         {b.none > 0 && (
-                          <span class="bg-stone-100 text-stone-700 rounded-full px-2 py-0.5" title="Unreviewed">
-                            {b.none} new
+                          <span class="bg-stone-100 text-stone-700 rounded-full px-2 py-0.5" title="לא נבדק">
+                            {b.none} חדש
                           </span>
                         )}
                         {b.toReview > 0 && (
-                          <span class="bg-amber-100 text-amber-700 rounded-full px-2 py-0.5" title="Flagged for further review">
-                            {b.toReview} flagged
+                          <span class="bg-amber-100 text-amber-700 rounded-full px-2 py-0.5" title="סומן לבדיקה נוספת">
+                            {b.toReview} מסומן
                           </span>
                         )}
                         {b.toMove > 0 && (
-                          <span class="bg-sky-100 text-sky-700 rounded-full px-2 py-0.5" title="Flagged to move to another card">
-                            {b.toMove} to move
+                          <span class="bg-sky-100 text-sky-700 rounded-full px-2 py-0.5" title="סומן להעברה לכרטיס אחר">
+                            {b.toMove} להעברה
                           </span>
                         )}
                         {pending === 0 && b.toMove === 0 && (
                           <span class="text-stone-300">—</span>
                         )}
-                        <ArrowRight size={14} class="text-stone-300 group-hover:text-emerald-600 transition ml-0.5" />
+                        <ArrowLeft size={14} class="text-stone-300 group-hover:text-emerald-600 transition ms-0.5" />
                       </div>
                     </a>
                   );
@@ -231,70 +222,4 @@ const firstName = user.fullName?.split(' ')[0] || 'there';
     </section>
   )}
 
-  <section>
-    <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-2">
-        <Megaphone size={18} class="text-violet-600" />
-        <h2 class="text-lg font-semibold text-stone-900">Recent Activity</h2>
-      </div>
-      <a href="/posts" class="text-sm font-medium text-violet-600 hover:text-violet-700">All posts →</a>
-    </div>
-
-    {posts && posts.length > 0 ? (
-      <div class="columns-1 md:columns-2 lg:columns-3 gap-5 [column-fill:_balance]">
-        {posts.map((p: any) => {
-          const isTestimonial = p.kind === 'testimonial';
-          const thumb = p.image_url || p.screenshot_url;
-          const pillColor = isTestimonial
-            ? 'text-amber-700 bg-amber-50 border-amber-200'
-            : 'text-violet-700 bg-violet-50 border-violet-200';
-          const hoverBorder = isTestimonial ? 'hover:border-amber-300' : 'hover:border-violet-300';
-          const hoverHeading = isTestimonial ? 'group-hover:text-amber-700' : 'group-hover:text-violet-700';
-          return (
-            <a
-              href={`/posts/${p.slug}`}
-              class={`group block break-inside-avoid mb-5 bg-white border border-stone-200 rounded-2xl overflow-hidden transition hover:shadow-sm ${hoverBorder}`}
-            >
-              {thumb && (
-                <img src={thumb} alt="" loading="lazy" class="w-full bg-stone-100 group-hover:opacity-95 transition" />
-              )}
-              <div class="p-4">
-                <div class="flex flex-wrap items-center gap-1.5 mb-1.5 text-[11px]">
-                  <span class={`font-medium border rounded-full px-2 py-0.5 ${pillColor}`}>
-                    {isTestimonial ? 'Testimonial' : p.category || 'Post'}
-                  </span>
-                  {isTestimonial && p.category && <span class="text-stone-400">· {p.category}</span>}
-                  {p.date && (
-                    <span class="text-stone-400 flex items-center gap-1">
-                      <Calendar size={10} /> {fmtDate(p.date)}
-                    </span>
-                  )}
-                  {p.video_url && <span class="text-rose-500 font-medium">▶ Video</span>}
-                </div>
-                {p.headline && (
-                  <h3 class={`text-base font-semibold text-stone-900 leading-snug transition ${hoverHeading}`}>
-                    {p.headline}
-                  </h3>
-                )}
-                {p.summary && (
-                  <p class={`text-[13px] text-stone-600 line-clamp-5 ${p.headline ? 'mt-1.5' : ''} ${isTestimonial ? 'italic' : ''}`}>
-                    {isTestimonial ? `"${p.summary}"` : p.summary}
-                  </p>
-                )}
-                {isTestimonial && (p.from_username || p.source) && (
-                  <div class="mt-2 text-[11px] text-stone-400">
-                    — {p.from_username || 'anonymous'}{p.source && <> · {p.source}</>}
-                  </div>
-                )}
-              </div>
-            </a>
-          );
-        })}
-      </div>
-    ) : (
-      <div class="bg-white border border-stone-200 rounded-2xl px-4 py-12 text-center text-sm text-stone-400">
-        No posts yet.
-      </div>
-    )}
-  </section>
 </AppLayout>

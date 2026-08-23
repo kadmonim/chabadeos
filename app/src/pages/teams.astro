@@ -49,15 +49,15 @@ const back = '/teams';
 const editBack = editing ? `/teams?edit=${editing.id}` : back;
 const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
 ---
-<AppLayout title="Teams · Chabad Central">
+<AppLayout title={'צוותים · מרכז חב"ד'}>
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-emerald-100 grid place-items-center">
         <Users class="text-emerald-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Teams</h1>
-        <p class="text-stone-500 text-sm">{adminView ? 'All teams (admin view)' : "All teams you're a member of"}</p>
+        <h1 class="text-2xl font-semibold text-stone-900">צוותים</h1>
+        <p class="text-stone-500 text-sm">{adminView ? 'כל הצוותים (תצוגת מנהל)' : 'כל הצוותים שבהם אתה חבר'}</p>
       </div>
     </div>
     <a
@@ -65,7 +65,7 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
       class="bg-stone-800 hover:bg-stone-900 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
     >
       <Plus size={16} />
-      New Team
+      צוות חדש
     </a>
   </header>
 
@@ -83,14 +83,14 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
             </div>
             <div class="flex items-center gap-2">
               <div class="text-xs text-stone-400 bg-stone-50 border border-stone-200 rounded-full px-3 py-1">
-                {members.length} {members.length === 1 ? 'member' : 'members'}
+                {members.length} {members.length === 1 ? 'חבר' : 'חברים'}
               </div>
               <a
                 href={`/teams?edit=${t.id}`}
                 class="border border-stone-300 bg-white hover:bg-stone-50 rounded-lg px-3 py-1.5 text-sm font-medium text-stone-700 flex items-center gap-1.5"
               >
                 <Pencil size={14} />
-                Manage
+                ניהול
               </a>
             </div>
           </div>
@@ -117,7 +117,7 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
       );
     }) : (
       <div class="bg-white border border-stone-200 rounded-2xl px-4 py-12 text-center text-sm text-stone-400">
-        You're not a member of any teams yet.
+        אינך חבר באף צוות עדיין.
       </div>
     )}
   </div>
@@ -128,28 +128,28 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
   {creating && (
     <div class="fixed inset-0 z-30">
       <a href={back} class="absolute inset-0 bg-black/20"></a>
-      <aside class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold text-stone-900">New Team</h2>
+            <h2 class="text-xl font-semibold text-stone-900">צוות חדש</h2>
             <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
           <form method="POST" action="/api/teams" class="space-y-4">
             <input type="hidden" name="_action" value="create" />
             <input type="hidden" name="back" value={back} />
             <div>
-              <label class="text-sm font-medium text-stone-700">Name</label>
+              <label class="text-sm font-medium text-stone-700">שם</label>
               <input type="text" name="name" required
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" />
             </div>
             <div>
-              <label class="text-sm font-medium text-stone-700">Description</label>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
               <textarea name="description" rows="3"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"></textarea>
             </div>
-            <p class="text-xs text-stone-500">You'll be added as an admin of this team automatically.</p>
+            <p class="text-xs text-stone-500">תתווסף אוטומטית כמנהל של הצוות הזה.</p>
             <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              Create team
+              יצירת צוות
             </button>
           </form>
         </div>
@@ -163,10 +163,10 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
   {editing && (
     <div class="fixed inset-0 z-30">
       <a href={back} class="absolute inset-0 bg-black/20"></a>
-      <aside class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-6">
           <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold text-stone-900">Manage Team</h2>
+            <h2 class="text-xl font-semibold text-stone-900">ניהול צוות</h2>
             <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
 
@@ -176,25 +176,25 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
             <input type="hidden" name="id" value={editing.id} />
             <input type="hidden" name="back" value={editBack} />
             <div>
-              <label class="text-sm font-medium text-stone-700">Name</label>
+              <label class="text-sm font-medium text-stone-700">שם</label>
               <input type="text" name="name" required value={editing.name}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" />
             </div>
             <div>
-              <label class="text-sm font-medium text-stone-700">Description</label>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
               <textarea name="description" rows="2"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
               >{editing.description ?? ''}</textarea>
             </div>
             <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              Save team
+              שמירת צוות
             </button>
           </form>
 
           <!-- Members -->
           <div class="pt-4 border-t border-stone-200">
             <h3 class="text-sm font-semibold text-stone-800 mb-3 flex items-center gap-2">
-              <UserPlus size={16} /> Members ({sortedMembers.length})
+              <UserPlus size={16} /> חברים ({sortedMembers.length})
             </h3>
 
             <div class="space-y-2 mb-4">
@@ -212,8 +212,8 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
                       <div class="text-[11px] text-stone-400 truncate font-mono" title={m.employee.email}>{m.employee.email}</div>
                     </div>
                     <select name="role" class="text-xs bg-white border border-stone-300 rounded px-2 py-1">
-                      <option value="member" selected={m.role === 'member'}>Member</option>
-                      <option value="admin" selected={m.role === 'admin'}>Admin</option>
+                      <option value="member" selected={m.role === 'member'}>חבר</option>
+                      <option value="admin" selected={m.role === 'admin'}>מנהל</option>
                     </select>
                   </div>
                   <div class="flex gap-2">
@@ -221,23 +221,23 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
                       type="text"
                       name="role_description"
                       value={m.role_description ?? ''}
-                      placeholder="Role description (optional)"
+                      placeholder="תיאור תפקיד (רשות)"
                       class="flex-1 bg-white border border-stone-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-emerald-400"
                     />
-                    <button class="text-xs bg-stone-800 hover:bg-stone-900 text-white rounded px-3 py-1">Save</button>
+                    <button class="text-xs bg-stone-800 hover:bg-stone-900 text-white rounded px-3 py-1">שמירה</button>
                     <button
                       type="submit"
                       formaction="/api/team-memberships"
-                      onclick="this.form._action.value='delete'; if(!confirm('Remove this member from the team?')) return false;"
+                      onclick="this.form._action.value='delete'; if(!confirm('להסיר את החבר הזה מהצוות?')) return false;"
                       class="text-xs border border-rose-300 text-rose-700 rounded px-2 py-1"
-                      title="Remove"
+                      title="הסרה"
                     >
                       <Trash2 size={13} />
                     </button>
                   </div>
                 </form>
               )) : (
-                <p class="text-xs text-stone-400">No members yet.</p>
+                <p class="text-xs text-stone-400">אין חברים עדיין.</p>
               )}
             </div>
 
@@ -250,35 +250,35 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
                     <input type="hidden" name="team_id" value={editing.id} />
                     <input type="hidden" name="back" value={editBack} />
                     <div class="text-xs font-semibold text-stone-600 flex items-center gap-1">
-                      <UserPlus size={13} /> Add a member
+                      <UserPlus size={13} /> הוספת חבר
                     </div>
                     <div class="flex gap-2">
                       <select name="employee_id" required class="flex-1 bg-white border border-stone-300 rounded px-2 py-1.5 text-sm">
-                        <option value="">Pick an employee…</option>
+                        <option value="">בחר עובד…</option>
                         {availableEmployees.map((e) => <option value={e.id}>{e.full_name}</option>)}
                       </select>
                       <select name="role" class="bg-white border border-stone-300 rounded px-2 py-1.5 text-sm">
-                        <option value="member">Member</option>
-                        <option value="admin">Admin</option>
+                        <option value="member">חבר</option>
+                        <option value="admin">מנהל</option>
                       </select>
-                      <button class="bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-1.5 text-sm font-medium">Add</button>
+                      <button class="bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-1.5 text-sm font-medium">הוספה</button>
                     </div>
                     <input
                       type="text"
                       name="role_description"
-                      placeholder="Role description (optional)"
+                      placeholder="תיאור תפקיד (רשות)"
                       class="w-full bg-white border border-stone-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-400"
                     />
                   </form>
                 ) : (
-                  <p class="text-xs text-stone-400 italic">All employees are already members of this team.</p>
+                  <p class="text-xs text-stone-400 italic">כל העובדים כבר חברים בצוות זה.</p>
                 )}
                 {adminView && (
                   <a
                     href={`/teams?edit=${editing.id}&addNew=1`}
                     class="flex items-center gap-1.5 text-xs text-stone-500 hover:text-emerald-700 mt-1"
                   >
-                    <UserPlus size={13} /> Add a new person
+                    <UserPlus size={13} /> הוספת אדם חדש
                   </a>
                 )}
               </>
@@ -292,38 +292,38 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
                 <input type="hidden" name="back" value={editBack} />
                 <div class="flex items-center justify-between">
                   <div class="text-xs font-semibold text-emerald-800 flex items-center gap-1">
-                    <UserPlus size={13} /> New person
+                    <UserPlus size={13} /> אדם חדש
                   </div>
-                  <a href={editBack} class="text-xs text-stone-400 hover:text-stone-600">Cancel</a>
+                  <a href={editBack} class="text-xs text-stone-400 hover:text-stone-600">ביטול</a>
                 </div>
                 <input
                   type="text"
                   name="full_name"
                   required
-                  placeholder="Full name"
+                  placeholder="שם מלא"
                   class="w-full bg-white border border-stone-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-emerald-400"
                 />
                 <input
                   type="email"
                   name="email"
                   required
-                  placeholder="Email (must match their Google account)"
+                  placeholder="אימייל (חייב להתאים לחשבון הגוגל שלהם)"
                   class="w-full bg-white border border-stone-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-emerald-400"
                 />
                 <div class="flex gap-2">
                   <select name="role" class="bg-white border border-stone-300 rounded px-2 py-1.5 text-sm">
-                    <option value="member">Member</option>
-                    <option value="admin">Admin</option>
+                    <option value="member">חבר</option>
+                    <option value="admin">מנהל</option>
                   </select>
                   <input
                     type="text"
                     name="role_description"
-                    placeholder="Role description (optional)"
+                    placeholder="תיאור תפקיד (רשות)"
                     class="flex-1 bg-white border border-stone-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-400"
                   />
                 </div>
                 <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded py-2 text-sm font-medium">
-                  Create &amp; add to team
+                  יצירה והוספה לצוות
                 </button>
               </form>
             )}
@@ -334,13 +334,13 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
             method="POST"
             action="/api/teams"
             class="pt-4 border-t border-stone-200"
-            onsubmit="return confirm('Delete this team? All memberships will be removed.');"
+            onsubmit="return confirm('למחוק את הצוות הזה? כל החברויות יימחקו.');"
           >
             <input type="hidden" name="_action" value="delete" />
             <input type="hidden" name="id" value={editing.id} />
             <input type="hidden" name="back" value="/teams" />
             <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
-              <Trash2 size={14} /> Delete team
+              <Trash2 size={14} /> מחיקת צוות
             </button>
           </form>
         </div>

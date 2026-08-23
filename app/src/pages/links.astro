@@ -32,15 +32,15 @@ function faviconFor(linkUrl: string) {
 const back = Astro.url.pathname;
 const backWithEdit = (id: string) => `${Astro.url.pathname}?edit=${id}`;
 ---
-<AppLayout title="Links · Chabad Central">
+<AppLayout title={'קישורים · מרכז חב"ד'}>
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-rose-100 grid place-items-center">
         <Link2 class="text-rose-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Links</h1>
-        <p class="text-stone-500 text-sm">Shared tools, docs, and shortcuts</p>
+        <h1 class="text-2xl font-semibold text-stone-900">קישורים</h1>
+        <p class="text-stone-500 text-sm">כלים, מסמכים וקיצורי דרך משותפים</p>
       </div>
     </div>
     <a
@@ -48,7 +48,7 @@ const backWithEdit = (id: string) => `${Astro.url.pathname}?edit=${id}`;
       class="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
     >
       <Plus size={16} />
-      Add Link
+      הוספת קישור
     </a>
   </header>
 
@@ -77,7 +77,7 @@ const backWithEdit = (id: string) => `${Astro.url.pathname}?edit=${id}`;
                 <a
                   href={backWithEdit(l.id)}
                   class="opacity-0 group-hover:opacity-100 p-1.5 text-stone-400 hover:text-stone-800 hover:bg-stone-100 rounded transition"
-                  title="Edit"
+                  title="עריכה"
                 >
                   <Pencil size={13} />
                 </a>
@@ -89,7 +89,7 @@ const backWithEdit = (id: string) => `${Astro.url.pathname}?edit=${id}`;
     ))}
     {!links?.length && (
       <div class="bg-white border border-stone-200 rounded-xl px-4 py-12 text-center text-sm text-stone-400">
-        No links yet. Click "Add Link" to create one.
+        אין קישורים עדיין. לחץ על "הוספת קישור" כדי ליצור אחד.
       </div>
     )}
   </div>
@@ -97,10 +97,10 @@ const backWithEdit = (id: string) => `${Astro.url.pathname}?edit=${id}`;
   {(adding || editing) && (
     <div class="fixed inset-0 z-30">
       <a href={back} class="absolute inset-0 bg-black/20"></a>
-      <aside class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold text-stone-900">{editing ? 'Edit Link' : 'Add Link'}</h2>
+            <h2 class="text-xl font-semibold text-stone-900">{editing ? 'עריכת קישור' : 'הוספת קישור'}</h2>
             <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
 
@@ -110,27 +110,27 @@ const backWithEdit = (id: string) => `${Astro.url.pathname}?edit=${id}`;
             <input type="hidden" name="back" value={back} />
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Title</label>
+              <label class="text-sm font-medium text-stone-700">כותרת</label>
               <input type="text" name="title" required value={editing?.title ?? ''}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-400" />
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">URL</label>
+              <label class="text-sm font-medium text-stone-700">כתובת URL</label>
               <input type="url" name="url" required placeholder="https://..." value={editing?.url ?? ''}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-400" />
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Description</label>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
               <textarea name="description" rows="2"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-400"
               >{editing?.description ?? ''}</textarea>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Category</label>
-              <input type="text" name="category" list="link-categories" placeholder="e.g. Tool, Docs, Zoom" value={editing?.category ?? ''}
+              <label class="text-sm font-medium text-stone-700">קטגוריה</label>
+              <input type="text" name="category" list="link-categories" placeholder="לדוגמה: כלי, מסמכים, זום" value={editing?.category ?? ''}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-400" />
               <datalist id="link-categories">
                 {categories.map((c) => <option value={c}></option>)}
@@ -139,21 +139,21 @@ const backWithEdit = (id: string) => `${Astro.url.pathname}?edit=${id}`;
 
             <label class="flex items-center gap-2 text-sm text-stone-700">
               <input type="checkbox" name="is_private" checked={editing?.is_private} />
-              Private (only visible to you)
+              פרטי (גלוי רק לך)
             </label>
 
             <button class="w-full bg-rose-600 hover:bg-rose-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              {editing ? 'Save changes' : 'Create link'}
+              {editing ? 'שמירת שינויים' : 'יצירת קישור'}
             </button>
 
             {editing && (
               <button
                 type="submit"
                 formaction="/api/links"
-                onclick="this.form._action.value='delete'; if(!confirm('Delete this link?')) return false;"
+                onclick="this.form._action.value='delete'; if(!confirm('למחוק את הקישור הזה?')) return false;"
                 class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2"
               >
-                <Trash2 size={14} /> Delete
+                <Trash2 size={14} /> מחיקה
               </button>
             )}
           </form>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
-    Menu, X, Target, AlertCircle, ListTodo, ChartBar, Focus, Eye,
-    ListChecks, Contact, Newspaper, BookOpen, Users, Link2, Network, Wallet, Lightbulb, LogOut,
+    Menu, X, Target, AlertCircle, ListTodo, ChartBar, Eye,
+    ListChecks, Contact, BookOpen, Users, Link2, Network, Wallet, LogOut,
   } from 'lucide-svelte';
 
   type Team = { id: string; name: string };
@@ -39,25 +39,22 @@
   });
 
   const primary = [
-    { href: '/',          label: 'Home',          icon: Target,      match: (p: string) => p === '/' },
-    { href: '/vto',       label: 'V/TO',          icon: Eye,         match: (p: string) => p.startsWith('/vto') },
-    { href: '/rocks',     label: 'Rocks',         icon: Target,      match: (p: string) => p.startsWith('/rocks') },
-    { href: '/issues',    label: 'Issues',        icon: AlertCircle, match: (p: string) => p.startsWith('/issues') },
-    { href: '/todos',     label: 'To-Dos',        icon: ListTodo,    match: (p: string) => p.startsWith('/todos') },
-    { href: '/scorecard', label: 'Scorecard',     icon: ChartBar,    match: (p: string) => p.startsWith('/scorecard') },
-    { href: '/focus',     label: 'Current Focus', icon: Focus,       match: (p: string) => p.startsWith('/focus') },
+    { href: '/',          label: 'דף הבית',     icon: Target,      match: (p: string) => p === '/' },
+    { href: '/vto',       label: 'חזון (V/TO)', icon: Eye,         match: (p: string) => p.startsWith('/vto') },
+    { href: '/rocks',     label: 'סלעים',       icon: Target,      match: (p: string) => p.startsWith('/rocks') },
+    { href: '/issues',    label: 'נושאים',      icon: AlertCircle, match: (p: string) => p.startsWith('/issues') },
+    { href: '/todos',     label: 'משימות',      icon: ListTodo,    match: (p: string) => p.startsWith('/todos') },
+    { href: '/scorecard', label: 'לוח מדדים',   icon: ChartBar,    match: (p: string) => p.startsWith('/scorecard') },
   ];
 
   const allSecondary = [
-    { href: '/chart',          label: 'Org Chart',             icon: Network,     always: true },
-    { href: '/my-tasks',       label: 'My Tasks',              icon: ListChecks,  always: true },
-    { href: '/expenses',       label: 'Expenses',              icon: Wallet,      always: false },
-    { href: '/directory',      label: 'Directory',             icon: Contact,     always: true },
-    { href: '/posts',          label: 'Posts',                 icon: Newspaper,   always: true },
-    { href: '/processes',      label: 'Processes',             icon: BookOpen,    always: true },
-    { href: '/teams',          label: 'Teams & People',        icon: Users,       always: true },
-    { href: '/links',          label: 'Links',                 icon: Link2,       always: true },
-    { href: '/feature-ideas',  label: 'Feature Ideas',          icon: Lightbulb,   always: true },
+    { href: '/chart',          label: 'מבנה ארגוני',   icon: Network,     always: true },
+    { href: '/my-tasks',       label: 'המשימות שלי',   icon: ListChecks,  always: true },
+    { href: '/expenses',       label: 'הוצאות',        icon: Wallet,      always: false },
+    { href: '/directory',      label: 'אנשי קשר',      icon: Contact,     always: true },
+    { href: '/processes',      label: 'תהליכים',       icon: BookOpen,    always: true },
+    { href: '/teams',          label: 'צוותים ואנשים', icon: Users,       always: true },
+    { href: '/links',          label: 'קישורים',       icon: Link2,       always: true },
   ];
   const secondary = $derived(allSecondary.filter((i) => i.always || (i.href === '/expenses' && canSeeExpenses)));
 </script>
@@ -66,7 +63,7 @@
 <button
   type="button"
   onclick={toggle}
-  aria-label="Open menu"
+  aria-label="פתיחת תפריט"
   class="p-2 rounded-lg text-stone-700 hover:bg-stone-100"
 >
   <Menu size={22} />
@@ -78,14 +75,14 @@
     <button
       type="button"
       onclick={close}
-      aria-label="Close menu"
+      aria-label="סגירת תפריט"
       class="absolute inset-0 bg-black/40"
     ></button>
 
-    <aside class="absolute left-0 top-0 bottom-0 w-[85%] max-w-xs bg-white shadow-2xl flex flex-col overflow-y-auto">
+    <aside class="absolute start-0 top-0 bottom-0 w-[85%] max-w-xs bg-white shadow-2xl flex flex-col overflow-y-auto">
       <header class="flex items-center justify-between p-4 border-b border-stone-200">
         <div>
-          <div class="font-semibold text-stone-900">Chabad Central</div>
+          <div class="font-semibold text-stone-900">מרכז חב"ד</div>
           {#if userName}
             <div class="text-xs text-stone-500 mt-0.5 truncate max-w-[200px]">{userName}</div>
           {/if}
@@ -93,7 +90,7 @@
         <button
           type="button"
           onclick={close}
-          aria-label="Close"
+          aria-label="סגירה"
           class="p-1 text-stone-400 hover:text-stone-700"
         >
           <X size={20} />
@@ -103,7 +100,7 @@
       <!-- Team selector -->
       {#if teams.length > 0}
         <form method="POST" action="/api/team" class="p-4 border-b border-stone-200">
-          <label class="text-xs font-semibold text-stone-500 uppercase tracking-wide">Team</label>
+          <label class="text-xs font-semibold text-stone-500 uppercase tracking-wide">צוות</label>
           <input type="hidden" name="back" value={backPath} />
           <select
             name="team_id"
@@ -152,7 +149,7 @@
       <form method="POST" action="/auth/logout" class="p-2 border-t border-stone-200">
         <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-stone-700 hover:bg-stone-50">
           <LogOut size={18} class="text-stone-400" />
-          Sign out
+          התנתקות
         </button>
       </form>
     </aside>

@@ -84,15 +84,15 @@ const addingUnder = addUnderId ? seatById.get(addUnderId) ?? null : null;
 
 const back = '/chart';
 ---
-<AppLayout title="Org Chart · Chabad Central" fullWidth={true}>
+<AppLayout title={'מבנה ארגוני · מרכז חב"ד'} fullWidth={true}>
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
         <Network class="text-violet-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Accountability Chart</h1>
-        <p class="text-stone-500 text-sm">Map the roles and responsibilities for each seat in the organization.</p>
+        <h1 class="text-2xl font-semibold text-stone-900">מבנה ארגוני</h1>
+        <p class="text-stone-500 text-sm">מיפוי התפקידים והאחריות של כל תפקיד בארגון.</p>
       </div>
     </div>
     {exportTree && (
@@ -102,7 +102,7 @@ const back = '/chart';
         class="border border-stone-300 bg-white hover:bg-stone-50 rounded-lg px-3 py-2 text-sm font-medium text-stone-700 flex items-center gap-1.5"
       >
         <Download size={14} />
-        Export as Markdown
+        ייצוא כ-Markdown
       </button>
     )}
   </header>
@@ -119,18 +119,18 @@ const back = '/chart';
     </div>
   ) : (
     <div class="bg-white border border-stone-200 rounded-xl px-4 py-12 text-center text-sm text-stone-400">
-      No seats yet.
+      אין תפקידים עדיין.
     </div>
   )}
 
   {(editing || addingUnder) && (
     <div class="fixed inset-0 z-30">
       <a href={back} class="absolute inset-0 bg-black/20"></a>
-      <aside class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
             <h2 class="text-xl font-semibold text-stone-900">
-              {editing ? 'Edit Seat' : `Add seat under "${addingUnder!.title}"`}
+              {editing ? 'עריכת תפקיד' : `הוספת תפקיד תחת "${addingUnder!.title}"`}
             </h2>
             <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
@@ -142,15 +142,15 @@ const back = '/chart';
             <input type="hidden" name="back" value={back} />
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Title / Role</label>
+              <label class="text-sm font-medium text-stone-700">כותרת / תפקיד</label>
               <input type="text" name="title" required value={editing?.title ?? ''}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Employee</label>
+              <label class="text-sm font-medium text-stone-700">עובד</label>
               <select name="employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">— none —</option>
+                <option value="">— ללא —</option>
                 {employees?.map((e) => (
                   <option value={e.id} selected={e.id === editing?.employee_id}>{e.full_name}</option>
                 ))}
@@ -158,21 +158,21 @@ const back = '/chart';
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Person name (fallback)</label>
+              <label class="text-sm font-medium text-stone-700">שם אדם (חלופי)</label>
               <input type="text" name="person_name" value={editing?.person_name ?? ''}
-                placeholder="Used if no employee selected"
+                placeholder="בשימוש אם לא נבחר עובד"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Responsibilities (one per line)</label>
+              <label class="text-sm font-medium text-stone-700">תחומי אחריות (שורה לכל פריט)</label>
               <textarea name="responsibilities" rows="8"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
               >{(editing?.responsibilities ?? []).join('\n')}</textarea>
             </div>
 
             <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              {editing ? 'Save seat' : 'Create seat'}
+              {editing ? 'שמירת תפקיד' : 'יצירת תפקיד'}
             </button>
           </form>
 
@@ -181,13 +181,13 @@ const back = '/chart';
               method="POST"
               action="/api/org-seats"
               class="pt-4 border-t border-stone-200"
-              onsubmit="return confirm('Delete this seat and all its descendants?');"
+              onsubmit="return confirm('למחוק את התפקיד הזה ואת כל הכפופים לו?');"
             >
               <input type="hidden" name="_action" value="delete" />
               <input type="hidden" name="id" value={editing.id} />
               <input type="hidden" name="back" value={back} />
               <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
-                <Trash2 size={14} /> Delete seat
+                <Trash2 size={14} /> מחיקת תפקיד
               </button>
             </form>
           )}
@@ -214,16 +214,16 @@ const back = '/chart';
         const lines = [];
         lines.push(hashes + ' ' + seat.title);
         if (parentPath.length) {
-          lines.push('_Reports to: ' + parentPath.join(' → ') + '_');
+          lines.push('_כפוף ל: ' + parentPath.join(' → ') + '_');
         }
         if (seat.person) {
           lines.push('**' + seat.person + '**' + (seat.email ? ' · `' + seat.email + '`' : ''));
         } else {
-          lines.push('_Seat unfilled_');
+          lines.push('_התפקיד פנוי_');
         }
         if (seat.responsibilities && seat.responsibilities.length) {
           lines.push('');
-          lines.push('Responsibilities:');
+          lines.push('תחומי אחריות:');
           for (const r of seat.responsibilities) lines.push('- ' + r);
         }
         lines.push('');
@@ -235,8 +235,8 @@ const back = '/chart';
       btn.addEventListener('click', function () {
         const today = new Date().toISOString().slice(0, 10);
         const md =
-          '# Accountability Chart\n' +
-          '_Chabad Central · Exported ' + today + '_\n\n' +
+          '# מבנה ארגוני\n' +
+          '_מרכז חב"ד · יוצא בתאריך ' + today + '_\n\n' +
           '---\n\n' +
           seatMd(tree, 0, []);
 

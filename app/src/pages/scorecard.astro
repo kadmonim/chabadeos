@@ -34,10 +34,10 @@ function ymd(d: Date) {
 }
 function fmtRange(start: Date, end: Date) {
   const o: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  return `${start.toLocaleDateString('en-US', o)} - ${end.toLocaleDateString('en-US', o)}`;
+  return `${start.toLocaleDateString('he-IL', o)} - ${end.toLocaleDateString('he-IL', o)}`;
 }
 function fmtMonth(start: Date) {
-  return start.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  return start.toLocaleDateString('he-IL', { month: 'short', year: 'numeric' });
 }
 
 const today = new Date();
@@ -105,7 +105,7 @@ for (const v of values ?? []) {
 type Row = (typeof measurables extends (infer U)[] | null ? U : never);
 const grouped = new Map<string, Map<string, Row[]>>();
 for (const m of measurables ?? []) {
-  const g = m.group || 'Other';
+  const g = m.group || 'אחר';
   const sg = m.subgroup || '';
   if (!grouped.has(g)) grouped.set(g, new Map());
   const sgMap = grouped.get(g)!;
@@ -131,20 +131,20 @@ function initials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 }
 ---
-<AppLayout title="Scorecard · Chabad Central">
+<AppLayout title="לוח מדדים · מרכז חב&quot;ד">
   <header class="flex items-start justify-between mb-6">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-stone-900 grid place-items-center">
         <ChartBar class="text-white" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Scorecard</h1>
-        <p class="text-stone-500 text-sm">{team.name} measurables</p>
+        <h1 class="text-2xl font-semibold text-stone-900">לוח מדדים</h1>
+        <p class="text-stone-500 text-sm">מדדי הצוות {team.name}</p>
       </div>
     </div>
     <button class="bg-stone-800 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5">
       <Plus size={16} />
-      Add Measurable
+      הוספת מדד
     </button>
   </header>
 
@@ -154,31 +154,31 @@ function initials(name: string) {
         href="/scorecard?freq=weekly"
         class={`px-4 py-1.5 rounded-md text-sm font-medium ${frequency === 'weekly' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}
       >
-        Weekly
+        שבועי
       </a>
       <a
         href="/scorecard?freq=monthly"
         class={`px-4 py-1.5 rounded-md text-sm font-medium ${frequency === 'monthly' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}
       >
-        Monthly
+        חודשי
       </a>
     </div>
     <div class="flex gap-1">
-      <!-- Most recent period is on the LEFT. Left arrow = newer (disabled at offset 0);
-           right arrow = older (offset +COLS). -->
+      <!-- Most recent period is on the LEFT (start side). "Newer" moves back toward offset 0 (disabled there);
+           "Older" moves forward past it (offset +COLS). In RTL, forward points left, back points right. -->
       <a
         href={offset > 0 ? `/scorecard?freq=${frequency}&offset=${Math.max(0, offset - COLS)}` : '#'}
         class={`w-8 h-8 grid place-items-center rounded-lg border border-stone-200 bg-white ${offset > 0 ? 'text-stone-500 hover:text-stone-800' : 'text-stone-300 pointer-events-none'}`}
-        aria-label="Newer"
+        aria-label="חדש יותר"
       >
-        <ChevronLeft size={16} />
+        <ChevronRight size={16} />
       </a>
       <a
         href={`/scorecard?freq=${frequency}&offset=${offset + COLS}`}
         class="w-8 h-8 grid place-items-center rounded-lg border border-stone-200 bg-white text-stone-500 hover:text-stone-800"
-        aria-label="Older"
+        aria-label="ישן יותר"
       >
-        <ChevronRight size={16} />
+        <ChevronLeft size={16} />
       </a>
     </div>
   </div>
@@ -187,10 +187,10 @@ function initials(name: string) {
     <table class="w-full text-sm">
       <thead>
         <tr class="text-stone-500 text-xs uppercase tracking-wide">
-          <th class="text-left font-medium px-4 py-3 w-64">Title</th>
-          <th class="text-center font-medium px-3 py-3 w-24">Owner</th>
-          <th class="text-center font-medium px-3 py-3 w-24">Goal</th>
-          <th class="text-center font-medium px-3 py-3 w-24">Average</th>
+          <th class="text-start font-medium px-4 py-3 w-64">כותרת</th>
+          <th class="text-center font-medium px-3 py-3 w-24">אחראי</th>
+          <th class="text-center font-medium px-3 py-3 w-24">יעד</th>
+          <th class="text-center font-medium px-3 py-3 w-24">ממוצע</th>
           {periods.map((p) => (
             <th class="text-center font-medium px-2 py-3">{p.label}</th>
           ))}
@@ -233,11 +233,11 @@ function initials(name: string) {
                         )}
                       </td>
                       <td class="px-3 py-3 text-center">
-                        <div class="text-[10px] text-stone-400 uppercase">{m.threshold_type === 'maximum' ? 'Max' : 'Min'}</div>
+                        <div class="text-[10px] text-stone-400 uppercase">{m.threshold_type === 'maximum' ? 'מקס' : 'מינ'}</div>
                         <div class="font-medium text-stone-800">{fmtValue(m.goal, m.value_type)}</div>
                       </td>
                       <td class="px-3 py-3 text-center">
-                        <div class="text-[10px] text-stone-400 uppercase">Avg</div>
+                        <div class="text-[10px] text-stone-400 uppercase">ממוצע</div>
                         <div class="font-medium text-stone-800">{fmtValue(avg, m.value_type)}</div>
                       </td>
                       {periods.map((p) => {
@@ -268,7 +268,7 @@ function initials(name: string) {
         {!measurables?.length && (
           <tr>
             <td colspan={4 + COLS} class="px-4 py-12 text-center text-sm text-stone-400">
-              No measurables for this team.
+              אין מדדים לצוות זה.
             </td>
           </tr>
         )}

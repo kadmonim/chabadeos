@@ -107,32 +107,32 @@ if (detailId) {
 }
 
 const fmt = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+  d ? new Date(d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' }) : '';
 const initials = (name: string) =>
   name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 const back = url.pathname + url.search;
 const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail=[^&]*/, '').replace(/^&/, '?') : '');
 ---
-<AppLayout title="Issues · Chabad Central">
+<AppLayout title="נושאים · מרכז חב&quot;ד">
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-amber-100 grid place-items-center">
         <AlertCircle class="text-amber-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Issues</h1>
-        <p class="text-stone-500 text-sm">{team.name} team issues</p>
+        <h1 class="text-2xl font-semibold text-stone-900">נושאים</h1>
+        <p class="text-stone-500 text-sm">נושאי הצוות {team.name}</p>
       </div>
     </div>
     <div class="flex gap-2">
       <button disabled class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-500">
         <Target size={16} />
-        Select Top 3
+        בחירת 3 מובילים
       </button>
       <form
         method="POST"
         action="/api/issues"
-        onsubmit="return confirm('Archive all solved issues for this term?');"
+        onsubmit="return confirm('להעביר לארכיון את כל הנושאים שנפתרו בטווח זה?');"
       >
         <input type="hidden" name="_action" value="archive_solved" />
         <input type="hidden" name="team_id" value={team.id} />
@@ -143,7 +143,7 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
           class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700 hover:bg-stone-50"
         >
           <Archive size={16} />
-          Archive solved issues
+          העברת נושאים שנפתרו לארכיון
         </button>
       </form>
     </div>
@@ -157,7 +157,7 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
       }`}
     >
       <Zap size={16} />
-      Short Term
+      טווח קצר
     </a>
     <a
       href="/issues?term=long_term"
@@ -166,7 +166,7 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
       }`}
     >
       <Clock size={16} />
-      Long Term
+      טווח ארוך
     </a>
   </div>
 
@@ -178,42 +178,42 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
     <input
       type="text"
       name="title"
-      placeholder="Add a new issue..."
+      placeholder="הוספת נושא חדש..."
       required
       class="flex-1 bg-white border border-stone-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-400"
     />
     <button class="bg-stone-800 hover:bg-stone-900 text-white rounded-xl px-5 py-3 text-sm font-medium flex items-center gap-1.5">
       <Plus size={16} />
-      Add
+      הוספה
     </button>
   </form>
 
   <form method="GET" class="flex gap-2 mb-4">
     <input type="hidden" name="term" value={term} />
     <div class="flex-1 relative">
-      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+      <Search size={16} class="absolute start-3 top-1/2 -translate-y-1/2 text-stone-400" />
       <input
         type="text"
         name="q"
         value={search}
-        placeholder="Search issues..."
-        class="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-violet-400"
+        placeholder="חיפוש נושאים..."
+        class="w-full bg-white border border-stone-200 rounded-xl ps-9 pe-4 py-2.5 text-sm focus:outline-none focus:border-violet-400"
       />
     </div>
     <select name="status" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="active"   selected={statusFilter === 'active'}>Open &amp; Solved</option>
-      <option value="open"     selected={statusFilter === 'open'}>Open only</option>
-      <option value="solved"   selected={statusFilter === 'solved'}>Solved only</option>
-      <option value="archived" selected={statusFilter === 'archived'}>Archived</option>
+      <option value="active"   selected={statusFilter === 'active'}>פתוח ונפתר</option>
+      <option value="open"     selected={statusFilter === 'open'}>פתוח בלבד</option>
+      <option value="solved"   selected={statusFilter === 'solved'}>נפתר בלבד</option>
+      <option value="archived" selected={statusFilter === 'archived'}>בארכיון</option>
     </select>
     <select name="owner" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="all" selected={ownerFilter === 'all'}>All People</option>
+      <option value="all" selected={ownerFilter === 'all'}>כל האנשים</option>
       {employees?.map((e) => <option value={e.id} selected={ownerFilter === e.id}>{e.full_name}</option>)}
     </select>
     <select name="sort" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="manual"   selected={sort === 'manual'}>Manual Order</option>
-      <option value="priority" selected={sort === 'priority'}>Priority</option>
-      <option value="created"  selected={sort === 'created'}>Created Date</option>
+      <option value="manual"   selected={sort === 'manual'}>סדר ידני</option>
+      <option value="priority" selected={sort === 'priority'}>עדיפות</option>
+      <option value="created"  selected={sort === 'created'}>תאריך יצירה</option>
     </select>
   </form>
 
@@ -246,7 +246,7 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
             </a>
             {i.isSharedIssue && i.originTeam && (
               <span class="text-xs font-medium text-sky-600 bg-sky-50 border border-sky-200 rounded px-2 py-0.5 shrink-0 whitespace-nowrap">
-                From {i.originTeam.name}
+                מאת {i.originTeam.name}
               </span>
             )}
             {i.owner && (
@@ -254,13 +254,13 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
                 {initials(i.owner.full_name)}
               </div>
             )}
-            <div class="text-xs text-stone-400 w-12 text-right">{fmt(i.created_at)}</div>
+            <div class="text-xs text-stone-400 w-12 text-end">{fmt(i.created_at)}</div>
           </div>
         );
       })
     ) : (
       <div class="px-4 py-12 text-center text-sm text-stone-400">
-        No {term === 'short_term' ? 'short-term' : 'long-term'} issues matching the filters.
+        אין נושאים {term === 'short_term' ? 'לטווח קצר' : 'לטווח ארוך'} התואמים לסינון.
       </div>
     )}
   </div>
@@ -268,57 +268,57 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
   {detail && (
     <div class="fixed inset-0 z-30">
       <a href={backNoDetail} class="absolute inset-0 bg-black/20"></a>
-      <aside class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="inline-block text-xs font-medium text-stone-600 bg-stone-100 rounded-full px-2.5 py-1">
-                {detail.isSharedIssue ? (detail.originTeam?.name ?? 'Unknown Team') : team.name}
+                {detail.isSharedIssue ? (detail.originTeam?.name ?? 'צוות לא ידוע') : team.name}
               </span>
               {detail.isSharedIssue && (
                 <span class="inline-block text-xs font-medium text-sky-600 bg-sky-50 border border-sky-200 rounded-full px-2.5 py-1">
-                  Shared
+                  משותף
                 </span>
               )}
             </div>
             <a href={backNoDetail} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
-          <h2 class="text-xl font-semibold text-stone-900">Issue Details</h2>
+          <h2 class="text-xl font-semibold text-stone-900">פרטי נושא</h2>
 
           {detail.isSharedIssue ? (
             <!-- Read-only view for shared issues -->
             <div class="space-y-4">
               <div>
-                <p class="text-sm font-medium text-stone-700 mb-1">Title</p>
+                <p class="text-sm font-medium text-stone-700 mb-1">כותרת</p>
                 <p class="text-sm text-stone-900">{detail.title}</p>
               </div>
               {detail.description && (
                 <div>
-                  <p class="text-sm font-medium text-stone-700 mb-1">Description</p>
+                  <p class="text-sm font-medium text-stone-700 mb-1">תיאור</p>
                   <div class="text-sm text-stone-700 prose prose-sm max-w-none border border-stone-100 rounded-lg p-3 bg-stone-50" set:html={detail.description} />
                 </div>
               )}
               <div class="grid grid-cols-2 gap-x-4 gap-y-3">
                 <div>
-                  <p class="text-xs text-stone-500 mb-0.5">Priority</p>
+                  <p class="text-xs text-stone-500 mb-0.5">עדיפות</p>
                   <span class="text-sm font-semibold text-violet-600">P{detail.priority ?? 3}</span>
                 </div>
                 <div>
-                  <p class="text-xs text-stone-500 mb-0.5">Status</p>
-                  <span class="text-sm text-stone-700 capitalize">{detail.status}</span>
+                  <p class="text-xs text-stone-500 mb-0.5">סטטוס</p>
+                  <span class="text-sm text-stone-700">{detail.status === 'open' ? 'פתוח' : detail.status === 'solved' ? 'נפתר' : 'בארכיון'}</span>
                 </div>
                 <div>
-                  <p class="text-xs text-stone-500 mb-0.5">Term</p>
-                  <span class="text-sm text-stone-700">{detail.term_type === 'short_term' ? 'Short term' : 'Long term'}</span>
+                  <p class="text-xs text-stone-500 mb-0.5">טווח</p>
+                  <span class="text-sm text-stone-700">{detail.term_type === 'short_term' ? 'טווח קצר' : 'טווח ארוך'}</span>
                 </div>
                 {detail.owner && (
                   <div>
-                    <p class="text-xs text-stone-500 mb-0.5">Owner</p>
+                    <p class="text-xs text-stone-500 mb-0.5">אחראי</p>
                     <span class="text-sm text-stone-700">{detail.owner.full_name}</span>
                   </div>
                 )}
               </div>
-              <p class="text-xs text-stone-400 pt-2">This issue belongs to the {detail.originTeam?.name} team. Only that team can edit it.</p>
+              <p class="text-xs text-stone-400 pt-2">נושא זה שייך לצוות {detail.originTeam?.name}. רק צוות זה יכול לערוך אותו.</p>
             </div>
           ) : (
             <!-- Full edit view for owned issues -->
@@ -332,7 +332,7 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
                   <input type="hidden" name="term_type" value={detail.term_type} />
                   <input type="hidden" name="back" value={backNoDetail} />
                   <button class="flex items-center gap-1.5 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-                    ✓ {detail.status === 'solved' ? 'Mark Open' : 'Mark Solved'}
+                    ✓ {detail.status === 'solved' ? 'סימון כפתוח' : 'סימון כנפתר'}
                   </button>
                 </form>
                 <form method="POST" action="/api/issues">
@@ -343,15 +343,15 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
                   <input type="hidden" name="term_type" value={detail.term_type} />
                   <input type="hidden" name="back" value={backNoDetail} />
                   <button class="flex items-center gap-1.5 border border-stone-300 text-stone-700 bg-white hover:bg-stone-100 hover:border-stone-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-                    <Archive size={14} /> Archive
+                    <Archive size={14} /> העברה לארכיון
                   </button>
                 </form>
-                <form method="POST" action="/api/issues" onsubmit="return confirm('Delete this issue? This cannot be undone.');">
+                <form method="POST" action="/api/issues" onsubmit="return confirm('למחוק נושא זה? לא ניתן לשחזר פעולה זו.');">
                   <input type="hidden" name="_action" value="delete" />
                   <input type="hidden" name="id" value={detail.id} />
                   <input type="hidden" name="back" value={backNoDetail} />
                   <button class="flex items-center gap-1.5 border border-rose-300 text-rose-700 bg-white hover:bg-rose-50 hover:border-rose-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-                    <Trash2 size={14} /> Delete
+                    <Trash2 size={14} /> מחיקה
                   </button>
                 </form>
               </div>
@@ -359,11 +359,11 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
               <div class="flex gap-2">
                 <button type="button" data-clone-open="issue"
                   class="flex items-center gap-1.5 border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 hover:border-violet-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-                  <Copy size={14} /> Clone as Issue
+                  <Copy size={14} /> שכפול כנושא
                 </button>
                 <button type="button" data-clone-open="todo"
                   class="flex items-center gap-1.5 border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:border-sky-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-                  <Copy size={14} /> Clone as To-Do
+                  <Copy size={14} /> שכפול כמשימה
                 </button>
               </div>
 
@@ -373,13 +373,13 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
                 <input type="hidden" name="back" value={backNoDetail} />
 
                 <div>
-                  <label class="text-sm font-medium text-stone-700">Title</label>
+                  <label class="text-sm font-medium text-stone-700">כותרת</label>
                   <input type="text" name="title" value={detail.title}
                     class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
                 </div>
 
                 <div>
-                  <label class="text-sm font-medium text-stone-700">Description</label>
+                  <label class="text-sm font-medium text-stone-700">תיאור</label>
                   <div class="mt-1">
                     <RichTextEditor
                       client:only="svelte"
@@ -392,43 +392,43 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
                 </div>
 
                 <div>
-                  <label class="text-sm font-medium text-stone-700">Priority</label>
+                  <label class="text-sm font-medium text-stone-700">עדיפות</label>
                   <select name="priority" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                     {[1, 2, 3, 4, 5].map((p) => <option value={p} selected={p === detail.priority}>P{p}</option>)}
                   </select>
                 </div>
 
                 <div>
-                  <label class="text-sm font-medium text-stone-700">Team</label>
+                  <label class="text-sm font-medium text-stone-700">צוות</label>
                   <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                     {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
                   </select>
                 </div>
 
                 <div>
-                  <label class="text-sm font-medium text-stone-700">Owner</label>
+                  <label class="text-sm font-medium text-stone-700">אחראי</label>
                   <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                    <option value="">Unassigned</option>
+                    <option value="">ללא</option>
                     {employees?.map((e) => <option value={e.id} selected={e.id === detail.owner_employee_id}>{e.full_name}</option>)}
                   </select>
                 </div>
 
                 <div>
-                  <label class="text-sm font-medium text-stone-700">Term</label>
+                  <label class="text-sm font-medium text-stone-700">טווח</label>
                   <select name="term_type" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                    <option value="short_term" selected={detail.term_type === 'short_term'}>Short term</option>
-                    <option value="long_term" selected={detail.term_type === 'long_term'}>Long term</option>
+                    <option value="short_term" selected={detail.term_type === 'short_term'}>טווח קצר</option>
+                    <option value="long_term" selected={detail.term_type === 'long_term'}>טווח ארוך</option>
                   </select>
                 </div>
 
                 <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
-                  Save changes
+                  שמירת שינויים
                 </button>
               </form>
 
               <!-- Sharing section -->
               <div class="border-t border-stone-200 pt-5 space-y-3">
-                <p class="text-sm font-medium text-stone-700 flex items-center gap-1.5"><Share2 size={14} /> Shared with</p>
+                <p class="text-sm font-medium text-stone-700 flex items-center gap-1.5"><Share2 size={14} /> משותף עם</p>
 
                 {detail.shares && detail.shares.length > 0 ? (
                   <div class="flex flex-wrap gap-2">
@@ -439,14 +439,14 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
                         <input type="hidden" name="share_team_id" value={s.id} />
                         <input type="hidden" name="back" value={back} />
                         <span class="text-xs text-sky-700">{s.name}</span>
-                        <button type="submit" class="text-sky-400 hover:text-sky-700 transition" title={`Remove ${s.name}`}>
+                        <button type="submit" class="text-sky-400 hover:text-sky-700 transition" title={`הסרת ${s.name}`}>
                           <X size={12} />
                         </button>
                       </form>
                     ))}
                   </div>
                 ) : (
-                  <p class="text-xs text-stone-400">Not shared with any other team.</p>
+                  <p class="text-xs text-stone-400">לא משותף עם צוות אחר.</p>
                 )}
 
                 {(() => {
@@ -460,7 +460,7 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
                         {shareable.map((t) => <option value={t.id}>{t.name}</option>)}
                       </select>
                       <button type="submit" class="flex items-center gap-1.5 bg-stone-800 hover:bg-stone-900 text-white rounded-lg px-3 py-2 text-sm font-medium">
-                        <Share2 size={14} /> Share
+                        <Share2 size={14} /> שיתוף
                       </button>
                     </form>
                   ) : null;
@@ -477,53 +477,53 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
               <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
                 <form method="POST" action="/api/issues" class="p-6 space-y-4">
                   <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-stone-900">Clone as Issue</h3>
+                    <h3 class="text-lg font-semibold text-stone-900">שכפול כנושא</h3>
                     <button type="button" data-clone-close="issue" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
                   </div>
                   <input type="hidden" name="_action" value="create" />
                   <input type="hidden" name="back" value={backNoDetail} />
                   <div>
-                    <label class="text-sm font-medium text-stone-700">Title</label>
+                    <label class="text-sm font-medium text-stone-700">כותרת</label>
                     <input type="text" name="title" value={`${detail.title} (copy)`} required
                       class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
                   </div>
                   <div>
-                    <label class="text-sm font-medium text-stone-700">Description</label>
+                    <label class="text-sm font-medium text-stone-700">תיאור</label>
                     <textarea name="description" rows="4"
                       class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
                       set:html={detail.description ?? ''} />
                   </div>
                   <div>
-                    <label class="text-sm font-medium text-stone-700">Priority</label>
+                    <label class="text-sm font-medium text-stone-700">עדיפות</label>
                     <select name="priority" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                       {[1, 2, 3, 4, 5].map((p) => <option value={p} selected={p === detail.priority}>P{p}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label class="text-sm font-medium text-stone-700">Team</label>
+                    <label class="text-sm font-medium text-stone-700">צוות</label>
                     <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                       {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label class="text-sm font-medium text-stone-700">Owner</label>
+                    <label class="text-sm font-medium text-stone-700">אחראי</label>
                     <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                      <option value="">Unassigned</option>
+                      <option value="">ללא</option>
                       {employees?.map((e) => <option value={e.id} selected={e.id === detail.owner_employee_id}>{e.full_name}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label class="text-sm font-medium text-stone-700">Term</label>
+                    <label class="text-sm font-medium text-stone-700">טווח</label>
                     <select name="term_type" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                      <option value="short_term" selected={detail.term_type === 'short_term'}>Short term</option>
-                      <option value="long_term" selected={detail.term_type === 'long_term'}>Long term</option>
+                      <option value="short_term" selected={detail.term_type === 'short_term'}>טווח קצר</option>
+                      <option value="long_term" selected={detail.term_type === 'long_term'}>טווח ארוך</option>
                     </select>
                   </div>
                   <div class="flex gap-2 pt-2">
                     <button type="button" data-clone-close="issue"
-                      class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">Cancel</button>
+                      class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">ביטול</button>
                     <button type="submit"
-                      class="flex-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">Create issue</button>
+                      class="flex-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">יצירת נושא</button>
                   </div>
                 </form>
               </div>
@@ -534,51 +534,51 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
               <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
                 <form method="POST" action="/api/todos" class="p-6 space-y-4">
                   <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-stone-900">Clone as To-Do</h3>
+                    <h3 class="text-lg font-semibold text-stone-900">שכפול כמשימה</h3>
                     <button type="button" data-clone-close="todo" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
                   </div>
                   <input type="hidden" name="_action" value="create" />
                   <input type="hidden" name="back" value={backNoDetail} />
                   <div>
-                    <label class="text-sm font-medium text-stone-700">Title</label>
+                    <label class="text-sm font-medium text-stone-700">כותרת</label>
                     <input type="text" name="title" value={detail.title} required
                       class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
                   </div>
                   <div>
-                    <label class="text-sm font-medium text-stone-700">Description</label>
+                    <label class="text-sm font-medium text-stone-700">תיאור</label>
                     <textarea name="description" rows="4"
                       class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
                       set:html={detail.description ?? ''} />
                   </div>
                   <div class="grid grid-cols-2 gap-3">
                     <div>
-                      <label class="text-sm font-medium text-stone-700">Team</label>
+                      <label class="text-sm font-medium text-stone-700">צוות</label>
                       <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                         {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label class="text-sm font-medium text-stone-700">Due date</label>
+                      <label class="text-sm font-medium text-stone-700">תאריך יעד</label>
                       <input type="date" name="due_date" value={(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })()}
                         class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
                     </div>
                   </div>
                   <div>
-                    <label class="text-sm font-medium text-stone-700">Assignee</label>
+                    <label class="text-sm font-medium text-stone-700">משויך אל</label>
                     <select name="assignee_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                      <option value="">Unassigned</option>
+                      <option value="">ללא</option>
                       {employees?.map((e) => <option value={e.id} selected={e.id === detail.owner_employee_id}>{e.full_name}</option>)}
                     </select>
                   </div>
                   <label class="flex items-center gap-2 text-sm text-stone-700">
                     <input type="checkbox" name="is_urgent" checked={detail.priority === 1} />
-                    Mark as urgent
+                    סימון כדחוף
                   </label>
                   <div class="flex gap-2 pt-2">
                     <button type="button" data-clone-close="todo"
-                      class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">Cancel</button>
+                      class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">ביטול</button>
                     <button type="submit"
-                      class="flex-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2.5 text-sm font-medium">Create to-do</button>
+                      class="flex-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2.5 text-sm font-medium">יצירת משימה</button>
                   </div>
                 </form>
               </div>

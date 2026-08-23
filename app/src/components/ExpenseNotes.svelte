@@ -101,7 +101,7 @@
     }
   }
   async function remove(id: string) {
-    if (!confirm('Delete this note?')) return;
+    if (!confirm('למחוק את ההערה?')) return;
     const res = await fetch(`/api/expense-notes?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (res.ok) {
       notes = notes.filter((n) => n.id !== id);
@@ -111,16 +111,16 @@
 
   function fmtWhen(iso: string): string {
     const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
-      ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return d.toLocaleDateString('he-IL', { month: 'short', day: 'numeric' }) +
+      ' · ' + d.toLocaleTimeString('he-IL', { hour: 'numeric', minute: '2-digit' });
   }
 
   function fmtChargeLabel(eid: number): string | null {
     const info = chargeInfo?.[eid];
     if (!info) return null;
     const d = new Date(info.date);
-    const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const amt = '$' + Number(info.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const date = d.toLocaleDateString('he-IL', { month: 'short', day: 'numeric' });
+    const amt = '$' + Number(info.amount).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return `${date} · ${amt}`;
   }
 
@@ -132,8 +132,8 @@
 <button
   type="button"
   onclick={openPanel}
-  title={count > 0 ? `${count} note${count === 1 ? '' : 's'}` : 'Add a note'}
-  aria-label={count > 0 ? `View ${count} notes` : 'Add a note'}
+  title={count > 0 ? `${count} הערות` : 'הוספת הערה'}
+  aria-label={count > 0 ? `צפייה ב-${count} הערות` : 'הוספת הערה'}
   class="inline-flex items-center gap-1 px-1.5 h-6 rounded-full border text-xs transition {count > 0 ? 'border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100' : 'border-transparent text-stone-300 hover:text-violet-500'}"
 >
   {#if count > 0}
@@ -153,24 +153,24 @@
     role="presentation"
   >
     <div
-      class="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col text-left"
+      class="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col text-start"
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
-      aria-label="Notes"
+      aria-label="הערות"
     >
       <div class="flex items-center gap-2 px-5 py-3 border-b border-stone-100">
         <MessageSquare size={16} class="text-stone-400" />
         <h3 class="text-sm font-semibold text-stone-800">
-          {title ?? 'Notes'}
+          {title ?? 'הערות'}
           <span class="text-stone-400 font-normal">· {count}</span>
         </h3>
         <button
           type="button"
           onclick={closePanel}
-          aria-label="Close"
-          class="ml-auto w-7 h-7 grid place-items-center rounded-lg text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+          aria-label="סגירה"
+          class="ms-auto w-7 h-7 grid place-items-center rounded-lg text-stone-400 hover:bg-stone-100 hover:text-stone-700"
         >
           <X size={15} />
         </button>
@@ -178,10 +178,10 @@
 
       <div class="flex-1 overflow-y-auto px-5 py-3 space-y-3">
         {#if loading && !loaded}
-          <div class="text-sm text-stone-400">Loading…</div>
+          <div class="text-sm text-stone-400">טוען…</div>
         {:else if notes.length === 0}
           <div class="text-sm text-stone-400">
-            {isGroup ? 'No notes on any charge for this vendor yet.' : 'No notes yet. Add the first one below.'}
+            {isGroup ? 'אין עדיין הערות על אף חיוב של ספק זה.' : 'אין עדיין הערות. הוסיפו את הראשונה למטה.'}
           </div>
         {:else}
           {#each notes as n (n.id)}
@@ -193,18 +193,18 @@
                 </div>
               {/if}
               <div class="flex items-center gap-2 text-[11px] text-stone-500 mb-1.5">
-                <span class="font-medium text-stone-700">{n.author_name ?? 'Unknown'}</span>
+                <span class="font-medium text-stone-700">{n.author_name ?? 'לא ידוע'}</span>
                 <span>·</span>
                 <span>{fmtWhen(n.created_at)}</span>
                 {#if n.updated_at !== n.created_at}
-                  <span class="text-stone-400">(edited)</span>
+                  <span class="text-stone-400">(נערך)</span>
                 {/if}
                 {#if n.author_employee_id === currentEmployeeId && editingId !== n.id}
-                  <div class="ml-auto flex items-center gap-1">
+                  <div class="ms-auto flex items-center gap-1">
                     <button
                       type="button"
                       onclick={() => beginEdit(n)}
-                      aria-label="Edit"
+                      aria-label="עריכה"
                       class="w-6 h-6 grid place-items-center rounded text-stone-400 hover:text-stone-700 hover:bg-stone-100"
                     >
                       <Pencil size={12} />
@@ -212,7 +212,7 @@
                     <button
                       type="button"
                       onclick={() => remove(n.id)}
-                      aria-label="Delete"
+                      aria-label="מחיקה"
                       class="w-6 h-6 grid place-items-center rounded text-stone-400 hover:text-rose-600 hover:bg-rose-50"
                     >
                       <Trash2 size={12} />
@@ -231,12 +231,12 @@
                     type="button"
                     onclick={() => saveEdit(n.id)}
                     class="text-xs font-medium bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700"
-                  >Save</button>
+                  >שמירה</button>
                   <button
                     type="button"
                     onclick={cancelEdit}
                     class="text-xs text-stone-500 hover:text-stone-800"
-                  >Cancel</button>
+                  >ביטול</button>
                 </div>
               {:else}
                 <div class="text-sm text-stone-800 whitespace-pre-wrap">{n.body}</div>
@@ -248,14 +248,14 @@
 
       {#if isGroup}
         <div class="border-t border-stone-100 px-5 py-3 text-[11px] text-stone-500">
-          To add a new note, open a specific charge in the table below.
+          כדי להוסיף הערה חדשה, יש לפתוח חיוב מסוים בטבלה שלמטה.
         </div>
       {:else}
         <form onsubmit={submit} class="border-t border-stone-100 px-5 py-3">
           <textarea
             bind:value={draft}
             rows="2"
-            placeholder="Add a note about this charge…"
+            placeholder="הוספת הערה על חיוב זה…"
             class="w-full text-sm border border-stone-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200"
           ></textarea>
           <div class="mt-2 flex items-center justify-end gap-2">
@@ -263,7 +263,7 @@
               type="submit"
               disabled={!draft.trim() || submitting}
               class="text-xs font-medium bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >{submitting ? 'Saving…' : 'Add note'}</button>
+            >{submitting ? 'שומר…' : 'הוספת הערה'}</button>
           </div>
         </form>
       {/if}

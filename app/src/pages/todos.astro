@@ -49,7 +49,7 @@ if (detailId) {
 }
 
 const fmt = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+  d ? new Date(d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' }) : '';
 const todayYmd = new Date().toISOString().slice(0, 10);
 const isOverdue = (d: string | null) => !!d && d <= todayYmd;
 const initials = (name: string) =>
@@ -57,21 +57,21 @@ const initials = (name: string) =>
 const back = Astro.url.pathname + Astro.url.search;
 const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.replace(/[?&]detail=[^&]*/, '').replace(/^&/, '?') : '');
 ---
-<AppLayout title="To-Dos · Chabad Central">
+<AppLayout title="משימות · מרכז חב&quot;ד">
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
         <CheckSquare class="text-violet-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">To-Dos</h1>
-        <p class="text-stone-500 text-sm">{team.name} team to-dos</p>
+        <h1 class="text-2xl font-semibold text-stone-900">משימות</h1>
+        <p class="text-stone-500 text-sm">משימות הצוות {team.name}</p>
       </div>
     </div>
     <form
       method="POST"
       action="/api/todos"
-      onsubmit="return confirm('Archive all completed to-dos for this team?');"
+      onsubmit="return confirm('להעביר לארכיון את כל המשימות שהושלמו בצוות זה?');"
     >
       <input type="hidden" name="_action" value="archive_done" />
       <input type="hidden" name="team_id" value={team.id} />
@@ -81,7 +81,7 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
         class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700 hover:bg-stone-50"
       >
         <Archive size={16} />
-        Archive completed tasks
+        העברת משימות שהושלמו לארכיון
       </button>
     </form>
   </header>
@@ -93,46 +93,46 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
     <input
       type="text"
       name="title"
-      placeholder="Add a new to-do..."
+      placeholder="הוספת משימה חדשה..."
       required
       class="flex-1 bg-white border border-stone-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-400"
     />
     <select name="assignee_employee_id" class="bg-white border border-stone-200 rounded-xl px-3 py-3 text-sm">
-      <option value="">Unassigned</option>
+      <option value="">ללא</option>
       {employees?.map((e) => <option value={e.id}>{e.full_name}</option>)}
     </select>
     <button class="bg-stone-800 hover:bg-stone-900 text-white rounded-xl px-5 py-3 text-sm font-medium flex items-center gap-1.5">
       <Plus size={16} />
-      Add
+      הוספה
     </button>
   </form>
 
   <form method="GET" class="flex gap-2 mb-4">
     <div class="flex-1 relative">
-      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+      <Search size={16} class="absolute start-3 top-1/2 -translate-y-1/2 text-stone-400" />
       <input
         type="text"
         name="q"
         value={search}
-        placeholder="Search to-dos..."
-        class="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-violet-400"
+        placeholder="חיפוש משימות..."
+        class="w-full bg-white border border-stone-200 rounded-xl ps-9 pe-4 py-2.5 text-sm focus:outline-none focus:border-violet-400"
       />
     </div>
     <select name="status" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="active"   selected={statusFilter === 'active'}>Open &amp; Done</option>
-      <option value="open"     selected={statusFilter === 'open'}>Open only</option>
-      <option value="done"     selected={statusFilter === 'done'}>Done only</option>
-      <option value="archived" selected={statusFilter === 'archived'}>Archived</option>
-      <option value="all"      selected={statusFilter === 'all'}>All</option>
+      <option value="active"   selected={statusFilter === 'active'}>פתוח ובוצע</option>
+      <option value="open"     selected={statusFilter === 'open'}>פתוח בלבד</option>
+      <option value="done"     selected={statusFilter === 'done'}>בוצע בלבד</option>
+      <option value="archived" selected={statusFilter === 'archived'}>בארכיון</option>
+      <option value="all"      selected={statusFilter === 'all'}>הכל</option>
     </select>
     <select name="assignee" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="all" selected={assigneeFilter === 'all'}>All Assignees</option>
+      <option value="all" selected={assigneeFilter === 'all'}>כל המשויכים</option>
       {employees?.map((e) => <option value={e.id} selected={assigneeFilter === e.id}>{e.full_name}</option>)}
     </select>
     <select name="sort" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="created" selected={sort === 'created'}>Created Date</option>
-      <option value="due"     selected={sort === 'due'}>Due Date</option>
-      <option value="title"   selected={sort === 'title'}>Title</option>
+      <option value="created" selected={sort === 'created'}>תאריך יצירה</option>
+      <option value="due"     selected={sort === 'due'}>תאריך יעד</option>
+      <option value="title"   selected={sort === 'title'}>כותרת</option>
     </select>
   </form>
 
@@ -160,7 +160,7 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
                 <span class="text-stone-600 font-medium">{t.assignee.full_name.split(' ')[0]}</span>
               </div>
             )}
-            <div class="text-xs text-stone-400 w-12 text-right">{fmt(t.created_at)}</div>
+            <div class="text-xs text-stone-400 w-12 text-end">{fmt(t.created_at)}</div>
             <form method="POST" action="/api/todos" class="opacity-0 group-hover:opacity-100 transition">
               <input type="hidden" name="_action" value="update" />
               <input type="hidden" name="id" value={t.id} />
@@ -169,7 +169,7 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
               <input type="hidden" name="back" value={back} />
               <button
                 class="p-1.5 rounded text-stone-400 hover:text-stone-800 hover:bg-stone-100"
-                title={t.status === 'archived' ? 'Unarchive' : 'Archive'}
+                title={t.status === 'archived' ? 'הסרה מארכיון' : 'העברה לארכיון'}
               >
                 <Archive size={14} />
               </button>
@@ -178,14 +178,14 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
         );
       })
     ) : (
-      <div class="px-4 py-12 text-center text-sm text-stone-400">No to-dos matching the filters.</div>
+      <div class="px-4 py-12 text-center text-sm text-stone-400">אין משימות התואמות לסינון.</div>
     )}
   </div>
 
   {detail && (
     <div class="fixed inset-0 z-30">
       <a href={backNoDetail} class="absolute inset-0 bg-black/20"></a>
-      <aside class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
             <span class="inline-block text-xs font-medium text-stone-600 bg-stone-100 rounded-full px-2.5 py-1">
@@ -193,7 +193,7 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
             </span>
             <a href={backNoDetail} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
-          <h2 class="text-xl font-semibold text-stone-900">To-Do Details</h2>
+          <h2 class="text-xl font-semibold text-stone-900">פרטי משימה</h2>
 
           <div class="flex gap-2">
             <form method="POST" action="/api/todos">
@@ -203,7 +203,7 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
               <input type="hidden" name="title" value={detail.title} />
               <input type="hidden" name="back" value={backNoDetail} />
               <button class="flex items-center gap-1.5 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-                ✓ {detail.status === 'done' ? 'Mark Open' : 'Mark Done'}
+                ✓ {detail.status === 'done' ? 'סימון כפתוח' : 'סימון כבוצע'}
               </button>
             </form>
             <form method="POST" action="/api/todos">
@@ -213,15 +213,15 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
               <input type="hidden" name="title" value={detail.title} />
               <input type="hidden" name="back" value={backNoDetail} />
               <button class="flex items-center gap-1.5 border border-stone-300 text-stone-700 bg-white hover:bg-stone-100 hover:border-stone-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-                <Archive size={14} /> Archive
+                <Archive size={14} /> העברה לארכיון
               </button>
             </form>
-            <form method="POST" action="/api/todos" onsubmit="return confirm('Delete this to-do? This cannot be undone.');">
+            <form method="POST" action="/api/todos" onsubmit="return confirm('למחוק משימה זו? לא ניתן לשחזר פעולה זו.');">
               <input type="hidden" name="_action" value="delete" />
               <input type="hidden" name="id" value={detail.id} />
               <input type="hidden" name="back" value={backNoDetail} />
               <button class="flex items-center gap-1.5 border border-rose-300 text-rose-700 bg-white hover:bg-rose-50 hover:border-rose-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-                <Trash2 size={14} /> Delete
+                <Trash2 size={14} /> מחיקה
               </button>
             </form>
           </div>
@@ -229,11 +229,11 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
           <div class="flex gap-2">
             <button type="button" data-clone-open="todo"
               class="flex items-center gap-1.5 border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:border-sky-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-              <Copy size={14} /> Clone as To-Do
+              <Copy size={14} /> שכפול כמשימה
             </button>
             <button type="button" data-clone-open="issue"
               class="flex items-center gap-1.5 border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 hover:border-violet-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
-              <Copy size={14} /> Clone as Issue
+              <Copy size={14} /> שכפול כנושא
             </button>
           </div>
 
@@ -243,13 +243,13 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
             <input type="hidden" name="back" value={backNoDetail} />
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Title</label>
+              <label class="text-sm font-medium text-stone-700">כותרת</label>
               <input type="text" name="title" value={detail.title}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Description</label>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
               <div class="mt-1">
                 <RichTextEditor
                   client:only="svelte"
@@ -262,33 +262,33 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Team</label>
+              <label class="text-sm font-medium text-stone-700">צוות</label>
               <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                 {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
               </select>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Assignee</label>
+              <label class="text-sm font-medium text-stone-700">משויך אל</label>
               <select name="assignee_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">Unassigned</option>
+                <option value="">ללא</option>
                 {employees?.map((e) => <option value={e.id} selected={e.id === detail.assignee_employee_id}>{e.full_name}</option>)}
               </select>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Due Date</label>
+              <label class="text-sm font-medium text-stone-700">תאריך יעד</label>
               <input type="date" name="due_date" value={detail.due_date ?? ''}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
             </div>
 
             <label class="flex items-center gap-2 text-sm text-stone-700">
               <input type="checkbox" name="is_urgent" checked={detail.is_urgent} />
-              Urgent
+              דחוף
             </label>
 
             <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              Save changes
+              שמירת שינויים
             </button>
           </form>
         </div>
@@ -298,51 +298,51 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
           <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <form method="POST" action="/api/todos" class="p-6 space-y-4">
               <div class="flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-stone-900">Clone as To-Do</h3>
+                <h3 class="text-lg font-semibold text-stone-900">שכפול כמשימה</h3>
                 <button type="button" data-clone-close="todo" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
               </div>
               <input type="hidden" name="_action" value="create" />
               <input type="hidden" name="back" value={backNoDetail} />
               <div>
-                <label class="text-sm font-medium text-stone-700">Title</label>
+                <label class="text-sm font-medium text-stone-700">כותרת</label>
                 <input type="text" name="title" value={`${detail.title} (copy)`} required
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700">Description</label>
+                <label class="text-sm font-medium text-stone-700">תיאור</label>
                 <textarea name="description" rows="4"
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
                   set:html={detail.description ?? ''} />
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label class="text-sm font-medium text-stone-700">Team</label>
+                  <label class="text-sm font-medium text-stone-700">צוות</label>
                   <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                     {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label class="text-sm font-medium text-stone-700">Due date</label>
+                  <label class="text-sm font-medium text-stone-700">תאריך יעד</label>
                   <input type="date" name="due_date" value={detail.due_date ?? (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })()}
                     class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
                 </div>
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700">Assignee</label>
+                <label class="text-sm font-medium text-stone-700">משויך אל</label>
                 <select name="assignee_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                  <option value="">Unassigned</option>
+                  <option value="">ללא</option>
                   {employees?.map((e) => <option value={e.id} selected={e.id === detail.assignee_employee_id}>{e.full_name}</option>)}
                 </select>
               </div>
               <label class="flex items-center gap-2 text-sm text-stone-700">
                 <input type="checkbox" name="is_urgent" checked={detail.is_urgent} />
-                Mark as urgent
+                סימון כדחוף
               </label>
               <div class="flex gap-2 pt-2">
                 <button type="button" data-clone-close="todo"
-                  class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">Cancel</button>
+                  class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">ביטול</button>
                 <button type="submit"
-                  class="flex-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2.5 text-sm font-medium">Create to-do</button>
+                  class="flex-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2.5 text-sm font-medium">יצירת משימה</button>
               </div>
             </form>
           </div>
@@ -353,55 +353,55 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
           <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <form method="POST" action="/api/issues" class="p-6 space-y-4">
               <div class="flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-stone-900">Clone as Issue</h3>
+                <h3 class="text-lg font-semibold text-stone-900">שכפול כנושא</h3>
                 <button type="button" data-clone-close="issue" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
               </div>
               <input type="hidden" name="_action" value="create" />
               <input type="hidden" name="back" value={backNoDetail} />
               <div>
-                <label class="text-sm font-medium text-stone-700">Title</label>
+                <label class="text-sm font-medium text-stone-700">כותרת</label>
                 <input type="text" name="title" value={detail.title} required
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700">Description</label>
+                <label class="text-sm font-medium text-stone-700">תיאור</label>
                 <textarea name="description" rows="4"
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
                   set:html={detail.description ?? ''} />
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label class="text-sm font-medium text-stone-700">Priority</label>
+                  <label class="text-sm font-medium text-stone-700">עדיפות</label>
                   <select name="priority" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                     {[1, 2, 3, 4, 5].map((p) => <option value={p} selected={p === (detail.is_urgent ? 1 : 3)}>P{p}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label class="text-sm font-medium text-stone-700">Term</label>
+                  <label class="text-sm font-medium text-stone-700">טווח</label>
                   <select name="term_type" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                    <option value="short_term" selected>Short term</option>
-                    <option value="long_term">Long term</option>
+                    <option value="short_term" selected>טווח קצר</option>
+                    <option value="long_term">טווח ארוך</option>
                   </select>
                 </div>
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700">Team</label>
+                <label class="text-sm font-medium text-stone-700">צוות</label>
                 <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                   {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
                 </select>
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700">Owner</label>
+                <label class="text-sm font-medium text-stone-700">אחראי</label>
                 <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                  <option value="">Unassigned</option>
+                  <option value="">ללא</option>
                   {employees?.map((e) => <option value={e.id} selected={e.id === detail.assignee_employee_id}>{e.full_name}</option>)}
                 </select>
               </div>
               <div class="flex gap-2 pt-2">
                 <button type="button" data-clone-close="issue"
-                  class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">Cancel</button>
+                  class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">ביטול</button>
                 <button type="submit"
-                  class="flex-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">Create issue</button>
+                  class="flex-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">יצירת נושא</button>
               </div>
             </form>
           </div>

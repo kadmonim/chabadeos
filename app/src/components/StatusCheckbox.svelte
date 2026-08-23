@@ -38,7 +38,7 @@
   class:hover:border-stone-400={current !== doneValue}
   class:bg-emerald-500={current === doneValue}
   class:border-emerald-500={current === doneValue}
-  aria-label={current === doneValue ? 'Mark open' : 'Mark done'}
+  aria-label={current === doneValue ? 'סימון כפתוח' : 'סימון כבוצע'}
 >
   {#if current === doneValue}
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">

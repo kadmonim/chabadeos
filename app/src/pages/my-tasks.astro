@@ -45,7 +45,7 @@ const { rows: todos } = await pool.query(
 const teams = allowedTeams;
 
 const fmt = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+  d ? new Date(d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' }) : '';
 
 // Fetch open/done counts for the subtitle regardless of active filter
 const openCountRows = await sql`
@@ -57,17 +57,17 @@ const doneCountRows = await sql`
   where assignee_employee_id = ${user.employeeId} and status = 'done'`;
 const doneCount = doneCountRows[0]?.count;
 ---
-<AppLayout title="My Tasks · Chabad Central">
+<AppLayout title="המשימות שלי · מרכז חב&quot;ד">
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-emerald-100 grid place-items-center">
         <ListChecks class="text-emerald-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">My Tasks</h1>
+        <h1 class="text-2xl font-semibold text-stone-900">המשימות שלי</h1>
         <p class="text-stone-500 text-sm">
-          Everything assigned to you across every team —
-          <span class="text-stone-700 font-medium">{openCount ?? 0} open</span>, {doneCount ?? 0} done
+          כל מה שהוקצה לך בכל הצוותים —
+          <span class="text-stone-700 font-medium">{openCount ?? 0} פתוחות</span>, {doneCount ?? 0} בוצעו
         </p>
       </div>
     </div>
@@ -75,30 +75,30 @@ const doneCount = doneCountRows[0]?.count;
 
   <form method="GET" class="flex flex-wrap gap-2 mb-4">
     <div class="flex-1 min-w-[240px] relative">
-      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+      <Search size={16} class="absolute start-3 top-1/2 -translate-y-1/2 text-stone-400" />
       <input
         type="text"
         name="q"
         value={search}
-        placeholder="Search my tasks..."
-        class="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
+        placeholder="חיפוש במשימות שלי..."
+        class="w-full bg-white border border-stone-200 rounded-xl ps-9 pe-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
       />
     </div>
     <select name="team" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="all" selected={teamFilter === 'all'}>All teams</option>
+      <option value="all" selected={teamFilter === 'all'}>כל הצוותים</option>
       {teams?.map((t) => <option value={t.id} selected={teamFilter === t.id}>{t.name}</option>)}
     </select>
     <select name="status" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="active"   selected={statusFilter === 'active'}>Open &amp; Done</option>
-      <option value="open"     selected={statusFilter === 'open'}>Open only</option>
-      <option value="done"     selected={statusFilter === 'done'}>Done only</option>
-      <option value="archived" selected={statusFilter === 'archived'}>Archived</option>
-      <option value="all"      selected={statusFilter === 'all'}>All</option>
+      <option value="active"   selected={statusFilter === 'active'}>פתוח ובוצע</option>
+      <option value="open"     selected={statusFilter === 'open'}>פתוח בלבד</option>
+      <option value="done"     selected={statusFilter === 'done'}>בוצע בלבד</option>
+      <option value="archived" selected={statusFilter === 'archived'}>בארכיון</option>
+      <option value="all"      selected={statusFilter === 'all'}>הכל</option>
     </select>
     <select name="sort" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="due"     selected={sort === 'due'}>Due date</option>
-      <option value="created" selected={sort === 'created'}>Created date</option>
-      <option value="title"   selected={sort === 'title'}>Title</option>
+      <option value="due"     selected={sort === 'due'}>תאריך יעד</option>
+      <option value="created" selected={sort === 'created'}>תאריך יצירה</option>
+      <option value="title"   selected={sort === 'title'}>כותרת</option>
     </select>
   </form>
 
@@ -118,13 +118,13 @@ const doneCount = doneCountRows[0]?.count;
                 {t.team.name}
               </span>
             )}
-            {t.due_date && <span class="text-xs text-rose-500 w-14 text-right">{fmt(t.due_date)}</span>}
+            {t.due_date && <span class="text-xs text-rose-500 w-14 text-end">{fmt(t.due_date)}</span>}
           </div>
         );
       })
     ) : (
       <div class="px-4 py-12 text-center text-sm text-stone-400">
-        Nothing assigned to you matching the filters.
+        אין משימות התואמות לסינון.
       </div>
     )}
   </div>

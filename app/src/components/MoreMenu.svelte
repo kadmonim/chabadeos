@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Settings, ListChecks, Contact, Newspaper, BookOpen, Users, Link2, Network, Wallet, Lightbulb } from 'lucide-svelte';
+  import { Settings, ListChecks, Contact, BookOpen, Users, Link2, Network, Wallet } from 'lucide-svelte';
 
   let { canSeeExpenses = false } = $props<{ canSeeExpenses?: boolean }>();
   let open = $state(false);
@@ -28,15 +28,13 @@
   });
 
   const allItems = [
-    { href: '/chart',          label: 'Org Chart',             icon: Network,     always: true },
-    { href: '/my-tasks',       label: 'My Tasks',              icon: ListChecks,  always: true },
-    { href: '/expenses',       label: 'Expenses',              icon: Wallet,      always: false },
-    { href: '/directory',      label: 'Directory',             icon: Contact,     always: true },
-    { href: '/posts',          label: 'Posts',                 icon: Newspaper,   always: true },
-    { href: '/processes',      label: 'Processes',             icon: BookOpen,    always: true },
-    { href: '/teams',          label: 'Teams & People',        icon: Users,       always: true },
-    { href: '/links',          label: 'Links',                 icon: Link2,       always: true },
-    { href: '/feature-ideas',  label: 'Feature Ideas',          icon: Lightbulb,   always: true },
+    { href: '/chart',          label: 'מבנה ארגוני',   icon: Network,     always: true },
+    { href: '/my-tasks',       label: 'המשימות שלי',   icon: ListChecks,  always: true },
+    { href: '/expenses',       label: 'הוצאות',        icon: Wallet,      always: false },
+    { href: '/directory',      label: 'אנשי קשר',      icon: Contact,     always: true },
+    { href: '/processes',      label: 'תהליכים',       icon: BookOpen,    always: true },
+    { href: '/teams',          label: 'צוותים ואנשים', icon: Users,       always: true },
+    { href: '/links',          label: 'קישורים',       icon: Link2,       always: true },
   ];
   const items = $derived(allItems.filter((i) => i.always || (i.href === '/expenses' && canSeeExpenses)));
 </script>
@@ -48,14 +46,14 @@
     aria-haspopup="menu"
     aria-expanded={open}
     class="p-2 rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-800 transition"
-    title="More"
+    title="עוד"
   >
     <Settings size={18} />
   </button>
   {#if open}
     <div
       role="menu"
-      class="absolute right-0 top-full mt-1 min-w-[12rem] bg-white border border-stone-200 rounded-xl shadow-lg p-1 z-40"
+      class="absolute end-0 top-full mt-1 min-w-[12rem] bg-white border border-stone-200 rounded-xl shadow-lg p-1 z-40"
     >
       {#each items as item}
         <a

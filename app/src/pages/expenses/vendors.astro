@@ -1,6 +1,6 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
-import { Store, ArrowLeft, Plus, Pencil, X, Search, Trash2 } from 'lucide-svelte';
+import { Store, ArrowRight, Plus, Pencil, X, Search, Trash2 } from 'lucide-svelte';
 import { sql, pool } from '~/lib/db';
 import { canAccessExpenses } from '~/lib/permissions';
 
@@ -103,9 +103,9 @@ const fmtMoney = (n: number) =>
 const back = '/expenses/vendors';
 const arrToLines = (arr: string[] | null | undefined) => (arr ?? []).join('\n');
 ---
-<AppLayout title="Vendors · Chabad Central">
+<AppLayout title={'ספקים · מרכז חב"ד'}>
   <a href="/expenses" class="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-900 mb-6">
-    <ArrowLeft size={16} /> Back to Expenses
+    <ArrowRight size={16} /> חזרה להוצאות
   </a>
 
   <header class="flex items-start justify-between mb-6">
@@ -114,8 +114,8 @@ const arrToLines = (arr: string[] | null | undefined) => (arr ?? []).join('\n');
         <Store class="text-purple-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Vendors</h1>
-        <p class="text-stone-500 text-sm">{vendors?.length ?? 0} vendors · edit info, aliases, and to-dos</p>
+        <h1 class="text-2xl font-semibold text-stone-900">ספקים</h1>
+        <p class="text-stone-500 text-sm">{vendors?.length ?? 0} ספקים · עריכת פרטים, שמות נוספים ומשימות</p>
       </div>
     </div>
     <a
@@ -123,23 +123,23 @@ const arrToLines = (arr: string[] | null | undefined) => (arr ?? []).join('\n');
       class="bg-purple-600 hover:bg-purple-700 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
     >
       <Plus size={16} />
-      New vendor
+      ספק חדש
     </a>
   </header>
 
   <form method="GET" class="flex gap-2 mb-4">
     <div class="flex-1 relative">
-      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+      <Search size={16} class="absolute start-3 top-1/2 -translate-y-1/2 text-stone-400" />
       <input
         type="text"
         name="q"
         value={search}
-        placeholder="Search vendors..."
-        class="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-purple-400"
+        placeholder="חיפוש ספקים..."
+        class="w-full bg-white border border-stone-200 rounded-xl ps-9 pe-4 py-2.5 text-sm focus:outline-none focus:border-purple-400"
       />
     </div>
     <select name="group" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
-      <option value="all" selected={groupFilter === 'all'}>All groups</option>
+      <option value="all" selected={groupFilter === 'all'}>כל הקבוצות</option>
       {groups.map((g) => <option value={g} selected={groupFilter === g}>{g}</option>)}
     </select>
   </form>
@@ -148,21 +148,21 @@ const arrToLines = (arr: string[] | null | undefined) => (arr ?? []).join('\n');
     <table class="w-full text-sm">
       <thead>
         <tr class="text-[11px] uppercase tracking-wider text-stone-500 bg-stone-50">
-          <th class="text-left font-medium px-5 py-3">Vendor</th>
-          <th class="text-left font-medium px-3 py-3 w-32">Group</th>
-          <th class="text-left font-medium px-3 py-3 w-32">Person</th>
-          <th class="text-left font-medium px-3 py-3 w-28">Status</th>
-          <th class="text-left font-medium px-3 py-3">To-do</th>
-          <th class="text-right font-medium px-3 py-3 w-12">#</th>
-          <th class="text-right font-medium px-3 py-3 w-28">All-time</th>
-          <th class="text-right font-medium px-5 py-3 w-12"></th>
+          <th class="text-start font-medium px-5 py-3">ספק</th>
+          <th class="text-start font-medium px-3 py-3 w-32">קבוצה</th>
+          <th class="text-start font-medium px-3 py-3 w-32">איש קשר</th>
+          <th class="text-start font-medium px-3 py-3 w-28">סטטוס</th>
+          <th class="text-start font-medium px-3 py-3">משימה</th>
+          <th class="text-end font-medium px-3 py-3 w-12">#</th>
+          <th class="text-end font-medium px-3 py-3 w-28">כל הזמנים</th>
+          <th class="text-end font-medium px-5 py-3 w-12"></th>
         </tr>
       </thead>
       <tbody>
         {vendorList.length === 0 ? (
           <tr>
             <td colspan="8" class="px-5 py-10 text-center text-sm text-stone-400">
-              No vendors match the filters.
+              אין ספקים התואמים לסינון.
             </td>
           </tr>
         ) : (
@@ -199,9 +199,9 @@ const arrToLines = (arr: string[] | null | undefined) => (arr ?? []).join('\n');
                 <td class="px-3 py-3 text-xs text-stone-600 max-w-xs">
                   {v.to_do ? <span class="line-clamp-2">{v.to_do}</span> : <span class="text-stone-300">—</span>}
                 </td>
-                <td class="px-3 py-3 text-right text-stone-500 tabular-nums">{s.count}</td>
-                <td class="px-3 py-3 text-right font-medium text-stone-900 tabular-nums">{fmtMoney(s.total)}</td>
-                <td class="px-5 py-3 text-right">
+                <td class="px-3 py-3 text-end text-stone-500 tabular-nums">{s.count}</td>
+                <td class="px-3 py-3 text-end font-medium text-stone-900 tabular-nums">{fmtMoney(s.total)}</td>
+                <td class="px-5 py-3 text-end">
                   <a href={`/expenses/vendors?edit=${v.vendor_id}`} class="p-1.5 rounded text-stone-400 hover:text-stone-800 hover:bg-stone-100 inline-block">
                     <Pencil size={14} />
                   </a>
@@ -217,11 +217,11 @@ const arrToLines = (arr: string[] | null | undefined) => (arr ?? []).join('\n');
   {(editing || adding) && (
     <div class="fixed inset-0 z-30">
       <a href={back} class="absolute inset-0 bg-black/30"></a>
-      <aside class="absolute right-0 top-0 bottom-0 w-full max-w-lg bg-white shadow-2xl overflow-y-auto">
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-lg bg-white shadow-2xl overflow-y-auto">
         <div class="p-6 space-y-5">
           <div class="flex items-center justify-between">
             <h2 class="text-xl font-semibold text-stone-900">
-              {editing ? 'Edit vendor' : 'New vendor'}
+              {editing ? 'עריכת ספק' : 'ספק חדש'}
             </h2>
             <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={20} /></a>
           </div>
@@ -232,35 +232,35 @@ const arrToLines = (arr: string[] | null | undefined) => (arr ?? []).join('\n');
             <input type="hidden" name="back" value={back} />
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Name</label>
+              <label class="text-sm font-medium text-stone-700">שם</label>
               <input type="text" name="name" required value={editing?.name ?? prefillName}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
             </div>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-sm font-medium text-stone-700">Group</label>
+                <label class="text-sm font-medium text-stone-700">קבוצה</label>
                 <input type="text" name="group_name" value={editing?.group_name ?? ''}
                   placeholder="e.g. Software, Hosting"
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700">Person</label>
+                <label class="text-sm font-medium text-stone-700">איש קשר</label>
                 <select name="person_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
-                  <option value="">— none —</option>
+                  <option value="">— ללא —</option>
                   {employees?.map((e) => (
                     <option value={e.id} selected={e.id === editing?.person_employee_id}>{e.full_name}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700">Frequency</label>
+                <label class="text-sm font-medium text-stone-700">תדירות</label>
                 <input type="text" name="frequency" value={editing?.frequency ?? ''}
                   placeholder="monthly, annual, one-off"
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700">Status</label>
+                <label class="text-sm font-medium text-stone-700">סטטוס</label>
                 <input type="text" name="status" value={editing?.status ?? ''}
                   placeholder="Active, Cancelled, ..."
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" />
@@ -268,58 +268,58 @@ const arrToLines = (arr: string[] | null | undefined) => (arr ?? []).join('\n');
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Description</label>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
               <textarea name="description" rows="2"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
               >{editing?.description ?? ''}</textarea>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Latest update</label>
+              <label class="text-sm font-medium text-stone-700">עדכון אחרון</label>
               <textarea name="latest_update" rows="2"
-                placeholder="What's the current state / last change"
+                placeholder="מה המצב הנוכחי / מה השתנה לאחרונה"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
               >{editing?.latest_update ?? ''}</textarea>
             </div>
 
             <div class="grid grid-cols-[1fr_160px] gap-3">
               <div>
-                <label class="text-sm font-medium text-stone-700">To-do</label>
+                <label class="text-sm font-medium text-stone-700">משימה</label>
                 <textarea name="to_do" rows="2"
-                  placeholder="What needs to happen next"
+                  placeholder="מה צריך לקרות בהמשך"
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
                 >{editing?.to_do ?? ''}</textarea>
               </div>
               <div>
-                <label class="text-sm font-medium text-stone-700">Review again</label>
+                <label class="text-sm font-medium text-stone-700">לסקירה חוזרת בתאריך</label>
                 <input type="date" name="review_again" value={editing?.review_again ?? ''}
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
               </div>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Report matches <span class="text-xs text-stone-400">(raw strings that map to this vendor, one per line)</span></label>
+              <label class="text-sm font-medium text-stone-700">התאמות בדוחות <span class="text-xs text-stone-400">(מחרוזות גולמיות המתאימות לספק זה, אחת בכל שורה)</span></label>
               <textarea name="report_matches" rows="3" placeholder="Google G Suite&#10;google cloud"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-400"
               >{arrToLines(editing?.report_matches)}</textarea>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Aliases <span class="text-xs text-stone-400">(one per line)</span></label>
+              <label class="text-sm font-medium text-stone-700">שמות נוספים <span class="text-xs text-stone-400">(אחד בכל שורה)</span></label>
               <textarea name="aliases" rows="2"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-400"
               >{arrToLines(editing?.aliases)}</textarea>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-stone-700">Tags <span class="text-xs text-stone-400">(one per line)</span></label>
+              <label class="text-sm font-medium text-stone-700">תגיות <span class="text-xs text-stone-400">(אחת בכל שורה)</span></label>
               <textarea name="tags" rows="2"
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-400"
               >{arrToLines(editing?.tags)}</textarea>
             </div>
 
             <button class="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              {editing ? 'Save changes' : 'Create vendor'}
+              {editing ? 'שמירת שינויים' : 'יצירת ספק'}
             </button>
           </form>
 
@@ -328,13 +328,13 @@ const arrToLines = (arr: string[] | null | undefined) => (arr ?? []).join('\n');
               method="POST"
               action="/api/expenses-vendors"
               class="pt-4 border-t border-stone-200"
-              onsubmit="return confirm('Delete this vendor?');"
+              onsubmit="return confirm('למחוק את הספק הזה?');"
             >
               <input type="hidden" name="_action" value="delete" />
               <input type="hidden" name="vendor_id" value={editing.vendor_id} />
               <input type="hidden" name="back" value={back} />
               <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
-                <Trash2 size={14} /> Delete vendor
+                <Trash2 size={14} /> מחיקת ספק
               </button>
             </form>
           )}

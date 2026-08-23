@@ -100,8 +100,8 @@
   </button>
   {#if note}
     <span
-      class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 pointer-events-none"
-      aria-label="Has note"
+      class="absolute top-0.5 end-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 pointer-events-none"
+      aria-label="קיימת הערה"
     ></span>
   {/if}
 
@@ -117,19 +117,19 @@
         bind:value={draftValue}
         onkeydown={handleKey}
         disabled={pending}
-        placeholder="Value"
+        placeholder="ערך"
         class="w-full text-sm font-medium leading-5 px-2 py-1.5 bg-white border border-stone-300 rounded focus:outline-none focus:border-violet-400"
       />
       <textarea
         bind:value={draftNote}
         onkeydown={handleKey}
         disabled={pending}
-        placeholder="Note (optional)"
+        placeholder="הערה (לא חובה)"
         rows="2"
         class="w-full text-xs leading-snug px-2 py-1.5 bg-white border border-stone-200 rounded focus:outline-none focus:border-violet-400 resize-none"
       ></textarea>
       <div class="flex items-center justify-between text-[10px] text-stone-400">
-        <span>Enter to save · Esc to cancel</span>
+        <span>Enter לשמירה · Esc לביטול</span>
       </div>
     </div>
   {/if}

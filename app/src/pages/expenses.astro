@@ -1,6 +1,6 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
-import { Wallet, Calendar, ChevronRight, CreditCard, X, AlertCircle, CircleHelp, Store, ClipboardList, MessageSquare } from 'lucide-svelte';
+import { Wallet, Calendar, ChevronLeft, CreditCard, X, AlertCircle, CircleHelp, Store, ClipboardList, MessageSquare } from 'lucide-svelte';
 import { sql } from '~/lib/db';
 import { resolveMethodFilter } from '~/lib/expense-method';
 import { canAccessExpenses } from '~/lib/permissions';
@@ -40,7 +40,7 @@ for (const e of (expenses ?? []) as Row[]) {
   const m = e.month;
   if (!groupsByMonth.has(m)) {
     const [yyyy, mm] = m.split('-').map(Number);
-    const label = new Date(Date.UTC(yyyy, (mm ?? 1) - 1, 1)).toLocaleDateString('en-US', {
+    const label = new Date(Date.UTC(yyyy, (mm ?? 1) - 1, 1)).toLocaleDateString('he-IL', {
       month: 'long',
       year: 'numeric',
       timeZone: 'UTC',
@@ -92,15 +92,15 @@ const flaggedHref = `/expenses/review?status=to_review${reviewMethodQs}`;
 const fmtMoney = (n: number) =>
   '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 ---
-<AppLayout title="Expenses · Chabad Central">
+<AppLayout title={'הוצאות · מרכז חב"ד'}>
   <header class="flex items-start justify-between mb-6">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-emerald-100 grid place-items-center">
         <Wallet class="text-emerald-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Expenses</h1>
-        <p class="text-stone-500 text-sm">Monthly spend reports</p>
+        <h1 class="text-2xl font-semibold text-stone-900">הוצאות</h1>
+        <p class="text-stone-500 text-sm">דוחות הוצאות חודשיים</p>
       </div>
     </div>
     <div class="flex items-center gap-2">
@@ -109,14 +109,14 @@ const fmtMoney = (n: number) =>
         class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700 hover:bg-stone-50"
       >
         <Store size={16} />
-        Vendors
+        ספקים
       </a>
       <a
         href="/expenses/methods"
         class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700 hover:bg-stone-50"
       >
         <CreditCard size={16} />
-        Methods
+        אמצעי תשלום
       </a>
     </div>
   </header>
@@ -129,11 +129,11 @@ const fmtMoney = (n: number) =>
     >
       <div class="flex items-center gap-2 text-xs font-medium text-stone-500 uppercase tracking-wide">
         <AlertCircle size={14} class="text-amber-500" />
-        Unapproved spend
+        הוצאות לא מאושרות
       </div>
       <div class="mt-2 text-2xl font-semibold text-stone-900 tabular-nums">{fmtMoney(unapprovedTotal)}</div>
       <div class="text-[11px] text-stone-500 mt-0.5">
-        {unapproved.length} charge{unapproved.length === 1 ? '' : 's'} · {unreviewed.length} new · {flagged.length} flagged{toMove.length > 0 ? ` · ${toMove.length} to move` : ''}
+        {unapproved.length} חיובים · {unreviewed.length} חדשים · {flagged.length} מסומנים{toMove.length > 0 ? ` · ${toMove.length} להעברה` : ''}
       </div>
     </a>
 
@@ -143,10 +143,10 @@ const fmtMoney = (n: number) =>
     >
       <div class="flex items-center gap-2 text-xs font-medium text-stone-500 uppercase tracking-wide">
         <CircleHelp size={14} class="text-amber-500" />
-        Flagged for review
+        מסומן לסקירה
       </div>
       <div class="mt-2 text-2xl font-semibold text-stone-900 tabular-nums">{flagged.length}</div>
-      <div class="text-[11px] text-stone-500 mt-0.5">charges marked to re-examine</div>
+      <div class="text-[11px] text-stone-500 mt-0.5">חיובים שסומנו לבדיקה חוזרת</div>
     </a>
 
     <a
@@ -155,21 +155,21 @@ const fmtMoney = (n: number) =>
     >
       <div class="flex items-center gap-2 text-xs font-medium text-stone-500 uppercase tracking-wide">
         <ClipboardList size={14} class="text-purple-500" />
-        Vendors with notes
+        ספקים עם הערות
       </div>
       <div class="mt-2 text-2xl font-semibold text-stone-900 tabular-nums">{vendorsWithNotes}</div>
       <div class="text-[11px] text-stone-500 mt-0.5">
-        {vendorsWithTodo} with to-do{vendorsDueReview > 0 ? ` · ${vendorsDueReview} due for review` : ''}
+        {vendorsWithTodo} עם משימה לביצוע{vendorsDueReview > 0 ? ` · ${vendorsDueReview} לסקירה חוזרת` : ''}
       </div>
     </a>
 
     <div class="bg-white border border-stone-200 rounded-2xl p-4">
       <div class="flex items-center gap-2 text-xs font-medium text-stone-500 uppercase tracking-wide">
         <MessageSquare size={14} class="text-violet-500" />
-        Charges with notes
+        חיובים עם הערות
       </div>
       <div class="mt-2 text-2xl font-semibold text-stone-900 tabular-nums">{chargesWithNotes}</div>
-      <div class="text-[11px] text-stone-500 mt-0.5">charges annotated by Finance</div>
+      <div class="text-[11px] text-stone-500 mt-0.5">חיובים שתויגו על ידי צוות הכספים</div>
     </div>
   </div>
 
@@ -177,22 +177,22 @@ const fmtMoney = (n: number) =>
     <div class="mb-6 bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 flex items-center gap-3">
       <CreditCard size={16} class="text-sky-600" />
       <div class="flex-1 text-sm text-sky-900">
-        Filtering by <span class="font-mono font-semibold">{methodFilter}</span>
+        מסונן לפי <span class="font-mono font-semibold">{methodFilter}</span>
         {activeMethodMeta?.label && <> · {activeMethodMeta.label}</>}
-        {activeMethodMeta?.ownerName && <> · owned by <span class="font-medium">{activeMethodMeta.ownerName}</span></>}
+        {activeMethodMeta?.ownerName && <> · בבעלות <span class="font-medium">{activeMethodMeta.ownerName}</span></>}
       </div>
       <a
         href="/expenses?method=all"
         class="inline-flex items-center gap-1 text-xs text-sky-700 hover:text-sky-900 font-medium"
       >
-        <X size={13} /> Clear
+        <X size={13} /> ניקוי
       </a>
     </div>
   )}
 
   {groups.length === 0 ? (
     <div class="bg-white border border-stone-200 rounded-2xl px-4 py-12 text-center text-sm text-stone-400">
-      {methodFilter ? 'No expenses for this method yet.' : 'No expenses yet.'}
+      {methodFilter ? 'אין עדיין הוצאות לאמצעי תשלום זה.' : 'אין עדיין הוצאות.'}
     </div>
   ) : (
     <div class="grid gap-3">
@@ -209,15 +209,15 @@ const fmtMoney = (n: number) =>
               <div class="text-lg font-semibold text-stone-900 group-hover:text-emerald-700 transition">
                 {g.label}
               </div>
-              <div class="text-xs text-stone-500">{g.count} {g.count === 1 ? 'charge' : 'charges'}</div>
+              <div class="text-xs text-stone-500">{g.count} {g.count === 1 ? 'חיוב' : 'חיובים'}</div>
             </div>
           </div>
           <div class="flex items-center gap-4">
-            <div class="text-right">
-              <div class="text-xs text-stone-400 uppercase tracking-wide">Total</div>
+            <div class="text-end">
+              <div class="text-xs text-stone-400 uppercase tracking-wide">סה"כ</div>
               <div class="text-2xl font-semibold text-stone-900 tabular-nums">{fmtMoney(g.total)}</div>
             </div>
-            <ChevronRight size={18} class="text-stone-300 group-hover:text-emerald-600 transition" />
+            <ChevronLeft size={18} class="text-stone-300 group-hover:text-emerald-600 transition" />
           </div>
         </a>
       ))}

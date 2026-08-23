@@ -4,7 +4,7 @@ import ExpenseStatusPicker from '~/components/ExpenseStatusPicker.svelte';
 import ExpenseNotes from '~/components/ExpenseNotes.svelte';
 import VendorInfoTip from '~/components/VendorInfoTip.astro';
 import VendorEditPanel from '~/components/VendorEditPanel.svelte';
-import { Wallet, ArrowLeft, Calendar, AlertCircle, Circle, CircleHelp, ArrowRightLeft, CreditCard, X } from 'lucide-svelte';
+import { Wallet, ArrowRight, Calendar, AlertCircle, Circle, CircleHelp, ArrowRightLeft, CreditCard, X } from 'lucide-svelte';
 import { sql } from '~/lib/db';
 import { resolveMethodFilter } from '~/lib/expense-method';
 import { canAccessExpenses, getOwnedMethods } from '~/lib/permissions';
@@ -146,10 +146,10 @@ const grandCount = enriched.length;
 const fmtMoney = (n: number) =>
   '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  new Date(d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' });
 const fmtMonth = (m: string) => {
   const [y, mo] = m.split('-').map(Number);
-  return new Date(Date.UTC(y, (mo ?? 1) - 1, 1)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return new Date(Date.UTC(y, (mo ?? 1) - 1, 1)).toLocaleDateString('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 };
 
 function chipHref(next: string) {
@@ -160,9 +160,9 @@ function chipHref(next: string) {
   return `/expenses/review${s ? '?' + s : ''}`;
 }
 ---
-<AppLayout title="Review charges · Chabad Central">
+<AppLayout title={'סקירת חיובים · מרכז חב"ד'}>
   <a href={isFinance ? '/expenses' : '/'} class="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-900 mb-6">
-    <ArrowLeft size={16} /> {isFinance ? 'Back to Expenses' : 'Back to Home'}
+    <ArrowRight size={16} /> {isFinance ? 'חזרה להוצאות' : 'חזרה לדף הבית'}
   </a>
 
   <header class="flex items-start justify-between mb-6">
@@ -171,14 +171,14 @@ function chipHref(next: string) {
         <AlertCircle class="text-amber-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Charges to review</h1>
+        <h1 class="text-2xl font-semibold text-stone-900">חיובים לסקירה</h1>
         <p class="text-stone-500 text-sm">
-          <span id="review-progress-text">{grandCount} charges</span> · across all months
+          <span id="review-progress-text">{grandCount} חיובים</span> · בכל החודשים
         </p>
       </div>
     </div>
-    <div class="text-right">
-      <div class="text-xs text-stone-400 uppercase tracking-wide">Remaining</div>
+    <div class="text-end">
+      <div class="text-xs text-stone-400 uppercase tracking-wide">נותרו</div>
       <div id="review-total" class="text-3xl font-semibold text-stone-900 tabular-nums">{fmtMoney(grandTotal)}</div>
     </div>
   </header>
@@ -187,13 +187,13 @@ function chipHref(next: string) {
     <div class="mb-4 bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 flex items-center gap-3">
       <CreditCard size={16} class="text-sky-600" />
       <div class="flex-1 text-sm text-sky-900">
-        Filtering by <span class="font-mono font-semibold">{methodFilter}</span>
+        מסונן לפי <span class="font-mono font-semibold">{methodFilter}</span>
         {activeMethodMeta?.label && <> · {activeMethodMeta.label}</>}
-        {activeMethodMeta?.ownerName && <> · owned by <span class="font-medium">{activeMethodMeta.ownerName}</span></>}
+        {activeMethodMeta?.ownerName && <> · בבעלות <span class="font-medium">{activeMethodMeta.ownerName}</span></>}
       </div>
       {isFinance && (
         <a href="/expenses/review?method=all" class="inline-flex items-center gap-1 text-xs text-sky-700 hover:text-sky-900 font-medium">
-          <X size={13} /> Clear
+          <X size={13} /> ניקוי
         </a>
       )}
     </div>
@@ -202,10 +202,10 @@ function chipHref(next: string) {
   {/* Status filter chips */}
   <div class="mb-6 flex flex-wrap items-center gap-2 text-xs">
     {([
-      { key: 'all',       label: 'All pending', color: 'bg-stone-100 text-stone-700 border-stone-300',      active: 'bg-stone-800 text-white border-stone-800',         Icon: null as any },
-      { key: 'none',      label: 'New',         color: 'bg-white text-stone-600 border-stone-300',          active: 'bg-stone-600 text-white border-stone-600',         Icon: Circle },
-      { key: 'to_review', label: 'Flagged',     color: 'bg-amber-50 text-amber-700 border-amber-300',       active: 'bg-amber-500 text-white border-amber-500',         Icon: CircleHelp },
-      { key: 'to_move',   label: 'To move',     color: 'bg-sky-50 text-sky-700 border-sky-300',             active: 'bg-sky-500 text-white border-sky-500',             Icon: ArrowRightLeft },
+      { key: 'all',       label: 'הכל בהמתנה', color: 'bg-stone-100 text-stone-700 border-stone-300',      active: 'bg-stone-800 text-white border-stone-800',         Icon: null as any },
+      { key: 'none',      label: 'חדש',         color: 'bg-white text-stone-600 border-stone-300',          active: 'bg-stone-600 text-white border-stone-600',         Icon: Circle },
+      { key: 'to_review', label: 'מסומן',     color: 'bg-amber-50 text-amber-700 border-amber-300',       active: 'bg-amber-500 text-white border-amber-500',         Icon: CircleHelp },
+      { key: 'to_move',   label: 'להעברה',     color: 'bg-sky-50 text-sky-700 border-sky-300',             active: 'bg-sky-500 text-white border-sky-500',             Icon: ArrowRightLeft },
     ] as const).map((chip) => {
       const active = filter === chip.key;
       const n = statusCounts[chip.key as keyof typeof statusCounts];
@@ -221,7 +221,7 @@ function chipHref(next: string) {
 
   {monthGroups.length === 0 ? (
     <div class="bg-white border border-stone-200 rounded-2xl px-4 py-12 text-center text-sm text-stone-400">
-      Nothing pending. You're all caught up.
+      אין דבר בהמתנה. הכל מעודכן.
     </div>
   ) : (
     <div class="space-y-6">
@@ -236,21 +236,21 @@ function chipHref(next: string) {
             <h2 class="text-sm font-semibold text-stone-800">{fmtMonth(g.month)}</h2>
             <span class="text-xs text-stone-400">
               · <span class="month-count tabular-nums" data-original-count={g.items.length}>{g.items.length}</span>
-              {g.items.length === 1 ? 'charge' : 'charges'}
+              {g.items.length === 1 ? 'חיוב' : 'חיובים'}
               · <span class="month-total tabular-nums" data-original-total={g.total}>{fmtMoney(g.total)}</span>
             </span>
-            <a href={`/expenses/${g.month}${methodFilter ? `?method=${encodeURIComponent(methodFilter)}` : ''}`} class="ml-auto text-xs text-stone-400 hover:text-stone-700">Full month →</a>
+            <a href={`/expenses/${g.month}${methodFilter ? `?method=${encodeURIComponent(methodFilter)}` : ''}`} class="ms-auto text-xs text-stone-400 hover:text-stone-700">חודש מלא ←</a>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-[11px] uppercase tracking-wider text-stone-500 bg-stone-50">
-                  <th class="text-left font-medium px-5 py-2.5 w-20">Date</th>
-                  <th class="text-left font-medium px-3 py-2.5">Vendor</th>
-                  <th class="text-left font-medium px-3 py-2.5 w-28">Method</th>
-                  <th class="text-right font-medium px-3 py-2.5 w-32">Amount</th>
-                  <th class="text-center font-medium px-2 py-2.5 w-12">Notes</th>
-                  <th class="text-right font-medium px-5 py-2.5 w-36">Status</th>
+                  <th class="text-start font-medium px-5 py-2.5 w-20">תאריך</th>
+                  <th class="text-start font-medium px-3 py-2.5">ספק</th>
+                  <th class="text-start font-medium px-3 py-2.5 w-28">אמצעי תשלום</th>
+                  <th class="text-end font-medium px-3 py-2.5 w-32">סכום</th>
+                  <th class="text-center font-medium px-2 py-2.5 w-12">הערות</th>
+                  <th class="text-end font-medium px-5 py-2.5 w-36">סטטוס</th>
                 </tr>
               </thead>
               <tbody>
@@ -272,7 +272,7 @@ function chipHref(next: string) {
                           <span>{c.canonical}</span>
                           {c.matched && <VendorInfoTip vendor={c.matched} name={c.canonical} />}
                           {c.matched && c.matched.name.toLowerCase() !== c.vendor.toLowerCase() && (
-                            <span class="ml-1.5 text-xs font-normal text-stone-400">(raw: {c.vendor})</span>
+                            <span class="ms-1.5 text-xs font-normal text-stone-400">(מקור: {c.vendor})</span>
                           )}
                         </div>
                         {!c.matched && (
@@ -281,7 +281,7 @@ function chipHref(next: string) {
                             data-vendor-new-name={c.canonical}
                             class="vendor-new-trigger inline-block text-[11px] text-amber-600 hover:text-amber-800 underline underline-offset-2 decoration-amber-300 hover:decoration-amber-600 mt-0.5"
                           >
-                            unmatched · click to add
+                            ללא התאמה · לחצו להוספה
                           </a>
                         )}
                       </td>
@@ -291,7 +291,7 @@ function chipHref(next: string) {
                           {meta?.ownerName && <div class="text-[10px] text-stone-400">{meta.ownerName}</div>}
                         </a>
                       </td>
-                      <td class="px-3 py-2.5 text-right font-medium text-stone-900 tabular-nums">
+                      <td class="px-3 py-2.5 text-end font-medium text-stone-900 tabular-nums">
                         {fmtMoney(Number(c.amount))}
                       </td>
                       <td class="px-2 py-2.5 text-center">
@@ -302,7 +302,7 @@ function chipHref(next: string) {
                           currentEmployeeId={currentEmployeeId}
                         />
                       </td>
-                      <td class="px-5 py-2.5 text-right">
+                      <td class="px-5 py-2.5 text-end">
                         <ExpenseStatusPicker
                           client:load
                           id={c.expense_id}
@@ -326,7 +326,7 @@ function chipHref(next: string) {
   <VendorEditPanel client:load />
 
   {/* Live-dismiss toast container (fixed bottom) */}
-  <div id="review-toast" class="fixed bottom-6 right-6 z-40 pointer-events-none" aria-live="polite"></div>
+  <div id="review-toast" class="fixed bottom-6 end-6 z-40 pointer-events-none" aria-live="polite"></div>
 
   <script is:inline define:vars={{ currentFilter: filter }}>
     // ─────────────────────────────────────────────────────
@@ -370,7 +370,7 @@ function chipHref(next: string) {
       const totalEl = document.getElementById('review-total');
       const progressEl = document.getElementById('review-progress-text');
       if (totalEl) totalEl.textContent = fmtMoney(total);
-      if (progressEl) progressEl.textContent = rows.length + ' ' + (rows.length === 1 ? 'charge' : 'charges');
+      if (progressEl) progressEl.textContent = rows.length + ' ' + (rows.length === 1 ? 'חיוב' : 'חיובים');
     }
 
     function updateMonthSection(monthEl) {
@@ -395,11 +395,11 @@ function chipHref(next: string) {
       container.innerHTML = '';
       const box = document.createElement('div');
       box.className = 'pointer-events-auto bg-stone-900 text-white rounded-xl shadow-xl px-4 py-3 flex items-center gap-3 text-sm';
-      box.innerHTML = '<div><div class="font-medium">Marked ' + vendor + ' as ' + labelFor(detail.status) + '</div><div class="text-[11px] text-stone-400">undo within 6s</div></div>';
+      box.innerHTML = '<div><div class="font-medium">' + vendor + ' סומן כ' + labelFor(detail.status) + '</div><div class="text-[11px] text-stone-400">ניתן לבטל תוך 6 שניות</div></div>';
       const undoBtn = document.createElement('button');
       undoBtn.type = 'button';
       undoBtn.className = 'text-xs font-semibold bg-white/10 hover:bg-white/20 text-white rounded-lg px-3 py-1.5';
-      undoBtn.textContent = 'Undo';
+      undoBtn.textContent = 'ביטול';
       undoBtn.addEventListener('click', async () => {
         const body = { id: Number(row.getAttribute('data-expense-id')), status: prevStatus };
         const res = await fetch('/api/expenses', {
@@ -432,7 +432,7 @@ function chipHref(next: string) {
     }
 
     function labelFor(status) {
-      return ({ good: 'Good', cancelled: 'Cancelled', to_review: 'To review', to_move: 'To move', none: 'Unreviewed' })[status] || status;
+      return ({ good: 'תקין', cancelled: 'בוטל', to_review: 'לסקירה', to_move: 'להעברה', none: 'לא נסקר' })[status] || status;
     }
 
     window.addEventListener('expense-status-changed', (ev) => {

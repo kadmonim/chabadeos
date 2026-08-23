@@ -1,6 +1,6 @@
 ---
 import '~/styles/global.css';
-import { Target, AlertCircle, ListTodo, ChartBar, Focus, Eye, LogOut } from 'lucide-svelte';
+import { Target, AlertCircle, ListTodo, ChartBar, Eye, LogOut } from 'lucide-svelte';
 import MoreMenu from '~/components/MoreMenu.svelte';
 import MobileMenu from '~/components/MobileMenu.svelte';
 import { canAccessExpenses } from '~/lib/permissions';
@@ -9,7 +9,7 @@ interface Props {
   title?: string;
   fullWidth?: boolean;
 }
-const { title = 'Chabad Central', fullWidth = false } = Astro.props;
+const { title = 'מרכז חב"ד', fullWidth = false } = Astro.props;
 const user = Astro.locals.user;
 const path = Astro.url.pathname;
 const teams = Astro.locals.allowedTeams;
@@ -18,19 +18,18 @@ const canSeeExpenses = canAccessExpenses(Astro.locals);
 const backPath = Astro.url.pathname + Astro.url.search;
 
 const nav = [
-  { href: '/vto',       label: 'V/TO',          icon: Eye },
-  { href: '/rocks',     label: 'Rocks',         icon: Target },
-  { href: '/issues',    label: 'Issues',        icon: AlertCircle },
-  { href: '/todos',     label: 'To-Dos',        icon: ListTodo },
-  { href: '/scorecard', label: 'Scorecard',     icon: ChartBar },
-  { href: '/focus',     label: 'Current Focus', icon: Focus },
+  { href: '/vto',       label: 'חזון (V/TO)', icon: Eye },
+  { href: '/rocks',     label: 'סלעים',       icon: Target },
+  { href: '/issues',    label: 'נושאים',      icon: AlertCircle },
+  { href: '/todos',     label: 'משימות',      icon: ListTodo },
+  { href: '/scorecard', label: 'לוח מדדים',   icon: ChartBar },
 ];
 
 const initials = (n: string) =>
   n.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
 ---
 <!doctype html>
-<html lang="en">
+<html lang="he" dir="rtl">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -41,7 +40,7 @@ const initials = (n: string) =>
     <header class="bg-white border-b border-stone-200 sticky top-0 z-20">
       <div class="max-w-[1400px] mx-auto px-4 md:px-6 h-16 flex items-center gap-1">
         <!-- Mobile: hamburger -->
-        <div class="md:hidden mr-1">
+        <div class="md:hidden me-1">
           <MobileMenu
             client:load
             teams={teams}
@@ -54,7 +53,7 @@ const initials = (n: string) =>
         </div>
 
         <!-- Logo -->
-        <a href="/" class="flex items-center md:mr-6">
+        <a href="/" class="flex items-center md:me-6">
           <img src="/logo.png" alt="צעירי אגודת חב״ד" class="h-8 w-auto" />
         </a>
 
@@ -83,12 +82,12 @@ const initials = (n: string) =>
         <!-- Desktop: team selector -->
         <div class="hidden md:block">
           {teams.length > 0 ? (
-            <form method="POST" action="/api/team" class="mr-3">
+            <form method="POST" action="/api/team" class="me-3">
               <input type="hidden" name="back" value={backPath} />
               <select
                 name="team_id"
                 onchange="this.form.submit()"
-                class="text-sm bg-white border border-stone-300 rounded-lg px-3 py-1.5 pr-8 cursor-pointer hover:border-stone-400"
+                class="text-sm bg-white border border-stone-300 rounded-lg px-3 py-1.5 pe-8 cursor-pointer hover:border-stone-400"
               >
                 {teams.map((t) => (
                   <option value={t.id} selected={t.id === currentTeam?.id}>{t.name}</option>
@@ -96,7 +95,7 @@ const initials = (n: string) =>
               </select>
             </form>
           ) : (
-            <span class="text-xs text-stone-400 mr-3">No team access</span>
+            <span class="text-xs text-stone-400 me-3">אין גישה לצוות</span>
           )}
         </div>
 
@@ -107,10 +106,10 @@ const initials = (n: string) =>
 
         <!-- Desktop: user name + logout -->
         {user && (
-          <div class="hidden md:flex items-center gap-2 text-sm text-stone-700 ml-1">
+          <div class="hidden md:flex items-center gap-2 text-sm text-stone-700 ms-1">
             <span class="hidden lg:inline">{user.fullName || user.email}</span>
             <form method="POST" action="/auth/logout">
-              <button class="p-2 rounded hover:bg-stone-100 text-stone-500" title="Sign out">
+              <button class="p-2 rounded hover:bg-stone-100 text-stone-500" title="התנתקות">
                 <LogOut size={16} />
               </button>
             </form>

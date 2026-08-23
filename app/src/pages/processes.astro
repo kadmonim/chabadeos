@@ -23,28 +23,28 @@ const { rows: processes } = await pool.query(
   vals,
 );
 ---
-<AppLayout title="Processes · Chabad Central">
+<AppLayout title={'תהליכים · מרכז חב"ד'}>
   <header class="flex items-start justify-between mb-8">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-indigo-100 grid place-items-center">
         <BookOpen class="text-indigo-600" size={24} />
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">Processes</h1>
-        <p class="text-stone-500 text-sm">{team ? `${team.name} playbooks` : 'Team playbooks and SOPs'}</p>
+        <h1 class="text-2xl font-semibold text-stone-900">תהליכים</h1>
+        <p class="text-stone-500 text-sm">{team ? `נהלי ${team.name}` : 'נהלי צוותים ותהליכי עבודה'}</p>
       </div>
     </div>
   </header>
 
   <form method="GET" class="mb-6">
     <div class="relative">
-      <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+      <Search size={16} class="absolute start-3 top-1/2 -translate-y-1/2 text-stone-400" />
       <input
         type="text"
         name="q"
         value={search}
-        placeholder="Search processes..."
-        class="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400"
+        placeholder="חיפוש תהליכים..."
+        class="w-full bg-white border border-stone-200 rounded-xl ps-9 pe-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400"
       />
     </div>
   </form>
@@ -55,7 +55,7 @@ const { rows: processes } = await pool.query(
         <details class="bg-white border border-stone-200 rounded-2xl group">
           <summary class="list-none cursor-pointer px-5 py-4 flex items-center justify-between">
             <span class="font-medium text-stone-900">{p.name}</span>
-            <span class="text-xs text-stone-400 group-open:rotate-90 transition">▸</span>
+            <span class="text-xs text-stone-400 group-open:rotate-90 transition">◂</span>
           </summary>
           {p.details && (
             <div
@@ -67,7 +67,7 @@ const { rows: processes } = await pool.query(
       ))
     ) : (
       <div class="bg-white border border-stone-200 rounded-xl px-4 py-12 text-center text-sm text-stone-400">
-        No processes yet.
+        אין תהליכים עדיין.
       </div>
     )}
   </div>
