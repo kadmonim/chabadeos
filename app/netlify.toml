@@ -1,0 +1,9 @@
+# Netlify settings. The app/ directory is the Netlify project root — run all
+# `netlify` CLI commands from app/ (the site link lives in app/.netlify).
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[dev]
+  command = "npm run dev"
+  targetPort = 7703

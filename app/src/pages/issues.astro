@@ -3,7 +3,7 @@ import AppLayout from '~/layouts/AppLayout.astro';
 import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import RichTextEditor from '~/components/RichTextEditor.svelte';
 import { AlertCircle, Plus, Search, Zap, Clock, Target, Archive, X, Trash2, Copy, Share2 } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 const team = Astro.locals.currentTeam;
 const teams = Astro.locals.allowedTeams;
 if (!team) return Astro.redirect('/');
@@ -17,69 +17,91 @@ const search = (url.searchParams.get('q') ?? '').trim();
 const detailId = url.searchParams.get('detail');
 
 const issueSelect =
-  'id, title, description, status, priority, priority_order, term_type, team_id, created_at, owner_employee_id, ' +
-  'owner:employees!issues_owner_employee_id_fkey(id, full_name)';
+  'i.id, i.title, i.description, i.status, i.priority, i.priority_order, i.term_type, i.team_id, i.created_at, i.owner_employee_id, ' +
+  "case when e.id is null then null else json_build_object('id', e.id, 'full_name', e.full_name) end as owner";
+const originTeamSelect =
+  `case when ot.id is null then null else json_build_object('id', ot.id, 'name', ot.name) end as "originTeam"`;
 
-const applyFilters = (q: any) => {
-  if (statusFilter === 'active') q = q.in('status', ['open', 'solved']);
-  else if (statusFilter !== 'all') q = q.eq('status', statusFilter);
-  if (ownerFilter !== 'all') q = q.eq('owner_employee_id', ownerFilter);
-  if (search) q = q.ilike('title', `%${search}%`);
-  if (sort === 'priority') q = q.order('priority', { ascending: true });
-  else if (sort === 'created') q = q.order('created_at', { ascending: false });
-  else q = q.order('priority_order', { ascending: true }).order('created_at', { ascending: false });
-  return q;
+const applyFilters = (vals: unknown[]) => {
+  const where: string[] = [];
+  if (statusFilter === 'active') { vals.push(['open', 'solved']); where.push(`i.status = any($${vals.length})`); }
+  else if (statusFilter !== 'all') { vals.push(statusFilter); where.push(`i.status = $${vals.length}`); }
+  if (ownerFilter !== 'all') { vals.push(ownerFilter); where.push(`i.owner_employee_id = $${vals.length}`); }
+  if (search) { vals.push(`%${search}%`); where.push(`i.title ilike $${vals.length}`); }
+  return where;
 };
+const orderBy =
+  sort === 'priority' ? 'order by i.priority asc'
+  : sort === 'created' ? 'order by i.created_at desc'
+  : 'order by i.priority_order asc, i.created_at desc';
 
-const ownedQ = applyFilters(
-  supabase.from('issues').select(issueSelect).eq('team_id', team.id).eq('term_type', term)
-);
+const ownedVals: unknown[] = [team.id, term];
+const ownedWhere = ['i.team_id = $1', 'i.term_type = $2', ...applyFilters(ownedVals)];
 
-const [ownedResult, employeesResult, shareLinksResult] = await Promise.all([
-  ownedQ,
-  supabase.from('team_memberships').select('employee:employees(id, full_name)').eq('team_id', team.id).order('employee(full_name)'),
-  supabase.from('issue_shares').select('issue_id').eq('team_id', team.id),
+const [ownedResult, employeeRows, shareLinks] = await Promise.all([
+  pool.query(
+    `select ${issueSelect}
+     from issues i
+     left join employees e on e.id = i.owner_employee_id
+     where ${ownedWhere.join(' and ')}
+     ${orderBy}`,
+    ownedVals,
+  ),
+  sql`
+    select case when e.id is null then null else json_build_object('id', e.id, 'full_name', e.full_name) end as employee
+    from team_memberships m
+    left join employees e on e.id = m.employee_id
+    where m.team_id = ${team.id}
+    order by e.full_name asc`,
+  sql`select issue_id from issue_shares where team_id = ${team.id}`,
 ]);
 
-const employees = (employeesResult.data ?? []).map((m: any) => m.employee).filter(Boolean);
-const ownedIssues = (ownedResult.data ?? []).map((i: any) => ({ ...i, isSharedIssue: false }));
-const sharedIds: string[] = (shareLinksResult.data ?? []).map((l: any) => l.issue_id);
+const employees: any[] = (employeeRows ?? []).map((m: any) => m.employee).filter(Boolean);
+const ownedIssues = (ownedResult.rows ?? []).map((i: any) => ({ ...i, isSharedIssue: false }));
+const sharedIds: string[] = (shareLinks ?? []).map((l: any) => l.issue_id);
 
 let sharedIssues: any[] = [];
 if (sharedIds.length > 0) {
-  const sq = applyFilters(
-    supabase.from('issues')
-      .select(issueSelect + ', originTeam:teams!issues_team_id_fkey(id, name)')
-      .in('id', sharedIds)
-      .eq('term_type', term)
+  const sharedVals: unknown[] = [sharedIds, term];
+  const sharedWhere = ['i.id = any($1)', 'i.term_type = $2', ...applyFilters(sharedVals)];
+  const { rows } = await pool.query(
+    `select ${issueSelect}, ${originTeamSelect}
+     from issues i
+     left join employees e on e.id = i.owner_employee_id
+     left join teams ot on ot.id = i.team_id
+     where ${sharedWhere.join(' and ')}
+     ${orderBy}`,
+    sharedVals,
   );
-  const { data } = await sq;
-  sharedIssues = (data ?? []).map((i: any) => ({ ...i, isSharedIssue: true }));
+  sharedIssues = (rows ?? []).map((i: any) => ({ ...i, isSharedIssue: true }));
 }
 
 const issues = [...ownedIssues, ...sharedIssues];
 
+const detailSelect =
+  `select ${issueSelect}, ${originTeamSelect}
+   from issues i
+   left join employees e on e.id = i.owner_employee_id
+   left join teams ot on ot.id = i.team_id`;
+
 let detail: any = null;
 if (detailId) {
-  const { data: ownedDetail } = await supabase
-    .from('issues')
-    .select(issueSelect + ', originTeam:teams!issues_team_id_fkey(id, name)')
-    .eq('team_id', team.id)
-    .eq('id', detailId)
-    .maybeSingle();
+  const { rows: ownedDetailRows } = await pool.query(
+    `${detailSelect} where i.team_id = $1 and i.id = $2`,
+    [team.id, detailId],
+  );
+  const ownedDetail = ownedDetailRows[0] ?? null;
 
   if (ownedDetail) {
-    const { data: shares } = await supabase
-      .from('issue_shares')
-      .select('team:teams(id, name)')
-      .eq('issue_id', detailId);
+    const shares = await sql`
+      select case when t.id is null then null else json_build_object('id', t.id, 'name', t.name) end as team
+      from issue_shares s
+      left join teams t on t.id = s.team_id
+      where s.issue_id = ${detailId}`;
     detail = { ...ownedDetail, isSharedIssue: false, shares: (shares ?? []).map((s: any) => s.team).filter(Boolean) };
   } else if (sharedIds.includes(detailId)) {
-    const { data } = await supabase
-      .from('issues')
-      .select(issueSelect + ', originTeam:teams!issues_team_id_fkey(id, name)')
-      .eq('id', detailId)
-      .maybeSingle();
+    const { rows } = await pool.query(`${detailSelect} where i.id = $1`, [detailId]);
+    const data = rows[0] ?? null;
     if (data) detail = { ...data, isSharedIssue: true, shares: [] };
   }
 }

@@ -1,17 +1,17 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
 
 // ---------- helpers ----------
 async function resolveEmployeeByEmail(email: string): Promise<string | null> {
-  const { data } = await supabase.from('employees').select('id').ilike('email', email).maybeSingle();
-  return data?.id ?? null;
+  const rows = await sql`select id from employees where email ilike ${email}`;
+  return (rows[0] as any)?.id ?? null;
 }
 async function resolveTeam(teamId: string | null, teamName: string | null): Promise<string | null> {
   if (teamId) return teamId;
   if (!teamName) return null;
-  const { data } = await supabase.from('teams').select('id').ilike('name', teamName).maybeSingle();
-  return data?.id ?? null;
+  const rows = await sql`select id from teams where name ilike ${teamName}`;
+  return (rows[0] as any)?.id ?? null;
 }
 
 // ============================================================
@@ -31,20 +31,40 @@ export const GET: APIRoute = async ({ request, url }) => {
     if (!assigneeId) return json({ todos: [], count: 0, note: `no employee with email '${assigneeEmail}'` });
   }
 
-  let q = supabase
-    .from('todos')
-    .select(`
-      id, title, description, status, is_urgent, due_date, created_at, updated_at,
-      team:teams(id, name),
-      assignee:employees!todos_assignee_employee_id_fkey(id, full_name, email)
-    `)
-    .order('due_date', { ascending: true, nullsFirst: false });
-  if (assigneeId) q = q.eq('assignee_employee_id', assigneeId);
-  if (teamId) q = q.eq('team_id', teamId);
-  if (status !== 'all') q = q.eq('status', status);
+  const wheres: string[] = [];
+  const vals: unknown[] = [];
+  if (assigneeId) {
+    vals.push(assigneeId);
+    wheres.push(`td.assignee_employee_id = $${vals.length}`);
+  }
+  if (teamId) {
+    vals.push(teamId);
+    wheres.push(`td.team_id = $${vals.length}`);
+  }
+  if (status !== 'all') {
+    vals.push(status);
+    wheres.push(`td.status = $${vals.length}`);
+  }
 
-  const { data, error } = await q;
-  if (error) return json({ error: error.message }, 500);
+  let data: any[];
+  try {
+    ({ rows: data } = await pool.query(
+      `select
+        td.id, td.title, td.description, td.status, td.is_urgent, td.due_date, td.created_at, td.updated_at,
+        case when t.id is null then null
+             else json_build_object('id', t.id, 'name', t.name) end as team,
+        case when a.id is null then null
+             else json_build_object('id', a.id, 'full_name', a.full_name, 'email', a.email) end as assignee
+      from todos td
+      left join teams t on t.id = td.team_id
+      left join employees a on a.id = td.assignee_employee_id
+      ${wheres.length ? `where ${wheres.join(' and ')}` : ''}
+      order by td.due_date asc nulls last`,
+      vals,
+    ));
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 
   const todos = (data ?? []).map((t: any) => ({
     id: t.id,
@@ -92,24 +112,23 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ error: 'team not found' }, 400);
   }
 
-  const { data, error } = await supabase
-    .from('todos')
-    .insert({
-      title,
-      description: body.description ? String(body.description) : null,
-      assignee_employee_id: assigneeId,
-      team_id: teamId,
-      due_date: body.due_date ? String(body.due_date) : (() => {
-        const d = new Date();
-        d.setDate(d.getDate() + 7);
-        return d.toISOString().slice(0, 10);
-      })(),
-      is_urgent: body.is_urgent === true,
-      status: 'open',
-    })
-    .select('id')
-    .single();
-  if (error) return json({ error: error.message }, 500);
+  const dueDate = body.due_date ? String(body.due_date) : (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  let data: any;
+  try {
+    const rows = await sql`
+      insert into todos (title, description, assignee_employee_id, team_id, due_date, is_urgent, status)
+      values (${title}, ${body.description ? String(body.description) : null}, ${assigneeId}, ${teamId},
+              ${dueDate}, ${body.is_urgent === true}, ${'open'})
+      returning id`;
+    data = rows[0];
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 
   return json({ id: data.id }, 201);
 };
@@ -156,7 +175,18 @@ export const PATCH: APIRoute = async ({ request }) => {
     return json({ error: 'no updatable fields provided' }, 400);
   }
 
-  const { error } = await supabase.from('todos').update(patch).eq('id', id);
-  if (error) return json({ error: error.message }, 500);
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  if (patch.status !== undefined) { vals.push(patch.status); sets.push(`status = $${vals.length}`); }
+  if (patch.is_urgent !== undefined) { vals.push(patch.is_urgent); sets.push(`is_urgent = $${vals.length}`); }
+  if ('due_date' in patch) { vals.push(patch.due_date); sets.push(`due_date = $${vals.length}`); }
+  if ('assignee_employee_id' in patch) { vals.push(patch.assignee_employee_id); sets.push(`assignee_employee_id = $${vals.length}`); }
+  vals.push(id);
+
+  try {
+    await pool.query(`update todos set ${sets.join(', ')} where id = $${vals.length}`, vals);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
   return json({ id, ...patch });
 };

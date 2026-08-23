@@ -3,7 +3,7 @@ import AppLayout from '~/layouts/AppLayout.astro';
 import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import RichTextEditor from '~/components/RichTextEditor.svelte';
 import { Lightbulb, Plus, Search, Zap, Clock, Archive, X, Trash2, Tag } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 
 const url = Astro.url;
 const term = (url.searchParams.get('term') as 'short_term' | 'long_term' | 'idea_backlog') || 'short_term';
@@ -14,41 +14,53 @@ const search = (url.searchParams.get('q') ?? '').trim();
 const tagFilter = url.searchParams.get('tag') ?? 'all';
 const detailId = url.searchParams.get('detail');
 
-const baseQuery = () =>
-  supabase
-    .from('feature_ideas')
-    .select(
-      'id, title, description, status, priority, priority_order, type, term_type, tags, created_at, owner_employee_id, ' +
-      'owner:employees!feature_ideas_owner_employee_id_fkey(id, full_name)',
-    )
-    .eq('term_type', term);
+const ideaSelect = `
+  select i.id, i.title, i.description, i.status, i.priority, i.priority_order, i.type,
+    i.term_type, i.tags, i.created_at, i.owner_employee_id,
+    case when e.id is null then null
+      else json_build_object('id', e.id, 'full_name', e.full_name)
+    end as owner
+  from feature_ideas i
+  left join employees e on e.id = i.owner_employee_id`;
 
-let q = baseQuery();
-if (statusFilter === 'active') q = q.in('status', ['open', 'solved']);
-else if (statusFilter !== 'all') q = q.eq('status', statusFilter);
-if (ownerFilter !== 'all') q = q.eq('owner_employee_id', ownerFilter);
-if (tagFilter !== 'all') q = q.contains('tags', [tagFilter]);
-if (search) q = q.ilike('title', `%${search}%`);
-if (sort === 'priority') q = q.order('priority', { ascending: true });
-else if (sort === 'created') q = q.order('created_at', { ascending: false });
-else q = q.order('priority_order', { ascending: true }).order('created_at', { ascending: false });
+const conds: string[] = ['i.term_type = $1'];
+const params: unknown[] = [term];
+if (statusFilter === 'active') {
+  params.push(['open', 'solved']);
+  conds.push(`i.status = any($${params.length})`);
+} else if (statusFilter !== 'all') {
+  params.push(statusFilter);
+  conds.push(`i.status = $${params.length}`);
+}
+if (ownerFilter !== 'all') {
+  params.push(ownerFilter);
+  conds.push(`i.owner_employee_id = $${params.length}`);
+}
+if (tagFilter !== 'all') {
+  params.push([tagFilter]);
+  conds.push(`i.tags @> $${params.length}`);
+}
+if (search) {
+  params.push(`%${search}%`);
+  conds.push(`i.title ilike $${params.length}`);
+}
+let orderBy = 'i.priority_order asc, i.created_at desc';
+if (sort === 'priority') orderBy = 'i.priority asc';
+else if (sort === 'created') orderBy = 'i.created_at desc';
 
-const [{ data: ideas }, { data: employees }] = await Promise.all([
-  q,
-  supabase.from('employees').select('id, full_name').order('full_name'),
+const [{ rows: ideas }, employees] = await Promise.all([
+  pool.query(`${ideaSelect} where ${conds.join(' and ')} order by ${orderBy}`, params),
+  sql`select id, full_name from employees order by full_name asc`,
 ]);
 
 // Collect all unique tags across all ideas (unfiltered) for the dropdown
-const { data: allIdeas } = await supabase
-  .from('feature_ideas')
-  .select('tags')
-  .eq('term_type', term);
+const allIdeas = await sql`select tags from feature_ideas where term_type = ${term}`;
 const allTags = [...new Set((allIdeas ?? []).flatMap((i: any) => i.tags ?? []))].sort();
 
 let detail: any = null;
 if (detailId) {
-  const { data } = await baseQuery().eq('id', detailId).maybeSingle();
-  detail = data;
+  const { rows } = await pool.query(`${ideaSelect} where i.term_type = $1 and i.id = $2`, [term, detailId]);
+  detail = rows[0] ?? null;
 }
 
 const fmt = (d: string | null) =>

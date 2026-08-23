@@ -2,18 +2,15 @@
 import AppLayout from '~/layouts/AppLayout.astro';
 import VtoEditor from '~/components/VtoEditor.svelte';
 import { Eye, Pencil, Check } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { canEditVto } from '~/lib/permissions';
 
 const user = Astro.locals.user;
 const canEdit = canEditVto(user?.email);
 const editMode = canEdit && Astro.url.searchParams.get('edit') === '1';
 
-const { data: vto } = await supabase
-  .from('vtos')
-  .select('id, vision, traction, swot')
-  .limit(1)
-  .maybeSingle();
+const vtoRows = await sql`select id, vision, traction, swot from vtos limit 1`;
+const vto = vtoRows[0] ?? null;
 
 const vision = vto?.vision ?? {};
 const traction = vto?.traction ?? {};

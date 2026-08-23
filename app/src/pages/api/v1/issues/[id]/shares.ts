@@ -1,12 +1,12 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
 
 async function resolveTeam(teamId: string | null, teamName: string | null): Promise<string | null> {
   if (teamId) return teamId;
   if (!teamName) return null;
-  const { data } = await supabase.from('teams').select('id').ilike('name', teamName).maybeSingle();
-  return data?.id ?? null;
+  const rows = await sql`select id from teams where name ilike ${teamName}`;
+  return (rows[0] as any)?.id ?? null;
 }
 
 // ============================================================
@@ -19,14 +19,21 @@ export const GET: APIRoute = async ({ request, params }) => {
 
   const { id } = params;
 
-  const { data: issue } = await supabase.from('issues').select('id').eq('id', id!).maybeSingle();
+  const issueRows = await sql`select id from issues where id = ${id!}`;
+  const issue = issueRows[0] ?? null;
   if (!issue) return json({ error: 'issue not found' }, 404);
 
-  const { data, error } = await supabase
-    .from('issue_shares')
-    .select('team:teams(id, name)')
-    .eq('issue_id', id!);
-  if (error) return json({ error: error.message }, 500);
+  let data: any[];
+  try {
+    data = await sql`
+      select case when t.id is null then null
+                  else json_build_object('id', t.id, 'name', t.name) end as team
+      from issue_shares s
+      left join teams t on t.id = s.team_id
+      where s.issue_id = ${id!}`;
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 
   const teams = (data ?? []).map((s: any) => s.team).filter(Boolean);
   return json({ issue_id: id, shared_with: teams });
@@ -52,12 +59,16 @@ export const POST: APIRoute = async ({ request, params }) => {
   );
   if (!teamId) return json({ error: 'team_id or team_name is required and must match an existing team' }, 400);
 
-  const { data: issue } = await supabase.from('issues').select('id, team_id').eq('id', id!).maybeSingle();
+  const issueRows = await sql`select id, team_id from issues where id = ${id!}`;
+  const issue = (issueRows[0] as any) ?? null;
   if (!issue) return json({ error: 'issue not found' }, 404);
   if (issue.team_id === teamId) return json({ error: 'cannot share an issue with its own team' }, 400);
 
-  const { error } = await supabase.from('issue_shares').upsert({ issue_id: id!, team_id: teamId });
-  if (error) return json({ error: error.message }, 500);
+  try {
+    await sql`insert into issue_shares (issue_id, team_id) values (${id!}, ${teamId})`;
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 
   return json({ issue_id: id, team_id: teamId }, 201);
 };
@@ -82,12 +93,11 @@ export const DELETE: APIRoute = async ({ request, params }) => {
   );
   if (!teamId) return json({ error: 'team_id or team_name is required and must match an existing team' }, 400);
 
-  const { error } = await supabase
-    .from('issue_shares')
-    .delete()
-    .eq('issue_id', id!)
-    .eq('team_id', teamId);
-  if (error) return json({ error: error.message }, 500);
+  try {
+    await sql`delete from issue_shares where issue_id = ${id!} and team_id = ${teamId}`;
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 
   return new Response(null, { status: 204 });
 };

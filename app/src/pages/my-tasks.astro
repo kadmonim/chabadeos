@@ -2,7 +2,7 @@
 import AppLayout from '~/layouts/AppLayout.astro';
 import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import { ListChecks, Search, Flag } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 
 const user = Astro.locals.user;
 if (!user) return Astro.redirect('/login');
@@ -15,42 +15,47 @@ const teamFilter = url.searchParams.get('team') ?? 'all';
 const sort = url.searchParams.get('sort') ?? 'due';
 const search = (url.searchParams.get('q') ?? '').trim();
 
-let q = supabase
-  .from('todos')
-  .select(
-    'id, title, status, is_urgent, due_date, created_at, team_id, assignee_employee_id, ' +
-    'team:teams(id, name)',
-  )
-  .eq('assignee_employee_id', user.employeeId);
+const vals: unknown[] = [user.employeeId];
+const where: string[] = ['t.assignee_employee_id = $1'];
 
 // Team visibility gate (belt + suspenders — todos without a team still show).
-if (allowedTeamIds.length > 0) q = q.or(`team_id.in.(${allowedTeamIds.join(',')}),team_id.is.null`);
+if (allowedTeamIds.length > 0) {
+  vals.push(allowedTeamIds);
+  where.push(`(t.team_id = any($${vals.length}) or t.team_id is null)`);
+}
 
-if (statusFilter === 'active') q = q.in('status', ['open', 'done']);
-else if (statusFilter !== 'all') q = q.eq('status', statusFilter);
-if (teamFilter !== 'all' && allowedTeamIds.includes(teamFilter)) q = q.eq('team_id', teamFilter);
-if (search) q = q.ilike('title', `%${search}%`);
-if (sort === 'created') q = q.order('created_at', { ascending: false });
-else if (sort === 'title') q = q.order('title');
-else q = q.order('due_date', { ascending: true, nullsFirst: false });
+if (statusFilter === 'active') { vals.push(['open', 'done']); where.push(`t.status = any($${vals.length})`); }
+else if (statusFilter !== 'all') { vals.push(statusFilter); where.push(`t.status = $${vals.length}`); }
+if (teamFilter !== 'all' && allowedTeamIds.includes(teamFilter)) { vals.push(teamFilter); where.push(`t.team_id = $${vals.length}`); }
+if (search) { vals.push(`%${search}%`); where.push(`t.title ilike $${vals.length}`); }
+const orderBy =
+  sort === 'created' ? 'order by t.created_at desc'
+  : sort === 'title' ? 'order by t.title asc'
+  : 'order by t.due_date asc nulls last';
 
-const { data: todos } = await q;
+const { rows: todos } = await pool.query(
+  `select t.id, t.title, t.status, t.is_urgent, t.due_date::text as due_date, t.created_at, t.team_id, t.assignee_employee_id,
+     case when tm.id is null then null else json_build_object('id', tm.id, 'name', tm.name) end as team
+   from todos t
+   left join teams tm on tm.id = t.team_id
+   where ${where.join(' and ')}
+   ${orderBy}`,
+  vals,
+);
 const teams = allowedTeams;
 
 const fmt = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
 
 // Fetch open/done counts for the subtitle regardless of active filter
-const { count: openCount } = await supabase
-  .from('todos')
-  .select('*', { count: 'exact', head: true })
-  .eq('assignee_employee_id', user.employeeId)
-  .eq('status', 'open');
-const { count: doneCount } = await supabase
-  .from('todos')
-  .select('*', { count: 'exact', head: true })
-  .eq('assignee_employee_id', user.employeeId)
-  .eq('status', 'done');
+const openCountRows = await sql`
+  select count(*)::int as count from todos
+  where assignee_employee_id = ${user.employeeId} and status = 'open'`;
+const openCount = openCountRows[0]?.count;
+const doneCountRows = await sql`
+  select count(*)::int as count from todos
+  where assignee_employee_id = ${user.employeeId} and status = 'done'`;
+const doneCount = doneCountRows[0]?.count;
 ---
 <AppLayout title="My Tasks · Chabad Central">
   <header class="flex items-start justify-between mb-8">

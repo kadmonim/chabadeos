@@ -1,7 +1,7 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
 import { Store, ArrowLeft, Plus, Pencil, X, Search, Trash2 } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 import { canAccessExpenses } from '~/lib/permissions';
 
 if (!canAccessExpenses(Astro.locals)) {
@@ -20,23 +20,36 @@ const groupFilter = url.searchParams.get('group') ?? 'all';
 // from clicking "unmatched · click to add" on a month view), jump straight
 // into the editor for the existing record instead of 500-ing on insert.
 if (adding && prefillName) {
-  const { data: existing } = await supabase
-    .from('expenses_vendors')
-    .select('vendor_id')
-    .ilike('name', prefillName.trim())
-    .maybeSingle();
+  const existingRows = await sql`select vendor_id from expenses_vendors where name ilike ${prefillName.trim()}`;
+  const existing = existingRows[0] ?? null;
   if (existing?.vendor_id) {
     return Astro.redirect(`/expenses/vendors?edit=${existing.vendor_id}`);
   }
 }
 
-let q = supabase
-  .from('expenses_vendors')
-  .select('vendor_id, name, person_employee_id, description, frequency, status, group_name, latest_update, to_do, review_again, tags, aliases, report_matches, person:employees!expenses_vendors_person_employee_id_fkey(id, full_name)')
-  .order('name');
-if (search) q = q.ilike('name', `%${search}%`);
-if (groupFilter !== 'all') q = q.eq('group_name', groupFilter);
-const { data: vendors } = await q;
+const conds: string[] = ['true'];
+const params: unknown[] = [];
+if (search) {
+  params.push(`%${search}%`);
+  conds.push(`v.name ilike $${params.length}`);
+}
+if (groupFilter !== 'all') {
+  params.push(groupFilter);
+  conds.push(`v.group_name = $${params.length}`);
+}
+const { rows: vendors } = await pool.query(
+  `select v.vendor_id, v.name, v.person_employee_id, v.description, v.frequency, v.status,
+     v.group_name, v.latest_update, v.to_do, v.review_again::text as review_again,
+     v.tags, v.aliases, v.report_matches,
+     case when e.id is null then null
+       else json_build_object('id', e.id, 'full_name', e.full_name)
+     end as person
+   from expenses_vendors v
+   left join employees e on e.id = v.person_employee_id
+   where ${conds.join(' and ')}
+   order by v.name asc`,
+  params,
+);
 
 // Normalize the joined `person` array → single object
 const normalize = (v: any) => ({
@@ -46,23 +59,16 @@ const normalize = (v: any) => ({
 const vendorList = (vendors ?? []).map(normalize);
 
 // Employees for the dropdown
-const { data: employees } = await supabase
-  .from('employees')
-  .select('id, full_name')
-  .order('full_name');
+const employees = await sql`select id, full_name from employees order by full_name asc`;
 
 // Distinct group names for filter dropdown
-const { data: allForFilters } = await supabase
-  .from('expenses_vendors')
-  .select('group_name');
+const allForFilters = await sql`select group_name from expenses_vendors`;
 const groups = Array.from(
   new Set((allForFilters ?? []).map((v) => v.group_name).filter(Boolean)),
 ).sort() as string[];
 
 // All-time spend per vendor (match on name + aliases + report_matches)
-const { data: allExpenses } = await supabase
-  .from('expenses')
-  .select('vendor, amount');
+const allExpenses = await sql`select vendor, amount from expenses`;
 
 const byRaw = new Map<string, { count: number; total: number }>();
 for (const e of (allExpenses ?? []) as { vendor: string; amount: string | number }[]) {

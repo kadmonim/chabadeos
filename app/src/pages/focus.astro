@@ -1,20 +1,23 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
 import { Focus as FocusIcon } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 const team = Astro.locals.currentTeam;
 if (!team) return Astro.redirect('/');
 
-const { data: memberships } = await supabase
-  .from('team_memberships')
-  .select('id, role, role_description, display_order, employee:employees(id, full_name, email)')
-  .eq('team_id', team.id)
-  .order('display_order');
+const memberships = await sql`
+  select m.id, m.role, m.role_description, m.display_order,
+    case when e.id is null then null
+      else json_build_object('id', e.id, 'full_name', e.full_name, 'email', e.email) end as employee
+  from team_memberships m
+  left join employees e on e.id = m.employee_id
+  where m.team_id = ${team.id}
+  order by m.display_order asc`;
 
-const { data: focuses } = await supabase
-  .from('current_focuses')
-  .select('id, employee_id, focus_text')
-  .eq('team_id', team.id);
+const focuses = await sql`
+  select id, employee_id, focus_text
+  from current_focuses
+  where team_id = ${team.id}`;
 
 const focusByEmployee = new Map<string, { id: string; focus_text: string }>();
 for (const f of focuses ?? []) {

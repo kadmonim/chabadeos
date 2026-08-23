@@ -5,7 +5,7 @@ import ExpenseNotes from '~/components/ExpenseNotes.svelte';
 import VendorInfoTip from '~/components/VendorInfoTip.astro';
 import VendorEditPanel from '~/components/VendorEditPanel.svelte';
 import { Wallet, ArrowLeft, Calendar, AlertCircle, Circle, CircleHelp, ArrowRightLeft, CreditCard, X } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { resolveMethodFilter } from '~/lib/expense-method';
 import { canAccessExpenses, getOwnedMethods } from '~/lib/permissions';
 
@@ -28,9 +28,9 @@ const PENDING = ['none', 'to_review', 'to_move'] as const;
 const statusList = filter === 'all' ? PENDING : [filter];
 
 // Counts for filter chips — always across PENDING so the numbers stay stable.
-let countsQuery = supabase.from('expenses').select('status, amount').in('status', PENDING as unknown as string[]);
-if (methodFilter) countsQuery = countsQuery.eq('method', methodFilter);
-const { data: countsData } = await countsQuery;
+const countsData = methodFilter
+  ? await sql`select status, amount from expenses where status = any(${PENDING as unknown as string[]}) and method = ${methodFilter}`
+  : await sql`select status, amount from expenses where status = any(${PENDING as unknown as string[]})`;
 const statusCounts = {
   all:       (countsData ?? []).length,
   none:      (countsData ?? []).filter((r: any) => r.status === 'none').length,
@@ -38,20 +38,36 @@ const statusCounts = {
   to_move:   (countsData ?? []).filter((r: any) => r.status === 'to_move').length,
 };
 
-let expQuery = supabase
-  .from('expenses')
-  .select('expense_id, month, date, method, vendor, amount, status, move_to_method')
-  .in('status', statusList as unknown as string[])
-  .order('date', { ascending: false })
-  .order('expense_id', { ascending: false });
-if (methodFilter) expQuery = expQuery.eq('method', methodFilter);
+const expQuery = methodFilter
+  ? sql`
+      select expense_id, month, date::text as date, method, vendor, amount, status, move_to_method
+      from expenses
+      where status = any(${statusList as unknown as string[]}) and method = ${methodFilter}
+      order by date desc, expense_id desc`
+  : sql`
+      select expense_id, month, date::text as date, method, vendor, amount, status, move_to_method
+      from expenses
+      where status = any(${statusList as unknown as string[]})
+      order by date desc, expense_id desc`;
 
-const [{ data: expenses }, { data: vendors }, { data: methods }] = await Promise.all([
+const [expenses, vendors, methods] = await Promise.all([
   expQuery,
-  supabase
-    .from('expenses_vendors')
-    .select('vendor_id, name, person_employee_id, description, frequency, status, group_name, latest_update, to_do, review_again, tags, aliases, report_matches, person:employees!expenses_vendors_person_employee_id_fkey(id, full_name)'),
-  supabase.from('expense_methods').select('name, label, employee:employees(id, full_name)'),
+  sql`
+    select v.vendor_id, v.name, v.person_employee_id, v.description, v.frequency, v.status,
+      v.group_name, v.latest_update, v.to_do, v.review_again::text as review_again,
+      v.tags, v.aliases, v.report_matches,
+      case when e.id is null then null
+        else json_build_object('id', e.id, 'full_name', e.full_name)
+      end as person
+    from expenses_vendors v
+    left join employees e on e.id = v.person_employee_id`,
+  sql`
+    select m.name, m.label,
+      case when e.id is null then null
+        else json_build_object('id', e.id, 'full_name', e.full_name)
+      end as employee
+    from expense_methods m
+    left join employees e on e.id = m.employee_id`,
 ]);
 
 type Expense = {
@@ -115,7 +131,7 @@ const monthGroups = Array.from(byMonth.entries())
 const noteCounts = new Map<number, number>();
 const expenseIds = enriched.map((e) => e.expense_id);
 if (expenseIds.length > 0) {
-  const { data: noteRows } = await supabase.from('expense_notes').select('expense_id').in('expense_id', expenseIds);
+  const noteRows = await sql`select expense_id from expense_notes where expense_id = any(${expenseIds})`;
   for (const row of (noteRows ?? []) as { expense_id: number }[]) {
     noteCounts.set(row.expense_id, (noteCounts.get(row.expense_id) ?? 0) + 1);
   }

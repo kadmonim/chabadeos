@@ -1,23 +1,31 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
 
 export const GET: APIRoute = async ({ request }) => {
   const unauth = requireApiKey(request);
   if (unauth) return unauth;
 
-  const { data, error } = await supabase
-    .from('teams')
-    .select(`
-      id, name, description,
-      memberships:team_memberships(
-        role, role_description, display_order,
-        employee:employees(id, full_name, email)
-      )
-    `)
-    .order('name');
-
-  if (error) return json({ error: error.message }, 500);
+  let data: any[];
+  try {
+    data = await sql`
+      select
+        t.id, t.name, t.description,
+        coalesce((
+          select json_agg(json_build_object(
+            'role', m.role, 'role_description', m.role_description, 'display_order', m.display_order,
+            'employee', case when e.id is null then null
+                             else json_build_object('id', e.id, 'full_name', e.full_name, 'email', e.email) end
+          ))
+          from team_memberships m
+          left join employees e on e.id = m.employee_id
+          where m.team_id = t.id
+        ), '[]'::json) as memberships
+      from teams t
+      order by t.name asc`;
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 
   const teams = (data ?? []).map((t: any) => ({
     id: t.id,

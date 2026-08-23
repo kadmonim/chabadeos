@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 import { canAccessTeam } from '~/lib/team';
 
 // PUT /api/scorecard — upsert a weekly or monthly value (+ optional note)
@@ -8,7 +8,8 @@ export const PUT: APIRoute = async ({ request, locals }) => {
   if (!measurable_id || !date || !frequency) return new Response('bad input', { status: 400 });
 
   // Verify caller has access to the measurable's team.
-  const { data: m } = await supabase.from('measurables').select('team_id').eq('id', measurable_id).maybeSingle();
+  const mRows = await sql`select team_id from measurables where id = ${measurable_id}`;
+  const m = mRows[0] ?? null;
   if (!m) return new Response('not found', { status: 404 });
   if (!canAccessTeam(locals, m.team_id)) return new Response('Forbidden', { status: 403 });
 
@@ -20,17 +21,22 @@ export const PUT: APIRoute = async ({ request, locals }) => {
 
   // Delete only if both value and note are empty.
   if (parsedValue === null && cleanNote === null) {
-    const { error } = await supabase.from(table).delete().match({ measurable_id, [dateCol]: date });
-    if (error) return new Response(error.message, { status: 500 });
+    try {
+      await pool.query(`delete from ${table} where measurable_id = $1 and ${dateCol} = $2`, [measurable_id, date]);
+    } catch (e) {
+      return new Response((e as Error).message, { status: 500 });
+    }
     return new Response(null, { status: 204 });
   }
 
-  const { error } = await supabase
-    .from(table)
-    .upsert(
-      { measurable_id, [dateCol]: date, value: parsedValue, note: cleanNote },
-      { onConflict: `measurable_id,${dateCol}` },
+  try {
+    await pool.query(
+      `insert into ${table} (measurable_id, ${dateCol}, value, note) values ($1, $2, $3, $4)
+       on conflict (measurable_id, ${dateCol}) do update set value = excluded.value, note = excluded.note`,
+      [measurable_id, date, parsedValue, cleanNote],
     );
-  if (error) return new Response(error.message, { status: 500 });
+  } catch (e) {
+    return new Response((e as Error).message, { status: 500 });
+  }
   return new Response(null, { status: 204 });
 };

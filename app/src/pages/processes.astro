@@ -1,18 +1,27 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
 import { BookOpen, Search } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { pool } from '~/lib/db';
 const team = Astro.locals.currentTeam;
 const allowedTeamIds = Astro.locals.allowedTeams.map((t) => t.id);
 const search = (Astro.url.searchParams.get('q') ?? '').trim();
 
 // Processes: show current team if selected, else all allowed teams
-let q = supabase.from('processes').select('*, team:teams(id, name)').eq('is_archived', false).order('name');
-if (team) q = q.eq('team_id', team.id);
-else if (allowedTeamIds.length) q = q.in('team_id', allowedTeamIds);
-else q = q.eq('team_id', '__none__'); // force empty result
-if (search) q = q.ilike('name', `%${search}%`);
-const { data: processes } = await q;
+const where: string[] = ['p.is_archived = false'];
+const vals: unknown[] = [];
+if (team) { vals.push(team.id); where.push(`p.team_id = $${vals.length}`); }
+else if (allowedTeamIds.length) { vals.push(allowedTeamIds); where.push(`p.team_id = any($${vals.length})`); }
+else where.push('false'); // force empty result
+if (search) { vals.push(`%${search}%`); where.push(`p.name ilike $${vals.length}`); }
+const { rows: processes } = await pool.query(
+  `select p.*,
+     case when t.id is null then null else json_build_object('id', t.id, 'name', t.name) end as team
+   from processes p
+   left join teams t on t.id = p.team_id
+   where ${where.join(' and ')}
+   order by p.name asc`,
+  vals,
+);
 ---
 <AppLayout title="Processes · Chabad Central">
   <header class="flex items-start justify-between mb-8">

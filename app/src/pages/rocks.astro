@@ -3,7 +3,7 @@ import AppLayout from '~/layouts/AppLayout.astro';
 import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import RichTextEditor from '~/components/RichTextEditor.svelte';
 import { Mountain, Flag, Plus, X, Trash2, Calendar, User } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 
 const url = Astro.url;
 const team = Astro.locals.currentTeam;
@@ -18,38 +18,37 @@ const sortRocks = url.searchParams.get('sort_rocks') ?? 'priority';
 const sortMilestones = url.searchParams.get('sort_milestones') ?? 'priority';
 
 // Rocks are org-wide.
-let rockQuery = supabase
-  .from('rocks')
-  .select(`
-    id, title, description, status, due_date, priority_order, is_archived, owner_employee_id,
-    owner:employees!rocks_owner_employee_id_fkey(id, full_name)
-  `)
-  .eq('is_archived', false);
+const rockSelect = `
+  select r.id, r.title, r.description, r.status, r.due_date::text as due_date, r.priority_order, r.is_archived, r.owner_employee_id,
+    case when o.id is null then null else json_build_object('id', o.id, 'full_name', o.full_name) end as owner
+  from rocks r
+  left join employees o on o.id = r.owner_employee_id`;
 
-if (sortRocks === 'due_date') rockQuery = rockQuery.order('due_date', { ascending: true, nullsFirst: false });
-else if (sortRocks === 'status') rockQuery = rockQuery.order('status');
-else rockQuery = rockQuery.order('priority_order', { ascending: true });
+const rockOrder =
+  sortRocks === 'due_date' ? 'r.due_date asc' :
+  sortRocks === 'status' ? 'r.status asc' :
+  'r.priority_order asc';
 
 // Milestones: only for the CURRENT TEAM (shown at the top, relevant to this user).
-let milestoneQuery = supabase
-  .from('milestones')
-  .select(`
-    id, title, description, status, due_date, priority_order, is_archived, owner_employee_id, team_id, rock_id,
-    owner:employees!milestones_owner_employee_id_fkey(id, full_name),
-    rock:rocks(id, title)
-  `)
-  .eq('is_archived', false);
-if (team) milestoneQuery = milestoneQuery.eq('team_id', team.id);
-else milestoneQuery = milestoneQuery.eq('team_id', '__none__'); // empty if no team
+const milestoneSelect = `
+  select m.id, m.title, m.description, m.status, m.due_date::text as due_date, m.priority_order, m.is_archived, m.owner_employee_id, m.team_id, m.rock_id,
+    case when o.id is null then null else json_build_object('id', o.id, 'full_name', o.full_name) end as owner,
+    case when r.id is null then null else json_build_object('id', r.id, 'title', r.title) end as rock
+  from milestones m
+  left join employees o on o.id = m.owner_employee_id
+  left join rocks r on r.id = m.rock_id`;
 
-if (sortMilestones === 'due_date') milestoneQuery = milestoneQuery.order('due_date', { ascending: true, nullsFirst: false });
-else if (sortMilestones === 'status') milestoneQuery = milestoneQuery.order('status');
-else milestoneQuery = milestoneQuery.order('priority_order', { ascending: true });
+const milestoneOrder =
+  sortMilestones === 'due_date' ? 'm.due_date asc' :
+  sortMilestones === 'status' ? 'm.status asc' :
+  'm.priority_order asc';
 
-const [{ data: rocks }, { data: milestones }, { data: employees }] = await Promise.all([
-  rockQuery,
-  milestoneQuery,
-  supabase.from('employees').select('id, full_name').order('full_name'),
+const [rocks, milestones, employees]: [any[], any[], any[]] = await Promise.all([
+  pool.query(`${rockSelect} where r.is_archived = false order by ${rockOrder}`).then((r: any) => r.rows),
+  team
+    ? pool.query(`${milestoneSelect} where m.is_archived = false and m.team_id = $1 order by ${milestoneOrder}`, [team.id]).then((r: any) => r.rows)
+    : Promise.resolve([] as any[]), // empty if no team
+  sql`select id, full_name from employees order by full_name asc`,
 ]);
 
 // Resolve panel state
@@ -60,16 +59,8 @@ const editingMilestone = editMilestoneId ? (milestones ?? []).find((m: any) => m
 // fetch it directly so the panel still works (team-gated on writes anyway).
 let loadedMilestone = editingMilestone;
 if (editMilestoneId && !loadedMilestone) {
-  const { data } = await supabase
-    .from('milestones')
-    .select(`
-      id, title, description, status, due_date, priority_order, is_archived, owner_employee_id, team_id, rock_id,
-      owner:employees!milestones_owner_employee_id_fkey(id, full_name),
-      rock:rocks(id, title)
-    `)
-    .eq('id', editMilestoneId)
-    .maybeSingle();
-  loadedMilestone = data;
+  const { rows } = await pool.query(`${milestoneSelect} where m.id = $1`, [editMilestoneId]);
+  loadedMilestone = rows[0] ?? null;
 }
 
 const fmtDate = (d: string | null) =>

@@ -3,7 +3,7 @@
 import 'dotenv/config';
 import pg from 'pg';
 
-const url = process.env.SUPABASE_DB_SESSION_POOLER_URL || process.env.SUPABASE_DB_URL;
+const url = process.env.NETLIFY_DB_URL;
 const client = new pg.Client({ connectionString: url });
 await client.connect();
 

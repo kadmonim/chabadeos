@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { canMutateExpenses } from '~/lib/permissions';
 
 type NoteRow = {
@@ -40,12 +40,18 @@ export const GET: APIRoute = async ({ url, locals }) => {
   if (ids.length === 0) return new Response('expense_id or expense_ids required', { status: 400 });
   if (!(await canMutateExpenses(locals, ids))) return new Response('Forbidden', { status: 403 });
 
-  const { data, error } = await supabase
-    .from('expense_notes')
-    .select('id, expense_id, author_employee_id, body, created_at, updated_at, author:employees!expense_notes_author_employee_id_fkey(id, full_name)')
-    .in('expense_id', ids)
-    .order('created_at', { ascending: true });
-  if (error) return new Response(error.message, { status: 500 });
+  let data;
+  try {
+    data = await sql`
+      select n.id, n.expense_id, n.author_employee_id, n.body, n.created_at, n.updated_at,
+        case when e.id is null then null else json_build_object('id', e.id, 'full_name', e.full_name) end as author
+      from expense_notes n
+      left join employees e on e.id = n.author_employee_id
+      where n.expense_id = any(${ids})
+      order by n.created_at asc`;
+  } catch (e) {
+    return new Response((e as Error).message, { status: 500 });
+  }
 
   return new Response(JSON.stringify({ notes: (data as NoteRow[]).map(shapeNote) }), {
     headers: { 'content-type': 'application/json' },
@@ -64,12 +70,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!body) return new Response('body required', { status: 400 });
   if (!(await canMutateExpenses(locals, [expenseId]))) return new Response('Forbidden', { status: 403 });
 
-  const { data, error } = await supabase
-    .from('expense_notes')
-    .insert({ expense_id: expenseId, author_employee_id: authorId, body })
-    .select('id, expense_id, author_employee_id, body, created_at, updated_at, author:employees!expense_notes_author_employee_id_fkey(id, full_name)')
-    .single();
-  if (error) return new Response(error.message, { status: 500 });
+  let data;
+  try {
+    const rows = await sql`
+      with n as (
+        insert into expense_notes (expense_id, author_employee_id, body)
+        values (${expenseId}, ${authorId}, ${body})
+        returning id, expense_id, author_employee_id, body, created_at, updated_at
+      )
+      select n.id, n.expense_id, n.author_employee_id, n.body, n.created_at, n.updated_at,
+        case when e.id is null then null else json_build_object('id', e.id, 'full_name', e.full_name) end as author
+      from n
+      left join employees e on e.id = n.author_employee_id`;
+    data = rows[0];
+  } catch (e) {
+    return new Response((e as Error).message, { status: 500 });
+  }
 
   return new Response(JSON.stringify({ note: shapeNote(data as NoteRow) }), {
     headers: { 'content-type': 'application/json' },
@@ -87,13 +103,16 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
   if (!id) return new Response('id required', { status: 400 });
   if (!body) return new Response('body required', { status: 400 });
 
-  const { data: existing } = await supabase
-    .from('expense_notes').select('author_employee_id').eq('id', id).maybeSingle();
+  const existingRows = await sql`select author_employee_id from expense_notes where id = ${id}`;
+  const existing = existingRows[0] ?? null;
   if (!existing) return new Response('Not found', { status: 404 });
   if (existing.author_employee_id !== authorId) return new Response('Forbidden', { status: 403 });
 
-  const { error } = await supabase.from('expense_notes').update({ body }).eq('id', id);
-  if (error) return new Response(error.message, { status: 500 });
+  try {
+    await sql`update expense_notes set body = ${body} where id = ${id}`;
+  } catch (e) {
+    return new Response((e as Error).message, { status: 500 });
+  }
   return new Response(null, { status: 204 });
 };
 
@@ -105,12 +124,15 @@ export const DELETE: APIRoute = async ({ url, locals }) => {
   const id = url.searchParams.get('id');
   if (!id) return new Response('id required', { status: 400 });
 
-  const { data: existing } = await supabase
-    .from('expense_notes').select('author_employee_id').eq('id', id).maybeSingle();
+  const existingRows = await sql`select author_employee_id from expense_notes where id = ${id}`;
+  const existing = existingRows[0] ?? null;
   if (!existing) return new Response('Not found', { status: 404 });
   if (existing.author_employee_id !== authorId) return new Response('Forbidden', { status: 403 });
 
-  const { error } = await supabase.from('expense_notes').delete().eq('id', id);
-  if (error) return new Response(error.message, { status: 500 });
+  try {
+    await sql`delete from expense_notes where id = ${id}`;
+  } catch (e) {
+    return new Response((e as Error).message, { status: 500 });
+  }
   return new Response(null, { status: 204 });
 };

@@ -1,10 +1,10 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
 
 async function resolveEmployeeByEmail(email: string): Promise<string | null> {
-  const { data } = await supabase.from('employees').select('id').ilike('email', email).maybeSingle();
-  return data?.id ?? null;
+  const rows = await sql`select id from employees where email ilike ${email}`;
+  return (rows[0] as any)?.id ?? null;
 }
 
 // ============================================================
@@ -25,20 +25,42 @@ export const GET: APIRoute = async ({ request, url }) => {
     if (!ownerId) return json({ feature_ideas: [], count: 0, note: `no employee with email '${ownerEmail}'` });
   }
 
-  let q = supabase
-    .from('feature_ideas')
-    .select(`
-      id, title, description, status, priority, priority_order, term_type, tags, created_at, updated_at,
-      owner:employees!feature_ideas_owner_employee_id_fkey(id, full_name, email)
-    `)
-    .order('priority_order');
-  if (ownerId) q = q.eq('owner_employee_id', ownerId);
-  if (status !== 'all') q = q.eq('status', status);
-  if (term) q = q.eq('term_type', term);
-  if (tag) q = q.contains('tags', [tag]);
+  const wheres: string[] = [];
+  const vals: unknown[] = [];
+  if (ownerId) {
+    vals.push(ownerId);
+    wheres.push(`fi.owner_employee_id = $${vals.length}`);
+  }
+  if (status !== 'all') {
+    vals.push(status);
+    wheres.push(`fi.status = $${vals.length}`);
+  }
+  if (term) {
+    vals.push(term);
+    wheres.push(`fi.term_type = $${vals.length}`);
+  }
+  if (tag) {
+    vals.push([tag]);
+    wheres.push(`fi.tags @> $${vals.length}`);
+  }
 
-  const { data, error } = await q;
-  if (error) return json({ error: error.message }, 500);
+  let data: any[];
+  try {
+    ({ rows: data } = await pool.query(
+      `select
+        fi.id, fi.title, fi.description, fi.status, fi.priority, fi.priority_order,
+        fi.term_type, fi.tags, fi.created_at, fi.updated_at,
+        case when o.id is null then null
+             else json_build_object('id', o.id, 'full_name', o.full_name, 'email', o.email) end as owner
+      from feature_ideas fi
+      left join employees o on o.id = fi.owner_employee_id
+      ${wheres.length ? `where ${wheres.join(' and ')}` : ''}
+      order by fi.priority_order asc`,
+      vals,
+    ));
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 
   const feature_ideas = (data ?? []).map((i: any) => ({
     id: i.id,
@@ -100,20 +122,17 @@ export const POST: APIRoute = async ({ request }) => {
     ? body.tags.map((t: any) => String(t).trim()).filter(Boolean)
     : [];
 
-  const { data, error } = await supabase
-    .from('feature_ideas')
-    .insert({
-      title,
-      description: body.description ? String(body.description) : null,
-      owner_employee_id: ownerId,
-      term_type: termType,
-      priority: priority ?? 3,
-      tags,
-      status: 'open',
-    })
-    .select('id')
-    .single();
-  if (error) return json({ error: error.message }, 500);
+  let data: any;
+  try {
+    const rows = await sql`
+      insert into feature_ideas (title, description, owner_employee_id, term_type, priority, tags, status)
+      values (${title}, ${body.description ? String(body.description) : null}, ${ownerId},
+              ${termType}, ${priority ?? 3}, ${tags}, ${'open'})
+      returning id`;
+    data = rows[0];
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 
   return json({ id: data.id }, 201);
 };
@@ -139,7 +158,16 @@ export const PATCH: APIRoute = async ({ request }) => {
 
   if (Object.keys(patch).length === 0) return json({ error: 'nothing to update' }, 400);
 
-  const { error } = await supabase.from('feature_ideas').update(patch).eq('id', id);
-  if (error) return json({ error: error.message }, 500);
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  if (patch.status !== undefined) { vals.push(patch.status); sets.push(`status = $${vals.length}`); }
+  if (patch.tags !== undefined) { vals.push(patch.tags); sets.push(`tags = $${vals.length}`); }
+  vals.push(id);
+
+  try {
+    await pool.query(`update feature_ideas set ${sets.join(', ')} where id = $${vals.length}`, vals);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
   return json({ id, ...patch });
 };

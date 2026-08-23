@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
 
 export const GET: APIRoute = async ({ request, url }) => {
@@ -8,11 +8,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 
   const email = url.searchParams.get('email');
 
-  let q = supabase.from('employees').select('id, full_name, email, created_at').order('full_name');
-  if (email) q = q.ilike('email', email);
-
-  const { data, error } = await q;
-  if (error) return json({ error: error.message }, 500);
+  let data: any[];
+  try {
+    data = email
+      ? await sql`select id, full_name, email, created_at from employees where email ilike ${email} order by full_name asc`
+      : await sql`select id, full_name, email, created_at from employees order by full_name asc`;
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 
   return json({
     employees: (data ?? []).map((e) => ({

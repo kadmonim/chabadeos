@@ -1,7 +1,7 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
 import { Wallet, Calendar, ChevronRight, CreditCard, X, AlertCircle, CircleHelp, Store, ClipboardList, MessageSquare } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { resolveMethodFilter } from '~/lib/expense-method';
 import { canAccessExpenses } from '~/lib/permissions';
 
@@ -11,14 +11,18 @@ if (!canAccessExpenses(Astro.locals)) {
 
 const methodFilter = resolveMethodFilter(Astro.url, Astro.cookies);
 
-let expQuery = supabase.from('expenses').select('expense_id, month, amount, method, status');
-if (methodFilter) expQuery = expQuery.eq('method', methodFilter);
-const { data: expenses } = await expQuery;
+const expenses = methodFilter
+  ? await sql`select expense_id, month, amount, method, status from expenses where method = ${methodFilter}`
+  : await sql`select expense_id, month, amount, method, status from expenses`;
 
 // Pull methods so we can show the filter chip with label + owner info
-const { data: methods } = await supabase
-  .from('expense_methods')
-  .select('name, label, employee:employees(id, full_name)');
+const methods = await sql`
+  select m.name, m.label,
+    case when e.id is null then null
+      else json_build_object('id', e.id, 'full_name', e.full_name)
+    end as employee
+  from expense_methods m
+  left join employees e on e.id = m.employee_id`;
 
 const methodByName = new Map<string, { label: string | null; ownerName: string | null }>();
 for (const m of (methods ?? []) as any[]) {
@@ -63,17 +67,14 @@ const unapprovedTotal = unapproved.reduce((s, e) => s + (Number(e.amount) || 0),
 let chargesWithNotes = 0;
 const expenseIds = allExpenses.map((e) => e.expense_id);
 if (expenseIds.length > 0) {
-  const { data: noteRows } = await supabase
-    .from('expense_notes')
-    .select('expense_id')
-    .in('expense_id', expenseIds);
+  const noteRows = await sql`select expense_id from expense_notes where expense_id = any(${expenseIds})`;
   chargesWithNotes = new Set((noteRows ?? []).map((r: any) => r.expense_id)).size;
 }
 
 // Vendor notes: description / latest_update / to_do / review_again set.
-const { data: vendorRows } = await supabase
-  .from('expenses_vendors')
-  .select('vendor_id, description, latest_update, to_do, review_again');
+const vendorRows = await sql`
+  select vendor_id, description, latest_update, to_do, review_again::text as review_again
+  from expenses_vendors`;
 const today = new Date().toISOString().slice(0, 10);
 const vendorsWithTodo = (vendorRows ?? []).filter((v: any) => (v.to_do ?? '').trim()).length;
 const vendorsDueReview = (vendorRows ?? []).filter((v: any) => v.review_again && v.review_again <= today).length;

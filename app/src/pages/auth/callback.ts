@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { google } from '~/lib/google';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { createSession } from '~/lib/session';
 
 export const GET: APIRoute = async ({ url, cookies, redirect }) => {
@@ -35,13 +35,16 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
   }
 
   // Allow-list: must exist in employees table.
-  const { data: employee, error } = await supabase
-    .from('employees')
-    .select('id, full_name, email')
-    .ilike('email', profile.email)
-    .maybeSingle();
+  let employee;
+  try {
+    const rows = await sql`
+      select id, full_name, email from employees
+      where email ilike ${profile.email}`;
+    employee = rows[0] ?? null;
+  } catch (e) {
+    return new Response(`DB error: ${(e as Error).message}`, { status: 500 });
+  }
 
-  if (error) return new Response(`DB error: ${error.message}`, { status: 500 });
   if (!employee) {
     return new Response(
       `Access denied: ${profile.email} is not in the employees table. Ask an admin to add you.`,

@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { canAccessTeam } from '~/lib/team';
 
 export const POST: APIRoute = async ({ request, locals, redirect }) => {
@@ -18,17 +18,23 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
 
     if (!focus_text) {
       if (existingId) {
-        await supabase.from('current_focuses').delete().eq('id', existingId);
+        await sql`delete from current_focuses where id = ${existingId}`;
       }
       return redirect(back);
     }
 
     if (existingId) {
-      const { error } = await supabase.from('current_focuses').update({ focus_text }).eq('id', existingId);
-      if (error) return new Response(error.message, { status: 500 });
+      try {
+        await sql`update current_focuses set focus_text = ${focus_text} where id = ${existingId}`;
+      } catch (e) {
+        return new Response((e as Error).message, { status: 500 });
+      }
     } else {
-      const { error } = await supabase.from('current_focuses').insert({ team_id, employee_id, focus_text });
-      if (error) return new Response(error.message, { status: 500 });
+      try {
+        await sql`insert into current_focuses (team_id, employee_id, focus_text) values (${team_id}, ${employee_id}, ${focus_text})`;
+      } catch (e) {
+        return new Response((e as Error).message, { status: 500 });
+      }
     }
     return redirect(back);
   }

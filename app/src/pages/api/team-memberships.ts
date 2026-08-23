@@ -1,11 +1,11 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 import { canAccessTeam } from '~/lib/team';
 import { isSystemAdmin } from '~/lib/permissions';
 
 async function assertMembershipAccess(id: string, locals: App.Locals) {
-  const { data } = await supabase.from('team_memberships').select('team_id').eq('id', id).maybeSingle();
-  return canAccessTeam(locals, data?.team_id);
+  const rows = await sql`select team_id from team_memberships where id = ${id}`;
+  return canAccessTeam(locals, rows[0]?.team_id);
 }
 
 export const POST: APIRoute = async ({ request, locals, redirect }) => {
@@ -21,10 +21,13 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     if (!team_id || !employee_id) return redirect(back);
     if (!canAccessTeam(locals, team_id)) return new Response('Forbidden', { status: 403 });
 
-    const { error } = await supabase
-      .from('team_memberships')
-      .insert({ team_id, employee_id, role, role_description });
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`
+        insert into team_memberships (team_id, employee_id, role, role_description)
+        values (${team_id}, ${employee_id}, ${role}, ${role_description})`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
@@ -32,21 +35,30 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     const id = String(form.get('id') ?? '');
     if (!id) return new Response('id required', { status: 400 });
     if (!(await assertMembershipAccess(id, locals))) return new Response('Forbidden', { status: 403 });
-    const patch: Record<string, unknown> = {};
+    const sets: string[] = [];
+    const vals: unknown[] = [];
     const role = form.get('role');
     const role_description = form.get('role_description');
-    if (role !== null) patch.role = String(role);
-    if (role_description !== null) patch.role_description = String(role_description) || null;
-    const { error } = await supabase.from('team_memberships').update(patch).eq('id', id);
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    if (role !== null) { vals.push(String(role)); sets.push(`role = $${vals.length}`); }
+    if (role_description !== null) { vals.push(String(role_description) || null); sets.push(`role_description = $${vals.length}`); }
+    if (!sets.length) return redirect(back);
+    vals.push(id);
+    try {
+      await pool.query(`update team_memberships set ${sets.join(', ')} where id = $${vals.length}`, vals);
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
   if (action === 'delete') {
     const id = String(form.get('id') ?? '');
     if (!(await assertMembershipAccess(id, locals))) return new Response('Forbidden', { status: 403 });
-    const { error } = await supabase.from('team_memberships').delete().eq('id', id);
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`delete from team_memberships where id = ${id}`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
@@ -60,17 +72,26 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     if (!team_id || !full_name || !email) return redirect(back);
     if (!canAccessTeam(locals, team_id)) return new Response('Forbidden', { status: 403 });
 
-    const { data: emp, error: empErr } = await supabase
-      .from('employees')
-      .upsert({ full_name, email }, { onConflict: 'email' })
-      .select('id')
-      .single();
-    if (empErr) return new Response(`Error: ${empErr.message}`, { status: 500 });
+    let emp;
+    try {
+      const rows = await sql`
+        insert into employees (full_name, email) values (${full_name}, ${email})
+        on conflict (email) do update set full_name = excluded.full_name
+        returning id`;
+      emp = rows[0];
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
 
-    const { error: memErr } = await supabase
-      .from('team_memberships')
-      .upsert({ team_id, employee_id: emp.id, role, role_description }, { onConflict: 'team_id,employee_id' });
-    if (memErr) return new Response(`Error: ${memErr.message}`, { status: 500 });
+    try {
+      await sql`
+        insert into team_memberships (team_id, employee_id, role, role_description)
+        values (${team_id}, ${emp.id}, ${role}, ${role_description})
+        on conflict (team_id, employee_id) do update set
+          role = excluded.role, role_description = excluded.role_description`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 

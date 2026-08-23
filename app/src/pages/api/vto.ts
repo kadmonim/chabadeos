@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { canEditVto } from '~/lib/permissions';
 
 // V/TO is a singleton row. Every update targets the first (and only) row.
@@ -9,16 +9,10 @@ import { canEditVto } from '~/lib/permissions';
 const SECTIONS = new Set(['vision', 'traction', 'swot']);
 
 async function getVtoId() {
-  const { data, error } = await supabase.from('vtos').select('id').limit(1).maybeSingle();
-  if (error) throw error;
-  if (data) return data.id;
-  const { data: inserted, error: insErr } = await supabase
-    .from('vtos')
-    .insert({})
-    .select('id')
-    .single();
-  if (insErr) throw insErr;
-  return inserted.id;
+  const rows = await sql`select id from vtos limit 1`;
+  if (rows[0]) return rows[0].id;
+  const inserted = await sql`insert into vtos default values returning id`;
+  return inserted[0].id;
 }
 
 function setByPath(obj: Record<string, any>, path: string, value: any) {
@@ -41,26 +35,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const id = await getVtoId();
 
   // Fetch current section, patch it, write it back.
-  const { data: current, error: fetchErr } = await supabase
-    .from('vtos')
-    .select(section)
-    .eq('id', id)
-    .single();
-  if (fetchErr) return new Response(fetchErr.message, { status: 500 });
+  let current: any;
+  try {
+    const rows = await sql`select ${sql.identifier(section)} from vtos where id = ${id}`;
+    current = rows[0];
+  } catch (e) {
+    return new Response((e as Error).message, { status: 500 });
+  }
 
   const sectionObj: Record<string, any> = { ...((current as any)[section] ?? {}) };
   if (!path) {
     // Replace the whole section.
-    const { error } = await supabase
-      .from('vtos')
-      .update({ [section]: data ?? {} })
-      .eq('id', id);
-    if (error) return new Response(error.message, { status: 500 });
+    try {
+      await sql`update vtos set ${sql.identifier(section)} = ${JSON.stringify(data ?? {})}::jsonb where id = ${id}`;
+    } catch (e) {
+      return new Response((e as Error).message, { status: 500 });
+    }
     return new Response(null, { status: 204 });
   }
 
   setByPath(sectionObj, path, data);
-  const { error } = await supabase.from('vtos').update({ [section]: sectionObj }).eq('id', id);
-  if (error) return new Response(error.message, { status: 500 });
+  try {
+    await sql`update vtos set ${sql.identifier(section)} = ${JSON.stringify(sectionObj)}::jsonb where id = ${id}`;
+  } catch (e) {
+    return new Response((e as Error).message, { status: 500 });
+  }
   return new Response(null, { status: 204 });
 };

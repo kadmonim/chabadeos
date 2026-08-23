@@ -1,7 +1,7 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
 import { CreditCard, ArrowLeft, Plus, Pencil, X, Trash2 } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { canAccessExpenses } from '~/lib/permissions';
 
 if (!canAccessExpenses(Astro.locals)) {
@@ -12,18 +12,20 @@ const url = Astro.url;
 const editId = url.searchParams.get('edit');
 const adding = url.searchParams.get('new') === '1';
 
-const [{ data: methods }, { data: employees }] = await Promise.all([
-  supabase
-    .from('expense_methods')
-    .select('id, name, label, employee_id, notes, employee:employees(id, full_name, email)')
-    .order('name'),
-  supabase.from('employees').select('id, full_name').order('full_name'),
+const [methods, employees] = await Promise.all([
+  sql`
+    select m.id, m.name, m.label, m.employee_id, m.notes,
+      case when e.id is null then null
+        else json_build_object('id', e.id, 'full_name', e.full_name, 'email', e.email)
+      end as employee
+    from expense_methods m
+    left join employees e on e.id = m.employee_id
+    order by m.name asc`,
+  sql`select id, full_name from employees order by full_name asc`,
 ]);
 
 // Also fetch how many charges hit each method in all time, to show counts
-const { data: allExpenses } = await supabase
-  .from('expenses')
-  .select('method, amount');
+const allExpenses = await sql`select method, amount from expenses`;
 
 const stats = new Map<string, { count: number; total: number }>();
 for (const e of (allExpenses ?? []) as { method: string; amount: string | number }[]) {

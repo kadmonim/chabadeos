@@ -1,36 +1,43 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
 import { Target, AlertCircle, ListTodo, Users, ArrowRight, Megaphone, Calendar, CreditCard } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 const team = Astro.locals.currentTeam;
-const teamFilter = (q: any) => (team ? q.eq('team_id', team.id) : q);
 
 const today = new Date().toISOString().slice(0, 10);
 const currentEmployeeId = Astro.locals.user?.employeeId ?? '';
 
 const [
-  { count: rocksCount },
-  { count: openTodos },
-  { count: openIssues },
-  { count: employeesCount },
-  { data: posts },
-  { data: ownedMethods },
+  rocksCountRows,
+  openTodosRows,
+  openIssuesRows,
+  employeesCountRows,
+  posts,
+  ownedMethods,
 ] = await Promise.all([
-  supabase.from('rocks').select('*', { count: 'exact', head: true }).eq('is_archived', false),
-  teamFilter(supabase.from('todos').select('*', { count: 'exact', head: true }).eq('status', 'open')),
-  teamFilter(supabase.from('issues').select('*', { count: 'exact', head: true }).eq('status', 'open')),
-  supabase.from('employees').select('*', { count: 'exact', head: true }),
-  supabase
-    .from('posts')
-    .select('id, kind, slug, headline, summary, category, date, image_url, screenshot_url, from_username, source, video_url')
-    .order('date', { ascending: false, nullsFirst: false })
-    .limit(10),
-  supabase
-    .from('expense_methods')
-    .select('name, label')
-    .eq('employee_id', currentEmployeeId)
-    .order('name'),
+  sql`select count(*)::int as count from rocks where is_archived = ${false}`,
+  team
+    ? sql`select count(*)::int as count from todos where status = 'open' and team_id = ${team.id}`
+    : sql`select count(*)::int as count from todos where status = 'open'`,
+  team
+    ? sql`select count(*)::int as count from issues where status = 'open' and team_id = ${team.id}`
+    : sql`select count(*)::int as count from issues where status = 'open'`,
+  sql`select count(*)::int as count from employees`,
+  sql`
+    select id, kind, slug, headline, summary, category, date::text as date, image_url, screenshot_url, from_username, source, video_url
+    from posts
+    order by date desc nulls last
+    limit 10`,
+  sql`
+    select name, label
+    from expense_methods
+    where employee_id = ${currentEmployeeId}
+    order by name asc`,
 ]);
+const rocksCount = rocksCountRows[0]?.count;
+const openTodos = openTodosRows[0]?.count;
+const openIssues = openIssuesRows[0]?.count;
+const employeesCount = employeesCountRows[0]?.count;
 
 // Per-card summary: all months that have charges, with a per-month breakdown
 // of status counts so card owners can see everything they need to act on at
@@ -55,10 +62,10 @@ type CardSummary = {
 const cardSummaries: CardSummary[] = [];
 if (ownedMethods && ownedMethods.length > 0) {
   const methodNames = ownedMethods.map((m: any) => m.name);
-  const { data: myCharges } = await supabase
-    .from('expenses')
-    .select('method, month, amount, status')
-    .in('method', methodNames);
+  const myCharges = await sql`
+    select method, month, amount, status
+    from expenses
+    where method = any(${methodNames})`;
   for (const m of ownedMethods as { name: string; label: string | null }[]) {
     const rows = (myCharges ?? []).filter((c: any) => c.method === m.name);
     const byMonth = new Map<string, MonthBucket>();

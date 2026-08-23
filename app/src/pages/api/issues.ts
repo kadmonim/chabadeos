@@ -1,9 +1,10 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 import { canAccessTeam } from '~/lib/team';
 
 async function assertIssueTeamAccess(id: string, locals: App.Locals) {
-  const { data } = await supabase.from('issues').select('team_id').eq('id', id).maybeSingle();
+  const rows = await sql`select team_id from issues where id = ${id}`;
+  const data = rows[0] ?? null;
   return canAccessTeam(locals, data?.team_id);
 }
 
@@ -16,11 +17,21 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     const team_id = String(form.get('team_id') ?? '') || null;
     const term_type = String(form.get('term_type') ?? '') || null;
     if (!canAccessTeam(locals, team_id)) return new Response('Forbidden', { status: 403 });
-    let q = supabase.from('issues').update({ status: 'archived' }).eq('status', 'solved');
-    if (team_id) q = q.eq('team_id', team_id);
-    if (term_type) q = q.eq('term_type', term_type);
-    const { error } = await q;
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    const vals: unknown[] = [];
+    let where = `status = 'solved'`;
+    if (team_id) {
+      vals.push(team_id);
+      where += ` and team_id = $${vals.length}`;
+    }
+    if (term_type) {
+      vals.push(term_type);
+      where += ` and term_type = $${vals.length}`;
+    }
+    try {
+      await pool.query(`update issues set status = 'archived' where ${where}`, vals);
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
@@ -34,11 +45,13 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     const priority = priorityRaw ? Number(priorityRaw) : 3;
     if (!title) return redirect(back);
     if (!canAccessTeam(locals, team_id)) return new Response('Forbidden', { status: 403 });
-    const { error } = await supabase.from('issues').insert({
-      title, team_id, term_type, owner_employee_id, status: 'open',
-      priority, description,
-    });
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`
+        insert into issues (title, team_id, term_type, owner_employee_id, status, priority, description)
+        values (${title}, ${team_id}, ${term_type}, ${owner_employee_id}, ${'open'}, ${priority}, ${description})`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
@@ -48,26 +61,37 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     if (!(await assertIssueTeamAccess(id, locals))) return new Response('Forbidden', { status: 403 });
     const new_team_id = String(form.get('team_id') ?? '') || null;
     if (!canAccessTeam(locals, new_team_id)) return new Response('Forbidden', { status: 403 });
-    const patch: any = {
-      title: String(form.get('title') ?? '').trim(),
-      description: String(form.get('description') ?? '') || null,
-      team_id: new_team_id,
-      owner_employee_id: String(form.get('owner_employee_id') ?? '') || null,
-      priority: Number(form.get('priority') ?? 3),
-      term_type: String(form.get('term_type') ?? 'short_term'),
-    };
+    const vals: unknown[] = [
+      String(form.get('title') ?? '').trim(),
+      String(form.get('description') ?? '') || null,
+      new_team_id,
+      String(form.get('owner_employee_id') ?? '') || null,
+      Number(form.get('priority') ?? 3),
+      String(form.get('term_type') ?? 'short_term'),
+    ];
+    let setClause = 'title = $1, description = $2, team_id = $3, owner_employee_id = $4, priority = $5, term_type = $6';
     const status = form.get('status');
-    if (status) patch.status = String(status);
-    const { error } = await supabase.from('issues').update(patch).eq('id', id);
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    if (status) {
+      vals.push(String(status));
+      setClause += `, status = $${vals.length}`;
+    }
+    vals.push(id);
+    try {
+      await pool.query(`update issues set ${setClause} where id = $${vals.length}`, vals);
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
   if (action === 'delete') {
     const id = String(form.get('id') ?? '');
     if (!(await assertIssueTeamAccess(id, locals))) return new Response('Forbidden', { status: 403 });
-    const { error } = await supabase.from('issues').delete().eq('id', id);
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`delete from issues where id = ${id}`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
@@ -76,8 +100,13 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     const share_team_id = String(form.get('share_team_id') ?? '');
     if (!id || !share_team_id) return new Response('id and share_team_id required', { status: 400 });
     if (!(await assertIssueTeamAccess(id, locals))) return new Response('Forbidden', { status: 403 });
-    const { error } = await supabase.from('issue_shares').upsert({ issue_id: id, team_id: share_team_id });
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`
+        insert into issue_shares (issue_id, team_id) values (${id}, ${share_team_id})
+        on conflict (id) do update set issue_id = excluded.issue_id, team_id = excluded.team_id`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
@@ -86,8 +115,11 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     const share_team_id = String(form.get('share_team_id') ?? '');
     if (!id || !share_team_id) return new Response('id and share_team_id required', { status: 400 });
     if (!(await assertIssueTeamAccess(id, locals))) return new Response('Forbidden', { status: 403 });
-    const { error } = await supabase.from('issue_shares').delete().eq('issue_id', id).eq('team_id', share_team_id);
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`delete from issue_shares where issue_id = ${id} and team_id = ${share_team_id}`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
@@ -103,11 +135,11 @@ export const PUT: APIRoute = async ({ request, locals }) => {
   if (!Array.isArray(ids) || ids.length === 0) return new Response('ids required', { status: 400 });
 
   const updates = ids.map((id, i) =>
-    supabase.from('issues').update({ priority_order: i }).eq('id', id)
+    sql`update issues set priority_order = ${i} where id = ${id}`
   );
-  const results = await Promise.all(updates);
-  const err = results.find((r) => r.error);
-  if (err?.error) return new Response(err.error.message, { status: 500 });
+  const results = await Promise.allSettled(updates);
+  const err = results.find((r) => r.status === 'rejected');
+  if (err) return new Response(((err as PromiseRejectedResult).reason as Error).message, { status: 500 });
   return new Response(null, { status: 204 });
 };
 
@@ -118,12 +150,20 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
   const { id, ...rest } = body ?? {};
   if (!id) return new Response('id required', { status: 400 });
   if (!(await assertIssueTeamAccess(id, locals))) return new Response('Forbidden', { status: 403 });
-  const patch: Record<string, unknown> = {};
+  const sets: string[] = [];
+  const vals: unknown[] = [];
   for (const [k, v] of Object.entries(rest)) {
-    if (ISSUE_PATCH_FIELDS.has(k)) patch[k] = v;
+    if (ISSUE_PATCH_FIELDS.has(k)) {
+      vals.push(v);
+      sets.push(`${k} = $${vals.length}`);
+    }
   }
-  if (Object.keys(patch).length === 0) return new Response('no valid fields', { status: 400 });
-  const { error } = await supabase.from('issues').update(patch).eq('id', id);
-  if (error) return new Response(error.message, { status: 500 });
+  if (sets.length === 0) return new Response('no valid fields', { status: 400 });
+  vals.push(id);
+  try {
+    await pool.query(`update issues set ${sets.join(', ')} where id = $${vals.length}`, vals);
+  } catch (e) {
+    return new Response((e as Error).message, { status: 500 });
+  }
   return new Response(null, { status: 204 });
 };

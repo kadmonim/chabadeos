@@ -5,7 +5,7 @@ import ExpenseNotes from '~/components/ExpenseNotes.svelte';
 import VendorInfoTip from '~/components/VendorInfoTip.astro';
 import VendorEditPanel from '~/components/VendorEditPanel.svelte';
 import { Wallet, ArrowLeft, Calendar, TrendingUp, CreditCard, X, Check, CircleHelp, Circle, ArrowRightLeft, ChevronLeft, ChevronRight, Info } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 import { resolveMethodFilter } from '~/lib/expense-method';
 import { canAccessExpenses, getOwnedMethods } from '~/lib/permissions';
 
@@ -31,12 +31,9 @@ const statusFilter = Astro.url.searchParams.get('status') ?? 'all';
 
 // Counts for the filter chips — unaffected by the current status filter so
 // the numbers stay stable as you click through.
-let countsQuery = supabase
-  .from('expenses')
-  .select('status, amount')
-  .eq('month', month);
-if (methodFilter) countsQuery = countsQuery.eq('method', methodFilter);
-const { data: countsData } = await countsQuery;
+const countsData = methodFilter
+  ? await sql`select status, amount from expenses where month = ${month} and method = ${methodFilter}`
+  : await sql`select status, amount from expenses where month = ${month}`;
 const statusCounts = {
   all:       (countsData ?? []).length,
   none:      (countsData ?? []).filter((r: any) => r.status === 'none').length,
@@ -46,23 +43,44 @@ const statusCounts = {
   cancelled: (countsData ?? []).filter((r: any) => r.status === 'cancelled').length,
 };
 
-let expQuery = supabase
-  .from('expenses')
-  .select('expense_id, month, date, method, vendor, amount, status, move_to_method')
-  .eq('month', month)
-  .order('date', { ascending: false })
-  .order('expense_id', { ascending: false });
-if (methodFilter) expQuery = expQuery.eq('method', methodFilter);
-if (statusFilter !== 'all') expQuery = expQuery.eq('status', statusFilter);
+const expConds: string[] = ['month = $1'];
+const expParams: unknown[] = [month];
+if (methodFilter) {
+  expParams.push(methodFilter);
+  expConds.push(`method = $${expParams.length}`);
+}
+if (statusFilter !== 'all') {
+  expParams.push(statusFilter);
+  expConds.push(`status = $${expParams.length}`);
+}
+const expQuery = pool
+  .query(
+    `select expense_id, month, date::text as date, method, vendor, amount, status, move_to_method
+     from expenses
+     where ${expConds.join(' and ')}
+     order by date desc, expense_id desc`,
+    expParams,
+  )
+  .then((r) => r.rows);
 
-const [{ data: expenses }, { data: vendors }, { data: methods }] = await Promise.all([
+const [expenses, vendors, methods] = await Promise.all([
   expQuery,
-  supabase
-    .from('expenses_vendors')
-    .select('vendor_id, name, person_employee_id, description, frequency, status, group_name, latest_update, to_do, review_again, tags, aliases, report_matches, person:employees!expenses_vendors_person_employee_id_fkey(id, full_name)'),
-  supabase
-    .from('expense_methods')
-    .select('name, label, notes, employee:employees(id, full_name)'),
+  sql`
+    select v.vendor_id, v.name, v.person_employee_id, v.description, v.frequency, v.status,
+      v.group_name, v.latest_update, v.to_do, v.review_again::text as review_again,
+      v.tags, v.aliases, v.report_matches,
+      case when e.id is null then null
+        else json_build_object('id', e.id, 'full_name', e.full_name)
+      end as person
+    from expenses_vendors v
+    left join employees e on e.id = v.person_employee_id`,
+  sql`
+    select m.name, m.label, m.notes,
+      case when e.id is null then null
+        else json_build_object('id', e.id, 'full_name', e.full_name)
+      end as employee
+    from expense_methods m
+    left join employees e on e.id = m.employee_id`,
 ]);
 
 if (!expenses) {
@@ -71,9 +89,9 @@ if (!expenses) {
 
 // Prev/next month navigation scoped to the current method filter (if any) so
 // you only jump between months that actually have data for the card you're on.
-let monthsQuery = supabase.from('expenses').select('month');
-if (methodFilter) monthsQuery = monthsQuery.eq('method', methodFilter);
-const { data: allMonthRows } = await monthsQuery;
+const allMonthRows = methodFilter
+  ? await sql`select month from expenses where method = ${methodFilter}`
+  : await sql`select month from expenses`;
 const distinctMonths = Array.from(new Set((allMonthRows ?? []).map((r: any) => r.month as string))).sort();
 const currentIdx = distinctMonths.indexOf(month);
 const prevMonth = currentIdx > 0 ? distinctMonths[currentIdx - 1] : null;
@@ -90,10 +108,7 @@ const monthQueryString = (() => {
 const noteCounts = new Map<number, number>();
 const expenseIds = (expenses as any[]).map((e) => e.expense_id);
 if (expenseIds.length > 0) {
-  const { data: noteRows } = await supabase
-    .from('expense_notes')
-    .select('expense_id')
-    .in('expense_id', expenseIds);
+  const noteRows = await sql`select expense_id from expense_notes where expense_id = any(${expenseIds})`;
   for (const row of (noteRows ?? []) as { expense_id: number }[]) {
     noteCounts.set(row.expense_id, (noteCounts.get(row.expense_id) ?? 0) + 1);
   }

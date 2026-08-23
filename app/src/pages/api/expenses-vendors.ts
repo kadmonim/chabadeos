@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { canAccessExpenses } from '~/lib/permissions';
 
 // Parses a textarea with one value per line into a clean string array.
@@ -13,8 +13,7 @@ function parseLines(raw: string | null): string[] {
 export const GET: APIRoute = async ({ url, locals }) => {
   if (!canAccessExpenses(locals)) return new Response('Forbidden', { status: 403 });
   const idRaw = url.searchParams.get('id');
-  const { data: employees } = await supabase
-    .from('employees').select('id, full_name').order('full_name');
+  const employees = await sql`select id, full_name from employees order by full_name asc`;
   if (idRaw == null) {
     return new Response(JSON.stringify({ employees: employees ?? [] }), {
       headers: { 'content-type': 'application/json' },
@@ -22,11 +21,11 @@ export const GET: APIRoute = async ({ url, locals }) => {
   }
   const id = Number(idRaw);
   if (!Number.isInteger(id)) return new Response('bad id', { status: 400 });
-  const { data: vendor } = await supabase
-    .from('expenses_vendors')
-    .select('vendor_id, name, person_employee_id, description, frequency, status, group_name, latest_update, to_do, review_again, tags, aliases, report_matches')
-    .eq('vendor_id', id)
-    .maybeSingle();
+  const vendorRows = await sql`
+    select vendor_id, name, person_employee_id, description, frequency, status, group_name, latest_update, to_do, review_again, tags, aliases, report_matches
+    from expenses_vendors
+    where vendor_id = ${id}`;
+  const vendor = vendorRows[0] ?? null;
   if (!vendor) return new Response('Not found', { status: 404 });
   return new Response(JSON.stringify({ vendor, employees: employees ?? [] }), {
     headers: { 'content-type': 'application/json' },
@@ -46,65 +45,69 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     if (!name) return redirect(back);
     // If a vendor with this name already exists, route the user to its editor
     // instead of raising a unique-constraint error.
-    const { data: existing } = await supabase
-      .from('expenses_vendors')
-      .select('vendor_id')
-      .ilike('name', name)
-      .maybeSingle();
+    const existingRows = await sql`select vendor_id from expenses_vendors where name ilike ${name}`;
+    const existing = existingRows[0] ?? null;
     if (existing?.vendor_id) {
       return ajax
         ? new Response(JSON.stringify({ duplicate: true, vendor_id: existing.vendor_id }), { status: 200, headers: { 'content-type': 'application/json' } })
         : redirect(`/expenses/vendors?edit=${existing.vendor_id}`);
     }
     const reportMatches = parseLines(String(form.get('report_matches') ?? ''));
-    const { error } = await supabase
-      .from('expenses_vendors')
-      .insert({
-        name,
-        person_employee_id: String(form.get('person_employee_id') ?? '') || null,
-        description: String(form.get('description') ?? '') || null,
-        frequency: String(form.get('frequency') ?? '') || null,
-        status: String(form.get('status') ?? '') || 'Unknown',
-        group_name: String(form.get('group_name') ?? '') || 'Unknown',
-        latest_update: String(form.get('latest_update') ?? '') || null,
-        to_do: String(form.get('to_do') ?? '') || null,
-        review_again: String(form.get('review_again') ?? '') || null,
-        tags: parseLines(String(form.get('tags') ?? '')),
-        aliases: parseLines(String(form.get('aliases') ?? '')),
-        report_matches: reportMatches.length > 0 ? reportMatches : [name],
-      });
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`
+        insert into expenses_vendors (name, person_employee_id, description, frequency, status, group_name, latest_update, to_do, review_again, tags, aliases, report_matches)
+        values (
+          ${name},
+          ${String(form.get('person_employee_id') ?? '') || null},
+          ${String(form.get('description') ?? '') || null},
+          ${String(form.get('frequency') ?? '') || null},
+          ${String(form.get('status') ?? '') || 'Unknown'},
+          ${String(form.get('group_name') ?? '') || 'Unknown'},
+          ${String(form.get('latest_update') ?? '') || null},
+          ${String(form.get('to_do') ?? '') || null},
+          ${String(form.get('review_again') ?? '') || null},
+          ${parseLines(String(form.get('tags') ?? ''))},
+          ${parseLines(String(form.get('aliases') ?? ''))},
+          ${reportMatches.length > 0 ? reportMatches : [name]}
+        )`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return ok();
   }
 
   if (action === 'update') {
     const vendorId = Number(form.get('vendor_id'));
     if (!Number.isInteger(vendorId)) return new Response('vendor_id required', { status: 400 });
-    const { error } = await supabase
-      .from('expenses_vendors')
-      .update({
-        name: String(form.get('name') ?? '').trim(),
-        person_employee_id: String(form.get('person_employee_id') ?? '') || null,
-        description: String(form.get('description') ?? '') || null,
-        frequency: String(form.get('frequency') ?? '') || null,
-        status: String(form.get('status') ?? '') || 'Unknown',
-        group_name: String(form.get('group_name') ?? '') || 'Unknown',
-        latest_update: String(form.get('latest_update') ?? '') || null,
-        to_do: String(form.get('to_do') ?? '') || null,
-        review_again: String(form.get('review_again') ?? '') || null,
-        tags: parseLines(String(form.get('tags') ?? '')),
-        aliases: parseLines(String(form.get('aliases') ?? '')),
-        report_matches: parseLines(String(form.get('report_matches') ?? '')),
-      })
-      .eq('vendor_id', vendorId);
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`
+        update expenses_vendors set
+          name = ${String(form.get('name') ?? '').trim()},
+          person_employee_id = ${String(form.get('person_employee_id') ?? '') || null},
+          description = ${String(form.get('description') ?? '') || null},
+          frequency = ${String(form.get('frequency') ?? '') || null},
+          status = ${String(form.get('status') ?? '') || 'Unknown'},
+          group_name = ${String(form.get('group_name') ?? '') || 'Unknown'},
+          latest_update = ${String(form.get('latest_update') ?? '') || null},
+          to_do = ${String(form.get('to_do') ?? '') || null},
+          review_again = ${String(form.get('review_again') ?? '') || null},
+          tags = ${parseLines(String(form.get('tags') ?? ''))},
+          aliases = ${parseLines(String(form.get('aliases') ?? ''))},
+          report_matches = ${parseLines(String(form.get('report_matches') ?? ''))}
+        where vendor_id = ${vendorId}`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return ok();
   }
 
   if (action === 'delete') {
     const vendorId = Number(form.get('vendor_id'));
-    const { error } = await supabase.from('expenses_vendors').delete().eq('vendor_id', vendorId);
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`delete from expenses_vendors where vendor_id = ${vendorId}`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return ok();
   }
 

@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 
 function parseResponsibilities(raw: string | null): string[] {
   if (!raw) return [];
@@ -15,34 +15,46 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const title = String(form.get('title') ?? '').trim();
     const parent_id = String(form.get('parent_id') ?? '') || null;
     if (!title) return redirect(back);
-    const { error } = await supabase.from('org_seats').insert({
-      title,
-      parent_id,
-      employee_id: String(form.get('employee_id') ?? '') || null,
-      person_name: String(form.get('person_name') ?? '') || null,
-      responsibilities: parseResponsibilities(String(form.get('responsibilities') ?? '')),
-    });
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`
+        insert into org_seats (title, parent_id, employee_id, person_name, responsibilities)
+        values (
+          ${title},
+          ${parent_id},
+          ${String(form.get('employee_id') ?? '') || null},
+          ${String(form.get('person_name') ?? '') || null},
+          ${JSON.stringify(parseResponsibilities(String(form.get('responsibilities') ?? '')))}::jsonb
+        )`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
   if (action === 'update') {
     const id = String(form.get('id') ?? '');
     if (!id) return new Response('id required', { status: 400 });
-    const { error } = await supabase.from('org_seats').update({
-      title: String(form.get('title') ?? '').trim(),
-      employee_id: String(form.get('employee_id') ?? '') || null,
-      person_name: String(form.get('person_name') ?? '') || null,
-      responsibilities: parseResponsibilities(String(form.get('responsibilities') ?? '')),
-    }).eq('id', id);
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`
+        update org_seats set
+          title = ${String(form.get('title') ?? '').trim()},
+          employee_id = ${String(form.get('employee_id') ?? '') || null},
+          person_name = ${String(form.get('person_name') ?? '') || null},
+          responsibilities = ${JSON.stringify(parseResponsibilities(String(form.get('responsibilities') ?? '')))}::jsonb
+        where id = ${id}`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
   if (action === 'delete') {
     const id = String(form.get('id') ?? '');
-    const { error } = await supabase.from('org_seats').delete().eq('id', id);
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`delete from org_seats where id = ${id}`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 

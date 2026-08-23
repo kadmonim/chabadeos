@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { sql } from './db';
 
 // Who can edit the V/TO. Keep this short and explicit — if it grows, move to a DB flag.
 export const VTO_EDITOR_EMAILS = new Set<string>([
@@ -35,10 +35,8 @@ export function canAccessExpenses(locals: App.Locals): boolean {
 export async function getOwnedMethods(locals: App.Locals): Promise<string[]> {
   const employeeId = locals.user?.employeeId;
   if (!employeeId) return [];
-  const { data } = await supabase
-    .from('expense_methods')
-    .select('name')
-    .eq('employee_id', employeeId);
+  const data = await sql`
+    select name from expense_methods where employee_id = ${employeeId}`;
   return (data ?? []).map((m) => m.name);
 }
 
@@ -58,10 +56,9 @@ export async function canMutateExpenses(locals: App.Locals, expenseIds: number[]
   if (canAccessExpenses(locals)) return true;
   const owned = await getOwnedMethods(locals);
   if (owned.length === 0) return false;
-  const { data } = await supabase
-    .from('expenses')
-    .select('expense_id, method')
-    .in('expense_id', expenseIds);
+  const data = await sql`
+    select expense_id, method from expenses
+    where expense_id = any(${expenseIds})`;
   if (!data || data.length !== expenseIds.length) return false;
   return data.every((e) => owned.includes(e.method));
 }

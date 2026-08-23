@@ -2,21 +2,23 @@
 import AppLayout from '~/layouts/AppLayout.astro';
 import SeatNode from '~/components/SeatNode.astro';
 import { Network, X, Trash2, Download } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 
 const url = Astro.url;
 const editId = url.searchParams.get('edit');
 const addUnderId = url.searchParams.get('add_under');
 
-const [{ data: seats }, { data: employees }] = await Promise.all([
-  supabase
-    .from('org_seats')
-    .select(`
-      id, parent_id, title, person_name, employee_id, responsibilities, display_order,
-      employee:employees(id, full_name, email)
-    `)
-    .order('display_order'),
-  supabase.from('employees').select('id, full_name').order('full_name'),
+const [seats, employees] = await Promise.all([
+  sql`
+    select
+      s.id, s.parent_id, s.title, s.person_name, s.employee_id, s.responsibilities, s.display_order,
+      case when e.id is null then null
+        else json_build_object('id', e.id, 'full_name', e.full_name, 'email', e.email)
+      end as employee
+    from org_seats s
+    left join employees e on e.id = s.employee_id
+    order by s.display_order asc`,
+  sql`select id, full_name from employees order by full_name asc`,
 ]);
 
 type Seat = {

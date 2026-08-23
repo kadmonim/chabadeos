@@ -2,7 +2,7 @@
 import AppLayout from '~/layouts/AppLayout.astro';
 import ScorecardCell from '~/components/ScorecardCell.svelte';
 import { ChartBar, Plus, ChevronLeft, ChevronRight, History } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 const team = Astro.locals.currentTeam;
 if (!team) return Astro.redirect('/');
 
@@ -59,13 +59,16 @@ if (frequency === 'weekly') {
 }
 
 // ----- data -----
-const { data: measurables } = await supabase
-  .from('measurables')
-  .select('id, name, group, subgroup, owner_employee_id, owner:employees!measurables_owner_employee_id_fkey(id, full_name), goal, value_type, threshold_type, frequency, show_average, display_order')
-  .eq('team_id', team.id)
-  .eq('is_archived', false)
-  .eq('frequency', frequency)
-  .order('display_order');
+const measurables: any[] = await sql`
+  select m.id, m.name, m."group", m.subgroup, m.owner_employee_id,
+    case when o.id is null then null else json_build_object('id', o.id, 'full_name', o.full_name) end as owner,
+    m.goal::float8 as goal, m.value_type, m.threshold_type, m.frequency, m.show_average, m.display_order
+  from measurables m
+  left join employees o on o.id = m.owner_employee_id
+  where m.team_id = ${team.id}
+    and m.is_archived = false
+    and m.frequency = ${frequency}
+  order by m.display_order asc`;
 
 const ids = (measurables ?? []).map((m) => m.id);
 const valuesTable = frequency === 'weekly' ? 'weekly_values' : 'monthly_values';
@@ -74,14 +77,16 @@ const dateCol = frequency === 'weekly' ? 'week_start_date' : 'month_start_date';
 const oldest = periods[periods.length - 1].start;
 const newest = periods[0].start;
 
-const { data: values } = ids.length
-  ? await supabase
-      .from(valuesTable)
-      .select(`measurable_id, ${dateCol}, value, note`)
-      .in('measurable_id', ids)
-      .gte(dateCol, ymd(oldest))
-      .lte(dateCol, ymd(newest))
-  : { data: [] };
+const values = ids.length
+  ? (
+      await pool.query(
+        `select measurable_id, ${dateCol}::text as ${dateCol}, value, note
+         from ${valuesTable}
+         where measurable_id = any($1) and ${dateCol} >= $2 and ${dateCol} <= $3`,
+        [ids, ymd(oldest), ymd(newest)],
+      )
+    ).rows
+  : [];
 
 // index: measurable_id → ymd → { value, note }
 type Cell = { value: number | null; note: string | null };

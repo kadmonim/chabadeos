@@ -1,24 +1,22 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
 import { Calendar, ExternalLink, Pencil, ArrowLeft, Quote } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 
 const { slug } = Astro.params;
 
-const { data: post } = await supabase
-  .from('posts')
-  .select('*')
-  .eq('slug', slug)
-  .maybeSingle();
+const postRows = await sql`
+  select p.*, p.date::text as date from posts p where p.slug = ${slug}`;
+const post = postRows[0] ?? null;
 
 if (!post) return new Response('Not found', { status: 404 });
 
-const { data: latest } = await supabase
-  .from('posts')
-  .select('slug, headline, kind, date, image_url, screenshot_url')
-  .neq('id', post.id)
-  .order('date', { ascending: false, nullsFirst: false })
-  .limit(8);
+const latest = await sql`
+  select slug, headline, kind, date::text as date, image_url, screenshot_url
+  from posts
+  where id <> ${post.id}
+  order by date desc nulls last
+  limit 8`;
 
 const isTestimonial = post.kind === 'testimonial';
 

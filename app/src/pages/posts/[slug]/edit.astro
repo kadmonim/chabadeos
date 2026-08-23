@@ -1,19 +1,17 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
 import PostEditor from '~/components/PostEditor.astro';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 
 const { slug } = Astro.params;
 
-const { data: post } = await supabase
-  .from('posts')
-  .select('*')
-  .eq('slug', slug)
-  .maybeSingle();
+const postRows = await sql`
+  select p.*, p.date::text as date from posts p where p.slug = ${slug}`;
+const post = postRows[0] ?? null;
 
 if (!post) return new Response('Not found', { status: 404 });
 
-const { data: catRows } = await supabase.from('posts').select('category');
+const catRows = await sql`select category from posts`;
 const categories = Array.from(new Set((catRows ?? []).map((c) => c.category).filter(Boolean))).sort() as string[];
 ---
 <AppLayout title={`Edit · ${post.headline || 'post'} · Chabad Central`}>

@@ -3,7 +3,7 @@ import AppLayout from '~/layouts/AppLayout.astro';
 import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import RichTextEditor from '~/components/RichTextEditor.svelte';
 import { CheckSquare, Plus, Search, Flag, X, Trash2, Archive, Copy } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 const team = Astro.locals.currentTeam;
 const teams = Astro.locals.allowedTeams;
 if (!team) return Astro.redirect('/');
@@ -15,35 +15,37 @@ const sort = url.searchParams.get('sort') ?? 'created';
 const search = (url.searchParams.get('q') ?? '').trim();
 const detailId = url.searchParams.get('detail');
 
-const baseQuery = () =>
-  supabase
-    .from('todos')
-    .select(
-      'id, title, description, status, is_urgent, due_date, created_at, team_id, assignee_employee_id, ' +
-      'assignee:employees!todos_assignee_employee_id_fkey(id, full_name, email)',
-    )
-    .eq('team_id', team.id);
+const baseSelect = `
+  select t.id, t.title, t.description, t.status, t.is_urgent, t.due_date::text as due_date, t.created_at, t.team_id, t.assignee_employee_id,
+    case when a.id is null then null else json_build_object('id', a.id, 'full_name', a.full_name, 'email', a.email) end as assignee
+  from todos t
+  left join employees a on a.id = t.assignee_employee_id`;
 
-let q = baseQuery();
-if (statusFilter === 'active') q = q.in('status', ['open', 'done']);
-else if (statusFilter !== 'all') q = q.eq('status', statusFilter);
-if (assigneeFilter !== 'all') q = q.eq('assignee_employee_id', assigneeFilter);
-if (search) q = q.ilike('title', `%${search}%`);
-if (sort === 'due') q = q.order('due_date', { ascending: true, nullsFirst: false });
-else if (sort === 'title') q = q.order('title', { ascending: true });
-else q = q.order('created_at', { ascending: false });
+const where: string[] = ['t.team_id = $1'];
+const vals: unknown[] = [team.id];
+if (statusFilter === 'active') { vals.push(['open', 'done']); where.push(`t.status = any($${vals.length})`); }
+else if (statusFilter !== 'all') { vals.push(statusFilter); where.push(`t.status = $${vals.length}`); }
+if (assigneeFilter !== 'all') { vals.push(assigneeFilter); where.push(`t.assignee_employee_id = $${vals.length}`); }
+if (search) { vals.push(`%${search}%`); where.push(`t.title ilike $${vals.length}`); }
+const orderBy =
+  sort === 'due' ? 't.due_date asc' :
+  sort === 'title' ? 't.title asc' :
+  't.created_at desc';
 
-const [{ data: todos }, { data: employees }] = await Promise.all([
-  q,
-  supabase.from('team_memberships').select('employee:employees(id, full_name)').eq('team_id', team.id).order('employee(full_name)').then(({ data }) => ({
-    data: (data ?? []).map((m: any) => m.employee).filter(Boolean),
-  })),
+const [todos, employees]: [any[], any[]] = await Promise.all([
+  pool.query(`${baseSelect} where ${where.join(' and ')} order by ${orderBy}`, vals).then((r: any) => r.rows),
+  sql`
+    select case when e.id is null then null else json_build_object('id', e.id, 'full_name', e.full_name) end as employee
+    from team_memberships m
+    left join employees e on e.id = m.employee_id
+    where m.team_id = ${team.id}
+    order by e.full_name asc`.then((data) => (data ?? []).map((m: any) => m.employee).filter(Boolean)),
 ]);
 
 let detail: any = null;
 if (detailId) {
-  const { data } = await baseQuery().eq('id', detailId).maybeSingle();
-  detail = data;
+  const { rows } = await pool.query(`${baseSelect} where t.team_id = $1 and t.id = $2`, [team.id, detailId]);
+  detail = rows[0] ?? null;
 }
 
 const fmt = (d: string | null) =>

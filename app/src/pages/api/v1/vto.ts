@@ -1,17 +1,18 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
 
 export const GET: APIRoute = async ({ request }) => {
   const unauth = requireApiKey(request);
   if (unauth) return unauth;
 
-  const { data, error } = await supabase
-    .from('vtos')
-    .select('id, vision, traction, swot, updated_at')
-    .limit(1)
-    .maybeSingle();
-  if (error) return json({ error: error.message }, 500);
+  let data: any;
+  try {
+    const rows = await sql`select id, vision, traction, swot, updated_at from vtos limit 1`;
+    data = rows[0] ?? null;
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
   if (!data) return json({ vto: null });
 
   return json({

@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '~/lib/supabase';
+import { sql, pool } from '~/lib/db';
 
 function slugify(s: string): string {
   return s
@@ -13,9 +13,9 @@ async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
   let slug = base;
   let n = 1;
   while (true) {
-    let q = supabase.from('posts').select('id').eq('slug', slug).limit(1);
-    if (excludeId) q = q.neq('id', excludeId);
-    const { data } = await q;
+    const data = excludeId
+      ? await sql`select id from posts where slug = ${slug} and id <> ${excludeId} limit 1`
+      : await sql`select id from posts where slug = ${slug} limit 1`;
     if (!data || data.length === 0) return slug;
     n += 1;
     slug = `${base}-${n}`;
@@ -34,23 +34,31 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const headline = String(form.get('headline') ?? '').trim();
     if (!headline) return redirect(back);
     const slug = await uniqueSlug(slugify(headline));
-    const { error, data } = await supabase.from('posts').insert({
-      kind,
-      headline,
-      slug,
-      summary: String(form.get('summary') ?? '').trim() || null,
-      rich_text: String(form.get('rich_text') ?? '') || null,
-      category: String(form.get('category') ?? '').trim() || null,
-      source: String(form.get('source') ?? '').trim() || null,
-      source_link: String(form.get('source_link') ?? '').trim() || null,
-      from_username: String(form.get('from_username') ?? '').trim() || null,
-      image_url: String(form.get('image_url') ?? '').trim() || null,
-      video_url: String(form.get('video_url') ?? '').trim() || null,
-      screenshot_url: String(form.get('screenshot_url') ?? '').trim() || null,
-      date: String(form.get('date') ?? '') || today(),
-      featured_in_newsletter: form.get('featured_in_newsletter') === 'on',
-    }).select('slug').single();
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    let data;
+    try {
+      const rows = await sql`
+        insert into posts (kind, headline, slug, summary, rich_text, category, source, source_link, from_username, image_url, video_url, screenshot_url, date, featured_in_newsletter)
+        values (
+          ${kind},
+          ${headline},
+          ${slug},
+          ${String(form.get('summary') ?? '').trim() || null},
+          ${String(form.get('rich_text') ?? '') || null},
+          ${String(form.get('category') ?? '').trim() || null},
+          ${String(form.get('source') ?? '').trim() || null},
+          ${String(form.get('source_link') ?? '').trim() || null},
+          ${String(form.get('from_username') ?? '').trim() || null},
+          ${String(form.get('image_url') ?? '').trim() || null},
+          ${String(form.get('video_url') ?? '').trim() || null},
+          ${String(form.get('screenshot_url') ?? '').trim() || null},
+          ${String(form.get('date') ?? '') || today()},
+          ${form.get('featured_in_newsletter') === 'on'}
+        )
+        returning slug`;
+      data = rows[0];
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(`/posts/${data.slug}`);
   }
 
@@ -76,15 +84,31 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (form.get('reslug') === '1' && headline) {
       patch.slug = await uniqueSlug(slugify(headline), id);
     }
-    const { error, data } = await supabase.from('posts').update(patch).eq('id', id).select('slug').single();
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    for (const [k, v] of Object.entries(patch)) {
+      vals.push(v);
+      sets.push(`${k} = $${vals.length}`);
+    }
+    vals.push(id);
+    let data;
+    try {
+      const { rows } = await pool.query(`update posts set ${sets.join(', ')} where id = $${vals.length} returning slug`, vals);
+      data = rows[0];
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
+    if (!data) return new Response('Error: no rows returned', { status: 500 });
     return redirect(`/posts/${data.slug}`);
   }
 
   if (action === 'delete') {
     const id = String(form.get('id') ?? '');
-    const { error } = await supabase.from('posts').delete().eq('id', id);
-    if (error) return new Response(`Error: ${error.message}`, { status: 500 });
+    try {
+      await sql`delete from posts where id = ${id}`;
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message}`, { status: 500 });
+    }
     return redirect(back);
   }
 
@@ -97,12 +121,20 @@ export const PATCH: APIRoute = async ({ request }) => {
   const body = await request.json();
   const { id, ...rest } = body ?? {};
   if (!id) return new Response('id required', { status: 400 });
-  const patch: Record<string, unknown> = {};
+  const sets: string[] = [];
+  const vals: unknown[] = [];
   for (const [k, v] of Object.entries(rest)) {
-    if (PATCH_FIELDS.has(k)) patch[k] = v;
+    if (PATCH_FIELDS.has(k)) {
+      vals.push(v);
+      sets.push(`${k} = $${vals.length}`);
+    }
   }
-  if (Object.keys(patch).length === 0) return new Response('no valid fields', { status: 400 });
-  const { error } = await supabase.from('posts').update(patch).eq('id', id);
-  if (error) return new Response(error.message, { status: 500 });
+  if (sets.length === 0) return new Response('no valid fields', { status: 400 });
+  vals.push(id);
+  try {
+    await pool.query(`update posts set ${sets.join(', ')} where id = $${vals.length}`, vals);
+  } catch (e) {
+    return new Response((e as Error).message, { status: 500 });
+  }
   return new Response(null, { status: 204 });
 };

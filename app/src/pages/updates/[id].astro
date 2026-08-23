@@ -1,8 +1,9 @@
 ---
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 
 const { id } = Astro.params;
-const { data } = await supabase.from('posts').select('slug').eq('id', id).maybeSingle();
+const rows = await sql`select slug from posts where id = ${id}`;
+const data = rows[0] ?? null;
 if (!data) return new Response('Not found', { status: 404 });
 return Astro.redirect(`/posts/${data.slug}`, 308);
 ---

@@ -1,9 +1,9 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
 import PostEditor from '~/components/PostEditor.astro';
-import { supabase } from '~/lib/supabase';
+import { sql } from '~/lib/db';
 
-const { data: catRows } = await supabase.from('posts').select('category');
+const catRows = await sql`select category from posts`;
 const categories = Array.from(new Set((catRows ?? []).map((c) => c.category).filter(Boolean))).sort() as string[];
 ---
 <AppLayout title="New post · Chabad Central">

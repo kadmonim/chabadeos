@@ -1,20 +1,24 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
 import { Newspaper, Calendar, Plus, Quote } from 'lucide-svelte';
-import { supabase } from '~/lib/supabase';
+import { pool } from '~/lib/db';
 
 const url = Astro.url;
 const kind = url.searchParams.get('kind') ?? 'all';
 const category = url.searchParams.get('category') ?? 'all';
 
-let q = supabase
-  .from('posts')
-  .select('id, kind, slug, headline, summary, category, date, image_url, screenshot_url, from_username, source')
-  .order('date', { ascending: false, nullsFirst: false });
-if (kind !== 'all') q = q.eq('kind', kind);
-if (category !== 'all') q = q.eq('category', category);
+const vals: unknown[] = [];
+const where: string[] = [];
+if (kind !== 'all') { vals.push(kind); where.push(`kind = $${vals.length}`); }
+if (category !== 'all') { vals.push(category); where.push(`category = $${vals.length}`); }
 
-const { data: posts } = await q;
+const { rows: posts } = await pool.query(
+  `select id, kind, slug, headline, summary, category, date::text as date, image_url, screenshot_url, from_username, source
+   from posts
+   ${where.length ? 'where ' + where.join(' and ') : ''}
+   order by date desc nulls last`,
+  vals,
+);
 
 const fmt = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
