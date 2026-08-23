@@ -3,12 +3,13 @@
 // and the people in charge are never sent to the browser, so they can't be read
 // out of the page source either.
 import RoomsLayout from '~/layouts/RoomsLayout.astro';
+import SpaceIcon from '~/components/SpaceIcon.astro';
 import { ChevronRight, ChevronLeft } from 'lucide-svelte';
 import { sql } from '~/lib/db';
 import { fmtDualDate, fmtHebrewDate } from '~/lib/dates';
 import {
   listRooms, ensureHorizon, weekDates, weekStart, addDays, todayInJerusalem,
-  nowTimeInJerusalem, isValidDate, hhmm, WEEKDAY_NAMES,
+  nowTimeInJerusalem, isValidDate, hhmm, WEEKDAY_NAMES, accentOf,
 } from '~/lib/rooms';
 
 type Slot = { room_id: string; event_date: string; start_time: string; end_time: string };
@@ -41,21 +42,28 @@ const statusNowFor = (roomId: string) => {
   return { busy, next };
 };
 ---
-<RoomsLayout title={'זמינות חדרים · חב"ד כרמיאל'} subtitle="זמינות חדרים" noindex={true}>
+<RoomsLayout title={'זמינות חללים · חב"ד כרמיאל'} subtitle="זמינות חללים" noindex={true}>
   <section class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 mb-5">
     {rooms.map((room) => {
       const { busy, next } = statusNowFor(room.id);
       return (
-        <div class={`rounded-2xl border p-4 bg-white ${busy ? 'border-amber-200' : 'border-emerald-200'}`}>
-          <div class="flex items-center justify-between gap-2">
-            <span class="font-medium text-stone-900">{room.name}</span>
-            <span class={`text-xs font-semibold px-2 py-0.5 rounded-full ${busy ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
-              {busy ? 'תפוס' : 'פנוי'}
-            </span>
+        <div class={`rounded-2xl border bg-white p-4 flex items-center gap-3 ${busy ? 'border-amber-200' : accentOf(room).card}`}>
+          <SpaceIcon room={room} />
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-stone-900 truncate">{room.name}</div>
+            <div class="text-sm flex items-center gap-1.5 mt-0.5">
+              <span class={`w-1.5 h-1.5 rounded-full ${busy ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+              <span class={busy ? 'text-amber-800' : 'text-emerald-700'}>
+                {busy ? `תפוס עד ${hhmm(busy.end_time)}` : 'פנוי עכשיו'}
+              </span>
+            </div>
           </div>
-          <p class="text-sm text-stone-600 mt-1.5">
-            {busy ? `תפוס עד ${hhmm(busy.end_time)}` : next ? `פנוי עד ${hhmm(next.start_time)}` : 'פנוי להמשך היום'}
-          </p>
+          <div class="text-end shrink-0 border-s border-stone-100 ps-3">
+            <div class="text-[11px] text-stone-400">תפוס מ־</div>
+            <div class="text-sm text-stone-700 tabular-nums">
+              {next ? hhmm(next.start_time) : busy ? '—' : 'אין היום'}
+            </div>
+          </div>
         </div>
       );
     })}
@@ -83,7 +91,14 @@ const statusNowFor = (roomId: string) => {
       <thead>
         <tr class="border-b border-stone-200 bg-stone-50">
           <th class="text-start px-4 py-2.5 font-medium text-stone-500 w-40">יום</th>
-          {rooms.map((r) => <th class="text-start px-4 py-2.5 font-medium text-stone-700">{r.name}</th>)}
+          {rooms.map((r) => (
+            <th class="text-start px-4 py-2.5 font-medium text-stone-700">
+              <span class="flex items-center gap-1.5">
+                <span class={`w-1.5 h-1.5 rounded-full ${accentOf(r).dot}`}></span>
+                {r.name}
+              </span>
+            </th>
+          ))}
         </tr>
       </thead>
       <tbody>
@@ -157,6 +172,6 @@ const statusNowFor = (roomId: string) => {
   </div>
 
   <p class="text-xs text-stone-400 mt-5 text-center">
-    תצוגה לצפייה בלבד. לפרטים ולהזמנת חדר יש להתחבר למערכת.
+    תצוגה לצפייה בלבד. לפרטים ולהזמנת חלל יש להתחבר למערכת.
   </p>
 </RoomsLayout>

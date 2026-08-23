@@ -46,7 +46,7 @@ Valid keys come from the `CHABADEOS_API_KEYS` environment variable on the server
 | POST | `/api/v1/feature-ideas` | Create a feature idea. |
 | PATCH | `/api/v1/feature-ideas` | Update a feature idea. |
 | GET | `/api/v1/rooms` | List bookable rooms. |
-| GET | `/api/v1/bookings` | Room bookings as dated occurrences. `?from=&to=` (default this week), `?room=` (id **or** name), `?include_cancelled=1`. |
+| GET | `/api/v1/bookings` | Room bookings as dated occurrences. `?from=&to=` (default this week), `?room=` (id **or** name), `?purpose=`, `?include_cancelled=1`. |
 | POST | `/api/v1/bookings` | Book a room, once or weekly. Double bookings are rejected with `409`. |
 | PATCH | `/api/v1/bookings` | Edit one occurrence (`id`) or a whole weekly series (`series_id`). |
 | DELETE | `/api/v1/bookings` | Cancel an occurrence (`id`) or stop a series (`series_id`). |
@@ -295,9 +295,10 @@ Deleting a seat deletes every seat beneath it. If it has reports, the call is re
   "from": "2026-08-23", "to": "2026-08-29",
   "bookings": [
     {
-      "id": "…", "room": { "id": "…", "name": "חדר פעילות" },
+      "id": "…", "room": { "id": "…", "name": "חלל פנימי גדול" },
       "date": "2026-08-24", "start_time": "19:00", "end_time": "20:30",
-      "title": "שיעור תניא", "in_charge_name": "הרב כהן", "notes": null,
+      "title": "שיעור תניא", "in_charge_name": "הרב כהן",
+      "purpose": "class", "notes": null,
       "weekly": true, "series_id": "…", "is_cancelled": false
     }
   ],
@@ -309,21 +310,24 @@ Deleting a seat deletes every seat beneath it. If it has reports, the call is re
 
 ```json
 {
-  "room": "חדר פעילות",
+  "room": "חלל פנימי גדול",
   "title": "שיעור תניא",
   "in_charge_name": "הרב כהן",
   "date": "2026-08-24",
   "start_time": "19:00",
   "end_time": "20:30",
+  "purpose": "class",
   "notes": "optional",
   "weekly": false,
   "ends_on": "2027-06-30"
 }
 ```
 
+`purpose` is what the space is being used for, one of `class` (שיעור), `meeting` (פגישה), `chavrusa` (חברותא), `work` (עבודה), `youth` (פעילות נוער), `other` (אחר). It's optional; anything else is rejected with `400`.
+
 `room` takes an id or an exact room name. `in_charge_name` is free text — the person running it doesn't have to be in the system. Times are Jerusalem wall-clock and the range is half-open, so an event ending at 20:00 doesn't clash with one starting at 20:00.
 
-A clash is a hard failure, never a merge: the response is `409` with the blocking booking, e.g. `{ "error": "חדר פעילות תפוס בשעה הזו — שיעור תניא (19:00–20:30), באחריות הרב כהן.", "conflict": { … } }`.
+A clash is a hard failure, never a merge: the response is `409` with the blocking booking, e.g. `{ "error": "חלל פנימי גדול תפוס בשעה הזו — שיעור תניא (19:00–20:30), באחריות הרב כהן.", "conflict": { … } }`.
 
 With `"weekly": true` the `date` sets the weekday and the first occurrence; slots are materialised through a rolling six-month horizon and returned as `{ "series_id": …, "weekday": 1, "skipped_dates": [] }`. Dates already taken by something else appear in `skipped_dates` rather than failing the whole series.
 
@@ -339,8 +343,8 @@ Editing a single occurrence marks it as an exception, so later series-wide edits
 
 ```json
 {
-  "series_id": "…", "title": "…", "in_charge_name": "…", "room": "לובי",
-  "weekday": 2, "start_time": "19:00", "end_time": "20:30",
+  "series_id": "…", "title": "…", "in_charge_name": "…", "room": "שולחן עגול - לובי",
+  "purpose": "class", "weekday": 2, "start_time": "19:00", "end_time": "20:30",
   "effective_from": "2026-09-01", "is_active": true
 }
 ```
@@ -378,7 +382,7 @@ curl -H "Authorization: Bearer $EOS_API_KEY" https://eos.karmiel.co.il/api/v1/bo
 curl -X POST https://eos.karmiel.co.il/api/v1/bookings \
   -H "Authorization: Bearer $EOS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"room":"לובי","title":"התוועדות","in_charge_name":"הרב כהן","date":"2026-08-26","start_time":"20:00","end_time":"22:00"}'
+  -d '{"room":"שולחן עגול - לובי","title":"התוועדות","in_charge_name":"הרב כהן","purpose":"other","date":"2026-08-26","start_time":"20:00","end_time":"22:00"}'
 
 # Create a project (rock)
 curl -X POST https://eos.karmiel.co.il/api/v1/rocks \

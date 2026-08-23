@@ -1,5 +1,6 @@
 ---
 import RoomsLayout from '~/layouts/RoomsLayout.astro';
+import SpaceIcon from '~/components/SpaceIcon.astro';
 import { Plus, ChevronRight, ChevronLeft, X, Trash2, Repeat, Ban, Pencil, CircleAlert } from 'lucide-svelte';
 import { sql } from '~/lib/db';
 import { fmtDualDate, fmtHebrewDate } from '~/lib/dates';
@@ -7,6 +8,7 @@ import { isSystemAdmin } from '~/lib/permissions';
 import {
   listRooms, occurrencesBetween, ensureHorizon, statusNow, weekDates, weekStart,
   addDays, todayInJerusalem, nowTimeInJerusalem, isValidDate, hhmm, WEEKDAY_NAMES,
+  greeting, accentOf, PURPOSES, purposeLabel,
 } from '~/lib/rooms';
 
 const url = Astro.url;
@@ -26,9 +28,29 @@ const to = days[6];
 await ensureHorizon(to);
 
 const rooms = await listRooms();
-const occurrences = await occurrencesBetween(from, to, { includeCancelled: true });
+const allOccurrences = await occurrencesBetween(from, to, { includeCancelled: true });
 const todayList = await occurrencesBetween(today, today);
 const statuses = statusNow(rooms, todayList, nowTime);
+
+// ---- filters: which spaces and which purposes the week shows ----
+const spaceParam = url.searchParams.get('space');
+const activeSpace = rooms.find((r) => r.id === spaceParam) ?? null;
+const purposeParam = url.searchParams.get('purpose');
+const activePurpose = PURPOSES.find((p) => p.key === purposeParam)?.key ?? null;
+
+const shownRooms = activeSpace ? [activeSpace] : rooms;
+const occurrences = activePurpose
+  ? allOccurrences.filter((o) => o.purpose === activePurpose)
+  : allOccurrences;
+
+// Filters have to survive every link on the page, or navigating a week resets them.
+const q = (extra: Record<string, string | null> = {}) => {
+  const p = new URLSearchParams({ d: anchor });
+  if (activeSpace) p.set('space', activeSpace.id);
+  if (activePurpose) p.set('purpose', activePurpose);
+  for (const [k, v] of Object.entries(extra)) v === null ? p.delete(k) : p.set(k, v);
+  return `/rooms?${p.toString()}`;
+};
 
 const cellFor = (date: string, roomId: string) =>
   occurrences.filter((o) => o.event_date === date && o.room_id === roomId);
@@ -49,6 +71,7 @@ if (editId) {
            b.end_time::text as end_time,
            coalesce(b.title, s.title) as shown_title,
            coalesce(b.in_charge_name, s.in_charge_name) as shown_in_charge,
+           coalesce(b.purpose, s.purpose) as shown_purpose,
            coalesce(b.created_by, s.created_by) as created_by,
            r.name as room_name
     from bookings b
@@ -61,23 +84,23 @@ if (editId) {
 let editingSeries: any = null;
 if (seriesId) {
   const rows = await sql`
-    select id, room_id, title, in_charge_name, notes, weekday,
+    select id, room_id, title, in_charge_name, purpose, notes, weekday,
            start_time::text as start_time, end_time::text as end_time,
            starts_on::text as starts_on, created_by
     from booking_series where id = ${seriesId}`;
   editingSeries = rows[0] ?? null;
 }
 
-const back = `/rooms?d=${anchor}`;
+const back = q();
 const msg = url.searchParams.get('msg');
 const err = url.searchParams.get('err');
 const panelOpen = adding || !!editing || !!editingSeries;
 ---
-<RoomsLayout title={'חדרים · חב"ד כרמיאל'}>
+<RoomsLayout title={'חללים · חב"ד כרמיאל'} subtitle="זמינות חללים">
   <a
     slot="header-action"
-    href={`/rooms?d=${anchor}&add=1&date=${today}`}
-    class="bg-teal-600 hover:bg-teal-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 shrink-0"
+    href={q({ add: '1', date: today })}
+    class="bg-teal-600 hover:bg-teal-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium hidden sm:flex items-center gap-1.5 shrink-0"
   >
     <Plus size={16} />
     הוספה
@@ -95,30 +118,79 @@ const panelOpen = adding || !!editing || !!editingSeries;
     </div>
   )}
 
-  <!-- Right now: the answer most visits are looking for -->
+  <!-- The snapshot: is it free right now, and when does it go next -->
+  <div class="mb-4">
+    <p class="text-sm text-teal-700 font-medium">{greeting(nowTime)}</p>
+    <h2 class="text-2xl font-semibold text-stone-900 leading-tight">כל החללים, בלוח אחד.</h2>
+    <p class="text-sm text-stone-500 mt-1">בוחרים חלל וזמן, והמערכת לא תיתן להזמין אותו פעמיים.</p>
+  </div>
+
   <section class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 mb-5">
     {statuses.map(({ room, busy, next }) => (
-      <div class={`rounded-2xl border p-4 ${busy ? 'bg-white border-amber-200' : 'bg-white border-emerald-200'}`}>
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-medium text-stone-900">{room.name}</span>
-          <span class={`text-xs font-semibold px-2 py-0.5 rounded-full ${busy ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
-            {busy ? 'תפוס' : 'פנוי'}
-          </span>
+      <a
+        href={q({ space: room.id })}
+        class={`rounded-2xl border bg-white p-4 flex items-center gap-3 hover:shadow-sm ${busy ? 'border-amber-200' : accentOf(room).card}`}
+      >
+        <SpaceIcon room={room} />
+        <div class="flex-1 min-w-0">
+          <div class="font-medium text-stone-900 truncate">{room.name}</div>
+          <div class="text-sm flex items-center gap-1.5 mt-0.5">
+            <span class={`w-1.5 h-1.5 rounded-full ${busy ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+            <span class={busy ? 'text-amber-800' : 'text-emerald-700'}>
+              {busy ? `תפוס עד ${hhmm(busy.end_time)}` : 'פנוי עכשיו'}
+            </span>
+          </div>
         </div>
-        <p class="text-sm text-stone-600 mt-1.5">
-          {busy
-            ? `${busy.title} — עד ${hhmm(busy.end_time)}`
-            : next
-              ? `פנוי עד ${hhmm(next.start_time)}`
-              : 'פנוי להמשך היום'}
-        </p>
-      </div>
+        <div class="text-end shrink-0 border-s border-stone-100 ps-3">
+          <div class="text-[11px] text-stone-400">האירוע הבא</div>
+          <div class="text-sm text-stone-700 tabular-nums">
+            {next ? hhmm(next.start_time) : busy ? '—' : 'אין היום'}
+          </div>
+        </div>
+      </a>
     ))}
   </section>
 
+  <!-- Filters: one space at a time, one purpose at a time -->
+  <div class="flex items-center gap-2 mb-3 overflow-x-auto pb-1">
+    <a
+      href={q({ space: null })}
+      class={`text-xs rounded-full border px-3 py-1.5 whitespace-nowrap ${
+        activeSpace ? 'bg-white border-stone-300 text-stone-600' : 'bg-stone-900 border-stone-900 text-white'
+      }`}
+    >
+      כל החללים
+    </a>
+    {rooms.map((r) => (
+      <a
+        href={q({ space: r.id })}
+        class={`text-xs rounded-full border px-3 py-1.5 whitespace-nowrap flex items-center gap-1.5 ${
+          activeSpace?.id === r.id ? accentOf(r).chip : 'bg-white border-stone-300 text-stone-600'
+        }`}
+      >
+        <span class={`w-1.5 h-1.5 rounded-full ${activeSpace?.id === r.id ? 'bg-white/80' : accentOf(r).dot}`}></span>
+        {r.name}
+      </a>
+    ))}
+    <form method="GET" action="/rooms" class="ms-auto shrink-0">
+      <input type="hidden" name="d" value={anchor} />
+      {activeSpace && <input type="hidden" name="space" value={activeSpace.id} />}
+      <select
+        name="purpose"
+        onchange="this.form.submit()"
+        class="text-xs bg-white border border-stone-300 rounded-full px-3 py-1.5 text-stone-600"
+      >
+        <option value="">כל המטרות</option>
+        {PURPOSES.map((p) => (
+          <option value={p.key} selected={p.key === activePurpose}>{p.label}</option>
+        ))}
+      </select>
+    </form>
+  </div>
+
   <!-- Week navigation -->
   <div class="flex items-center justify-between mb-3">
-    <a href={`/rooms?d=${addDays(anchor, -7)}`} class="p-2 rounded-lg hover:bg-white text-stone-500" title="שבוע קודם">
+    <a href={q({ d: addDays(anchor, -7) })} class="p-2 rounded-lg hover:bg-white text-stone-500" title="שבוע קודם">
       <ChevronRight size={18} />
     </a>
     <div class="text-center">
@@ -126,10 +198,10 @@ const panelOpen = adding || !!editing || !!editingSeries;
         {fmtHebrewDate(from, { year: false })} – {fmtHebrewDate(to)}
       </div>
       {weekStart(today) !== weekStart(anchor) && (
-        <a href="/rooms" class="text-xs text-teal-700 hover:underline">חזרה לשבוע הנוכחי</a>
+        <a href={q({ d: today })} class="text-xs text-teal-700 hover:underline">חזרה לשבוע הנוכחי</a>
       )}
     </div>
-    <a href={`/rooms?d=${addDays(anchor, 7)}`} class="p-2 rounded-lg hover:bg-white text-stone-500" title="שבוע הבא">
+    <a href={q({ d: addDays(anchor, 7) })} class="p-2 rounded-lg hover:bg-white text-stone-500" title="שבוע הבא">
       <ChevronLeft size={18} />
     </a>
   </div>
@@ -140,8 +212,13 @@ const panelOpen = adding || !!editing || !!editingSeries;
       <thead>
         <tr class="border-b border-stone-200 bg-stone-50">
           <th class="text-start px-4 py-2.5 font-medium text-stone-500 w-40">יום</th>
-          {rooms.map((r) => (
-            <th class="text-start px-4 py-2.5 font-medium text-stone-700">{r.name}</th>
+          {shownRooms.map((r) => (
+            <th class="text-start px-4 py-2.5 font-medium text-stone-700">
+              <span class="flex items-center gap-1.5">
+                <span class={`w-1.5 h-1.5 rounded-full ${accentOf(r).dot}`}></span>
+                {r.name}
+              </span>
+            </th>
           ))}
         </tr>
       </thead>
@@ -154,7 +231,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
               </div>
               <div class="text-xs text-stone-500">{fmtDualDate(date, { year: false })}</div>
             </td>
-            {rooms.map((room) => {
+            {shownRooms.map((room) => {
               const items = cellFor(date, room.id);
               return (
                 <td class="px-3 py-2.5 align-top">
@@ -171,17 +248,20 @@ const panelOpen = adding || !!editing || !!editingSeries;
                           <span class="font-semibold tabular-nums">{hhmm(o.start_time)}–{hhmm(o.end_time)}</span>
                           {o.weekly && <Repeat size={11} class="opacity-60" />}
                           {canEdit(o.created_by) && (
-                            <a href={`/rooms?d=${anchor}&edit=${o.id}`} class="ms-auto opacity-50 hover:opacity-100" title="עריכה">
+                            <a href={q({ edit: o.id })} class="ms-auto opacity-50 hover:opacity-100" title="עריכה">
                               <Pencil size={11} />
                             </a>
                           )}
                         </div>
                         <div class="font-medium truncate">{o.title}</div>
-                        <div class="opacity-70 truncate">{o.in_charge_name}</div>
+                        <div class="opacity-70 truncate">
+                          {o.in_charge_name}
+                          {purposeLabel(o.purpose) && ` · ${purposeLabel(o.purpose)}`}
+                        </div>
                       </div>
                     ))}
                     <a
-                      href={`/rooms?d=${anchor}&add=1&date=${date}&room=${room.id}`}
+                      href={q({ add: '1', date, room: room.id })}
                       class="block text-center text-xs text-stone-300 hover:text-teal-600 hover:bg-teal-50/50 rounded-lg py-1.5 border border-dashed border-transparent hover:border-teal-200"
                     >
                       {items.length === 0 ? 'פנוי' : '+'}
@@ -208,14 +288,17 @@ const panelOpen = adding || !!editing || !!editingSeries;
           <span class="text-xs text-stone-500">{fmtDualDate(date, { year: false })}</span>
         </div>
         <div class="space-y-2.5">
-          {rooms.map((room) => {
+          {shownRooms.map((room) => {
             const items = cellFor(date, room.id);
             return (
               <div>
-                <div class="text-xs text-stone-500 mb-1">{room.name}</div>
+                <div class="text-xs text-stone-500 mb-1 flex items-center gap-1.5">
+                  <span class={`w-1.5 h-1.5 rounded-full ${accentOf(room).dot}`}></span>
+                  {room.name}
+                </div>
                 {items.length === 0 ? (
                   <a
-                    href={`/rooms?d=${anchor}&add=1&date=${date}&room=${room.id}`}
+                    href={q({ add: '1', date, room: room.id })}
                     class="block text-xs text-stone-400 border border-dashed border-stone-200 rounded-lg py-2 text-center"
                   >
                     פנוי
@@ -233,11 +316,14 @@ const panelOpen = adding || !!editing || !!editingSeries;
                         <span class="font-semibold tabular-nums text-xs">{hhmm(o.start_time)}–{hhmm(o.end_time)}</span>
                         <span class="flex-1 min-w-0">
                           <span class="block font-medium truncate">{o.title}</span>
-                          <span class="block text-xs opacity-70 truncate">{o.in_charge_name}</span>
+                          <span class="block text-xs opacity-70 truncate">
+                            {o.in_charge_name}
+                            {purposeLabel(o.purpose) && ` · ${purposeLabel(o.purpose)}`}
+                          </span>
                         </span>
                         {o.weekly && <Repeat size={12} class="opacity-60 shrink-0" />}
                         {canEdit(o.created_by) && (
-                          <a href={`/rooms?d=${anchor}&edit=${o.id}`} class="p-1 opacity-50 shrink-0"><Pencil size={13} /></a>
+                          <a href={q({ edit: o.id })} class="p-1 opacity-50 shrink-0"><Pencil size={13} /></a>
                         )}
                       </div>
                     ))}
@@ -254,6 +340,15 @@ const panelOpen = adding || !!editing || !!editingSeries;
   <p class="text-xs text-stone-400 mt-5 text-center">
     כל המשתמשים רואים הכל. אפשר לערוך רק מה שיצרת.
   </p>
+
+  <!-- On a phone the header button scrolls away, so the + stays put -->
+  <a
+    href={q({ add: '1', date: today })}
+    class="sm:hidden fixed bottom-5 end-5 z-20 w-14 h-14 rounded-full bg-teal-600 text-white shadow-lg grid place-items-center"
+    title="הוספה"
+  >
+    <Plus size={24} />
+  </a>
 
   {panelOpen && (
     <div class="fixed inset-0 z-30">
@@ -273,7 +368,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
               <input type="hidden" name="back" value={back} />
 
               <div>
-                <label class="text-sm font-medium text-stone-700">חדר</label>
+                <label class="text-sm font-medium text-stone-700">חלל</label>
                 <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                   {rooms.map((r) => <option value={r.id} selected={r.id === prefillRoom}>{r.name}</option>)}
                 </select>
@@ -283,6 +378,13 @@ const panelOpen = adding || !!editing || !!editingSeries;
                 <label class="text-sm font-medium text-stone-700">מה זה?</label>
                 <input type="text" name="title" required placeholder="לדוגמה: שיעור תניא"
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-400" />
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">מטרת השימוש</label>
+                <select name="purpose" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  {PURPOSES.map((p) => <option value={p.key} selected={p.key === (activePurpose ?? 'class')}>{p.label}</option>)}
+                </select>
               </div>
 
               <div>
@@ -367,7 +469,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                     </p>
 
                     <div>
-                      <label class="text-sm font-medium text-stone-700">חדר</label>
+                      <label class="text-sm font-medium text-stone-700">חלל</label>
                       <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                         {rooms.map((r) => <option value={r.id} selected={r.id === editing.room_id}>{r.name}</option>)}
                       </select>
@@ -408,6 +510,14 @@ const panelOpen = adding || !!editing || !!editingSeries;
                             class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                         </div>
                         <div>
+                          <label class="text-sm font-medium text-stone-700">מטרת השימוש</label>
+                          <select name="purpose" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                            {PURPOSES.map((p) => (
+                              <option value={p.key} selected={p.key === (editing.purpose ?? 'class')}>{p.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
                           <label class="text-sm font-medium text-stone-700">הערות</label>
                           <textarea name="notes" rows="2"
                             class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
@@ -431,7 +541,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                           <Ban size={14} /> ביטול האירוע הזה בלבד
                         </button>
                       </form>
-                      <a href={`/rooms?d=${anchor}&series=${editing.series_id}`}
+                      <a href={q({ series: editing.series_id })}
                         class="block text-center border border-stone-300 text-stone-700 rounded-lg py-2 text-sm font-medium">
                         עריכת כל הסדרה
                       </a>
@@ -480,7 +590,16 @@ const panelOpen = adding || !!editing || !!editingSeries;
                     </div>
 
                     <div>
-                      <label class="text-sm font-medium text-stone-700">חדר</label>
+                      <label class="text-sm font-medium text-stone-700">מטרת השימוש</label>
+                      <select name="purpose" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                        {PURPOSES.map((p) => (
+                          <option value={p.key} selected={p.key === (editingSeries.purpose ?? 'class')}>{p.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">חלל</label>
                       <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                         {rooms.map((r) => <option value={r.id} selected={r.id === editingSeries.room_id}>{r.name}</option>)}
                       </select>

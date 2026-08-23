@@ -8,7 +8,75 @@ import { sql } from './db';
 export const HORIZON_MONTHS = 6;
 const TZ = 'Asia/Jerusalem';
 
-export type Room = { id: string; name: string; sort_order: number };
+export type Room = {
+  id: string;
+  name: string;
+  sort_order: number;
+  icon: string;
+  accent: string;
+};
+
+// What a space is being used for. The key is stored, the label is shown. Adding
+// one here is enough — nothing in the schema constrains the set.
+export const PURPOSES = [
+  { key: 'class', label: 'שיעור' },
+  { key: 'meeting', label: 'פגישה' },
+  { key: 'chavrusa', label: 'חברותא' },
+  { key: 'work', label: 'עבודה' },
+  { key: 'youth', label: 'פעילות נוער' },
+  { key: 'other', label: 'אחר' },
+] as const;
+
+export type PurposeKey = (typeof PURPOSES)[number]['key'];
+
+export function isPurpose(s: string | null | undefined): s is PurposeKey {
+  return !!s && PURPOSES.some((p) => p.key === s);
+}
+
+export function purposeLabel(key: string | null | undefined): string | null {
+  return PURPOSES.find((p) => p.key === key)?.label ?? null;
+}
+
+// Per-space colours. Written out in full because Tailwind only keeps classes it
+// can find in the source — a class name built from a variable would be dropped.
+type Accent = { tile: string; dot: string; card: string; chip: string };
+
+export const ACCENTS: Record<string, Accent> = {
+  teal: {
+    tile: 'bg-teal-50 text-teal-700',
+    dot: 'bg-teal-500',
+    card: 'border-teal-200',
+    chip: 'bg-teal-600 border-teal-600 text-white',
+  },
+  rose: {
+    tile: 'bg-rose-50 text-rose-700',
+    dot: 'bg-rose-500',
+    card: 'border-rose-200',
+    chip: 'bg-rose-600 border-rose-600 text-white',
+  },
+  amber: {
+    tile: 'bg-amber-50 text-amber-700',
+    dot: 'bg-amber-500',
+    card: 'border-amber-200',
+    chip: 'bg-amber-600 border-amber-600 text-white',
+  },
+  emerald: {
+    tile: 'bg-emerald-50 text-emerald-700',
+    dot: 'bg-emerald-500',
+    card: 'border-emerald-200',
+    chip: 'bg-emerald-600 border-emerald-600 text-white',
+  },
+  sky: {
+    tile: 'bg-sky-50 text-sky-700',
+    dot: 'bg-sky-500',
+    card: 'border-sky-200',
+    chip: 'bg-sky-600 border-sky-600 text-white',
+  },
+};
+
+export function accentOf(room: { accent: string }): Accent {
+  return ACCENTS[room.accent] ?? ACCENTS.teal;
+}
 
 export type Occurrence = {
   id: string;
@@ -21,6 +89,7 @@ export type Occurrence = {
   end_time: string;
   title: string;
   in_charge_name: string;
+  purpose: string | null;
   notes: string | null;
   is_modified: boolean;
   is_cancelled: boolean;
@@ -58,6 +127,15 @@ export function nowTimeInJerusalem(): string {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(new Date());
+}
+
+export function greeting(nowTime: string): string {
+  const hour = Number(nowTime.slice(0, 2));
+  if (hour < 5) return 'לילה טוב';
+  if (hour < 12) return 'בוקר טוב';
+  if (hour < 15) return 'צהריים טובים';
+  if (hour < 18) return 'אחר צהריים טובים';
+  return 'ערב טוב';
 }
 
 // Dates are handled as plain YYYY-MM-DD strings throughout: no timezone can
@@ -113,7 +191,7 @@ export function isValidTime(s: string | null | undefined): s is string {
 
 export async function listRooms(): Promise<Room[]> {
   const rows = await sql`
-    select id, name, sort_order from rooms
+    select id, name, sort_order, icon, accent from rooms
     where is_active order by sort_order, name`;
   return rows as Room[];
 }
@@ -130,6 +208,7 @@ export async function occurrencesBetween(
       b.end_time::text as end_time,
       coalesce(b.title, s.title) as title,
       coalesce(b.in_charge_name, s.in_charge_name) as in_charge_name,
+      coalesce(b.purpose, s.purpose) as purpose,
       coalesce(b.notes, s.notes) as notes,
       b.is_modified, b.is_cancelled,
       coalesce(b.created_by, s.created_by) as created_by,

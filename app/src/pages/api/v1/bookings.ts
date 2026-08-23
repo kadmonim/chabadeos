@@ -4,11 +4,24 @@ import { requireApiKey, json } from '~/lib/api-auth';
 import {
   listRooms, occurrencesBetween, ensureHorizon, generateSlots, findClash, clashMessage,
   isValidDate, isValidTime, weekdayOf, weekStart, addDays, addMonths, todayInJerusalem,
-  hhmm, isOverlapError, HORIZON_MONTHS,
+  hhmm, isOverlapError, isPurpose, PURPOSES, HORIZON_MONTHS,
 } from '~/lib/rooms';
 
 // Room bookings for machines. Occurrences are returned as real dated slots, not
 // recurrence rules, so an integration never has to expand a weekly series itself.
+
+// An unrecognised purpose is rejected here rather than dropped: an integration
+// sending one has a bug, and silently storing null would hide it.
+function readPurpose(body: any): { purpose: string | null } | { error: string } {
+  if (body?.purpose === undefined || body.purpose === null || body.purpose === '') {
+    return { purpose: null };
+  }
+  const p = String(body.purpose).trim();
+  if (!isPurpose(p)) {
+    return { error: `purpose must be one of: ${PURPOSES.map((x) => x.key).join(', ')}` };
+  }
+  return { purpose: p };
+}
 
 async function resolveRoom(ref: string | null | undefined): Promise<{ id: string; name: string } | null> {
   if (!ref) return null;
@@ -25,6 +38,7 @@ const shape = (o: any) => ({
   end_time: hhmm(o.end_time),
   title: o.title,
   in_charge_name: o.in_charge_name,
+  purpose: o.purpose,
   notes: o.notes,
   weekly: o.weekly,
   series_id: o.series_id,
@@ -32,7 +46,7 @@ const shape = (o: any) => ({
 });
 
 // ============================================================
-// GET /api/v1/bookings?from=&to=&room=&include_cancelled=1
+// GET /api/v1/bookings?from=&to=&room=&purpose=&include_cancelled=1
 // Defaults to the current week.
 // ============================================================
 export const GET: APIRoute = async ({ request, url }) => {
@@ -45,6 +59,11 @@ export const GET: APIRoute = async ({ request, url }) => {
   const from = isValidDate(fromParam) ? fromParam : weekStart(today);
   const to = isValidDate(toParam) ? toParam : addDays(from, 6);
   if (to < from) return json({ error: 'to must not be before from' }, 400);
+
+  const purposeParam = url.searchParams.get('purpose');
+  if (purposeParam && !isPurpose(purposeParam)) {
+    return json({ error: `purpose must be one of: ${PURPOSES.map((x) => x.key).join(', ')}` }, 400);
+  }
 
   const roomRef = url.searchParams.get('room') ?? url.searchParams.get('room_id');
   let roomId: string | null = null;
@@ -59,7 +78,10 @@ export const GET: APIRoute = async ({ request, url }) => {
     const all = await occurrencesBetween(from, to, {
       includeCancelled: url.searchParams.get('include_cancelled') === '1',
     });
-    const bookings = all.filter((o) => !roomId || o.room_id === roomId).map(shape);
+    const bookings = all
+      .filter((o) => !roomId || o.room_id === roomId)
+      .filter((o) => !purposeParam || o.purpose === purposeParam)
+      .map(shape);
     return json({ from, to, bookings, count: bookings.length });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
@@ -69,7 +91,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 // ============================================================
 // POST /api/v1/bookings — book a room
 // body: { room (id or name), title, in_charge_name, date (YYYY-MM-DD),
-//         start_time (HH:MM), end_time, notes?, weekly? (bool), ends_on? }
+//         start_time (HH:MM), end_time, purpose?, notes?, weekly? (bool), ends_on? }
 // Double booking is rejected, never merged.
 // ============================================================
 export const POST: APIRoute = async ({ request }) => {
@@ -94,6 +116,10 @@ export const POST: APIRoute = async ({ request }) => {
   if (!isValidTime(startTime) || !isValidTime(endTime)) return json({ error: 'times must be HH:MM' }, 400);
   if (endTime <= startTime) return json({ error: 'end_time must be after start_time' }, 400);
 
+  const parsedPurpose = readPurpose(body);
+  if ('error' in parsedPurpose) return json({ error: parsedPurpose.error }, 400);
+  const purpose = parsedPurpose.purpose;
+
   const notes = body?.notes ? String(body.notes) : null;
   const endsOn = body?.ends_on ? String(body.ends_on) : null;
   if (endsOn && !isValidDate(endsOn)) return json({ error: 'ends_on must be YYYY-MM-DD' }, 400);
@@ -103,8 +129,10 @@ export const POST: APIRoute = async ({ request }) => {
       const clash = await findClash(room.id, date, startTime, endTime);
       if (clash) return json({ error: clashMessage(clash, room.name), conflict: clash }, 409);
       const rows = await sql`
-        insert into bookings (room_id, event_date, start_time, end_time, title, in_charge_name, notes)
-        values (${room.id}, ${date}, ${startTime}, ${endTime}, ${title}, ${inCharge}, ${notes})
+        insert into bookings
+          (room_id, event_date, start_time, end_time, title, in_charge_name, purpose, notes)
+        values (${room.id}, ${date}, ${startTime}, ${endTime}, ${title}, ${inCharge},
+                ${purpose}, ${notes})
         returning id`;
       return json({ id: (rows[0] as any).id, weekly: false }, 201);
     }
@@ -116,8 +144,8 @@ export const POST: APIRoute = async ({ request }) => {
     const weekday = weekdayOf(date);
     const rows = await sql`
       insert into booking_series
-        (room_id, title, in_charge_name, notes, weekday, start_time, end_time, starts_on, ends_on)
-      values (${room.id}, ${title}, ${inCharge}, ${notes}, ${weekday},
+        (room_id, title, in_charge_name, purpose, notes, weekday, start_time, end_time, starts_on, ends_on)
+      values (${room.id}, ${title}, ${inCharge}, ${purpose}, ${notes}, ${weekday},
               ${startTime}, ${endTime}, ${date}, ${endsOn})
       returning id`;
     const seriesId = (rows[0] as any).id;
@@ -137,9 +165,10 @@ export const POST: APIRoute = async ({ request }) => {
 // ============================================================
 // PATCH /api/v1/bookings — edit one occurrence or a whole series
 // occurrence: { id, date?, start_time?, end_time?, title?, in_charge_name?,
-//               notes?, room?, is_cancelled? }
-// series:     { series_id, title?, in_charge_name?, notes?, weekday?, start_time?,
-//               end_time?, room?, effective_from? (default today), is_active? }
+//               purpose?, notes?, room?, is_cancelled? }
+// series:     { series_id, title?, in_charge_name?, purpose?, notes?, weekday?,
+//               start_time?, end_time?, room?, effective_from? (default today),
+//               is_active? }
 // Editing a single occurrence marks it as an exception, so later series edits
 // leave it alone.
 // ============================================================
@@ -167,7 +196,7 @@ async function patchOccurrence(id: string, body: any): Promise<Response> {
   const rows = await sql`
     select b.id, b.series_id, b.room_id, b.event_date::text as event_date,
            b.start_time::text as start_time, b.end_time::text as end_time,
-           b.title, b.in_charge_name, b.notes, b.is_cancelled
+           b.title, b.in_charge_name, b.purpose, b.notes, b.is_cancelled
     from bookings b where b.id = ${id}`;
   const row = rows[0] as any;
   if (!row) return json({ error: `no booking with id '${id}'` }, 404);
@@ -202,6 +231,12 @@ async function patchOccurrence(id: string, body: any): Promise<Response> {
   const title = body.title !== undefined ? String(body.title).trim() : row.title;
   const inCharge = body.in_charge_name !== undefined ? String(body.in_charge_name).trim() : row.in_charge_name;
   const notes = body.notes !== undefined ? (body.notes ? String(body.notes) : null) : row.notes;
+  let purpose = row.purpose;
+  if (body.purpose !== undefined) {
+    const parsed = readPurpose(body);
+    if ('error' in parsed) return json({ error: parsed.error }, 400);
+    purpose = parsed.purpose;
+  }
   if (!row.series_id && (!title || !inCharge)) {
     return json({ error: 'title and in_charge_name cannot be empty' }, 400);
   }
@@ -209,18 +244,20 @@ async function patchOccurrence(id: string, body: any): Promise<Response> {
   await sql`
     update bookings set
       room_id = ${roomId}, event_date = ${date}, start_time = ${startTime}, end_time = ${endTime},
-      title = ${title || null}, in_charge_name = ${inCharge || null}, notes = ${notes},
+      title = ${title || null}, in_charge_name = ${inCharge || null},
+      purpose = ${purpose}, notes = ${notes},
       is_cancelled = ${cancelled}, is_modified = true
     where id = ${id}`;
 
   return json({
-    id, date, start_time: startTime, end_time: endTime, room_id: roomId, is_cancelled: cancelled,
+    id, date, start_time: startTime, end_time: endTime, room_id: roomId,
+    purpose, is_cancelled: cancelled,
   });
 }
 
 async function patchSeries(seriesId: string, body: any): Promise<Response> {
   const rows = await sql`
-    select id, room_id, title, in_charge_name, notes, weekday,
+    select id, room_id, title, in_charge_name, purpose, notes, weekday,
            start_time::text as start_time, end_time::text as end_time, is_active
     from booking_series where id = ${seriesId}`;
   const s = rows[0] as any;
@@ -241,6 +278,13 @@ async function patchSeries(seriesId: string, body: any): Promise<Response> {
   const endTime = body.end_time !== undefined ? String(body.end_time) : s.end_time;
   const isActive = body.is_active !== undefined ? Boolean(body.is_active) : s.is_active;
 
+  let purpose = s.purpose;
+  if (body.purpose !== undefined) {
+    const parsed = readPurpose(body);
+    if ('error' in parsed) return json({ error: parsed.error }, 400);
+    purpose = parsed.purpose;
+  }
+
   if (!title) return json({ error: 'title cannot be empty' }, 400);
   if (!inCharge) return json({ error: 'in_charge_name cannot be empty' }, 400);
   if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
@@ -255,7 +299,8 @@ async function patchSeries(seriesId: string, body: any): Promise<Response> {
 
   await sql`
     update booking_series set
-      room_id = ${roomId}, title = ${title}, in_charge_name = ${inCharge}, notes = ${notes},
+      room_id = ${roomId}, title = ${title}, in_charge_name = ${inCharge},
+      purpose = ${purpose}, notes = ${notes},
       weekday = ${weekday}, start_time = ${startTime}, end_time = ${endTime}, is_active = ${isActive}
     where id = ${seriesId}`;
 
@@ -275,7 +320,7 @@ async function patchSeries(seriesId: string, body: any): Promise<Response> {
   );
 
   return json({
-    series_id: seriesId, title, in_charge_name: inCharge, weekday,
+    series_id: seriesId, title, in_charge_name: inCharge, purpose, weekday,
     start_time: startTime, end_time: endTime, effective_from: effectiveFrom, skipped_dates: skipped,
   });
 }

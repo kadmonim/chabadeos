@@ -1,0 +1,21 @@
+---
+// The icon tile for a space, in its own colour. Shared by /rooms and the public
+// /rooms/open page so a space looks the same wherever it shows up.
+import { LayoutGrid, Building2, Armchair, DoorClosed, Presentation } from 'lucide-svelte';
+import { accentOf, type Room } from '~/lib/rooms';
+
+interface Props {
+  room: Room;
+  size?: number;
+  class?: string;
+}
+const { room, size = 18, class: className = 'w-10 h-10' } = Astro.props;
+
+// Only these are offered; anything else falls back rather than rendering nothing.
+const ICONS: Record<string, any> = { LayoutGrid, Building2, Armchair, DoorClosed, Presentation };
+const Icon = ICONS[room.icon] ?? LayoutGrid;
+const accent = accentOf(room);
+---
+<span class={`${className} ${accent.tile} rounded-xl grid place-items-center shrink-0`}>
+  <Icon size={size} />
+</span>
