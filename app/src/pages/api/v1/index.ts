@@ -12,7 +12,7 @@ export const GET: APIRoute = async ({ request }) => {
     endpoints: {
       'GET /api/v1/employees':            'List employees. Optional ?email= filter.',
       'GET /api/v1/teams':                'List teams with members.',
-      'GET /api/v1/rocks':                'List non-archived rocks with milestones.',
+      'GET /api/v1/rocks':                'List non-archived rocks.',
       'GET /api/v1/issues':               'List issues. Optional ?assignee=<email>, ?team_id=, ?status=, ?term=short_term|long_term|idea_backlog.',
       'POST /api/v1/issues':              'Create an issue. Body: { title, description?, owner_email?, team_id? | team_name?, term_type? (short_term|long_term|idea_backlog, default short_term), type?, priority? (1-5) }. Returns { id }.',
       'PATCH /api/v1/issues':             'Mark an issue solved/open. Body: { id, solved? (default true) }.',

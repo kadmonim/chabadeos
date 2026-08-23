@@ -1,22 +1,16 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
-import StatusCheckbox from '~/components/StatusCheckbox.svelte';
 import RichTextEditor from '~/components/RichTextEditor.svelte';
-import { Mountain, Flag, Plus, X, Trash2, Calendar, User } from 'lucide-svelte';
+import { Mountain, Plus, X, Trash2 } from 'lucide-svelte';
 import { sql, pool } from '~/lib/db';
 import { fmtDualDate } from '~/lib/dates';
 
 const url = Astro.url;
-const team = Astro.locals.currentTeam;
-const allowedTeams = Astro.locals.allowedTeams;
 
 const addingRock = url.searchParams.get('add_rock') === '1';
-const addingMilestone = url.searchParams.get('add_milestone') === '1';
 const editRockId = url.searchParams.get('edit');
-const editMilestoneId = url.searchParams.get('milestone');
 
 const sortRocks = url.searchParams.get('sort_rocks') ?? 'priority';
-const sortMilestones = url.searchParams.get('sort_milestones') ?? 'priority';
 
 // Rocks are org-wide.
 const rockSelect = `
@@ -30,39 +24,13 @@ const rockOrder =
   sortRocks === 'status' ? 'r.status asc' :
   'r.priority_order asc';
 
-// Milestones: only for the CURRENT TEAM (shown at the top, relevant to this user).
-const milestoneSelect = `
-  select m.id, m.title, m.description, m.status, m.due_date::text as due_date, m.priority_order, m.is_archived, m.owner_employee_id, m.team_id, m.rock_id,
-    case when o.id is null then null else json_build_object('id', o.id, 'full_name', o.full_name) end as owner,
-    case when r.id is null then null else json_build_object('id', r.id, 'title', r.title) end as rock
-  from milestones m
-  left join employees o on o.id = m.owner_employee_id
-  left join rocks r on r.id = m.rock_id`;
-
-const milestoneOrder =
-  sortMilestones === 'due_date' ? 'm.due_date asc' :
-  sortMilestones === 'status' ? 'm.status asc' :
-  'm.priority_order asc';
-
-const [rocks, milestones, employees]: [any[], any[], any[]] = await Promise.all([
+const [rocks, employees]: [any[], any[]] = await Promise.all([
   pool.query(`${rockSelect} where r.is_archived = false order by ${rockOrder}`).then((r: any) => r.rows),
-  team
-    ? pool.query(`${milestoneSelect} where m.is_archived = false and m.team_id = $1 order by ${milestoneOrder}`, [team.id]).then((r: any) => r.rows)
-    : Promise.resolve([] as any[]), // empty if no team
   sql`select id, full_name from employees order by full_name asc`,
 ]);
 
 // Resolve panel state
 const editingRock = editRockId ? (rocks ?? []).find((r) => r.id === editRockId) ?? null : null;
-const editingMilestone = editMilestoneId ? (milestones ?? []).find((m: any) => m.id === editMilestoneId) ?? null : null;
-
-// If user tried to edit a milestone not in the current team's list (e.g. clicked a link),
-// fetch it directly so the panel still works (team-gated on writes anyway).
-let loadedMilestone = editingMilestone;
-if (editMilestoneId && !loadedMilestone) {
-  const { rows } = await pool.query(`${milestoneSelect} where m.id = $1`, [editMilestoneId]);
-  loadedMilestone = rows[0] ?? null;
-}
 
 const fmtDate = (d: string | null) => fmtDualDate(d);
 const initials = (name: string) =>
@@ -90,13 +58,6 @@ const back = '/rocks';
     </div>
     <div class="flex items-center gap-2">
       <a
-        href="/rocks?add_milestone=1"
-        class="border border-stone-300 bg-white hover:bg-stone-50 rounded-xl px-4 py-2 text-sm font-medium flex items-center gap-1.5 text-stone-700"
-      >
-        <Plus size={15} />
-        הוספת אבן דרך
-      </a>
-      <a
         href="/rocks?add_rock=1"
         class="bg-stone-800 hover:bg-stone-900 text-white rounded-xl px-4 py-2 text-sm font-medium flex items-center gap-1.5"
       >
@@ -107,62 +68,12 @@ const back = '/rocks';
   </header>
 
   <!-- ============================================================
-       MILESTONES (for current team)
-       ============================================================ -->
-  <section class="mb-10">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold text-stone-900 flex items-center gap-2">
-        <Flag size={18} class="text-amber-500" />
-        אבני דרך
-        {team && <span class="text-sm text-stone-400 font-normal">— {team.name}</span>}
-      </h2>
-      <form method="GET" class="flex gap-2">
-        {sortRocks !== 'priority' && <input type="hidden" name="sort_rocks" value={sortRocks} />}
-        <select name="sort_milestones" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-sm">
-          <option value="priority" selected={sortMilestones === 'priority'}>עדיפות</option>
-          <option value="due_date" selected={sortMilestones === 'due_date'}>תאריך יעד</option>
-          <option value="status"   selected={sortMilestones === 'status'}>סטטוס</option>
-        </select>
-      </form>
-    </div>
-    <div class="space-y-3">
-      {milestones && milestones.length > 0 ? (
-        milestones.map((m: any) => (
-          <div class="bg-white border border-stone-200 border-s-4 border-s-amber-500 rounded-xl p-4 flex items-center gap-3 hover:border-stone-300 hover:shadow-sm transition">
-            <StatusCheckbox client:load id={m.id} status={m.status} endpoint="/api/milestones" doneValue="done" openValue="on_track" />
-            <a href={`/rocks?milestone=${m.id}`} class="flex-1 min-w-0">
-              <div class={`font-semibold ${m.status === 'done' ? 'text-stone-400 line-through' : 'text-stone-900'}`}>{m.title}</div>
-              <div class="flex flex-wrap items-center gap-3 mt-1 text-xs text-stone-500">
-                <span class={`px-2 py-0.5 rounded-full border ${statusStyles[m.status as keyof typeof statusStyles]}`}>
-                  {statusLabel[m.status as keyof typeof statusLabel]}
-                </span>
-                {m.rock && <span>תחת <span class="text-stone-700 font-medium">{m.rock.title}</span></span>}
-                {m.due_date && (
-                  <span class="flex items-center gap-1"><Calendar size={12} /> {fmtDate(m.due_date)}</span>
-                )}
-                {m.owner && (
-                  <span class="flex items-center gap-1"><User size={12} /> {m.owner.full_name}</span>
-                )}
-              </div>
-            </a>
-          </div>
-        ))
-      ) : (
-        <div class="bg-white border border-stone-200 rounded-xl px-4 py-10 text-center text-sm text-stone-400">
-          {team ? <>עדיין אין אבני דרך לצוות <span class="text-stone-600 font-medium">{team.name}</span>.</> : 'לא נבחר צוות.'}
-        </div>
-      )}
-    </div>
-  </section>
-
-  <!-- ============================================================
        ROCKS (org-wide)
        ============================================================ -->
   <section>
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-lg font-semibold text-stone-900">פרוייקטים</h2>
       <form method="GET" class="flex gap-2">
-        {sortMilestones !== 'priority' && <input type="hidden" name="sort_milestones" value={sortMilestones} />}
         <select name="sort_rocks" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-sm">
           <option value="priority" selected={sortRocks === 'priority'}>עדיפות</option>
           <option value="due_date" selected={sortRocks === 'due_date'}>תאריך יעד</option>
@@ -289,117 +200,6 @@ const back = '/rocks';
               <input type="hidden" name="back" value={back} />
               <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
                 <Trash2 size={14} /> מחיקת פרוייקט
-              </button>
-            </form>
-          )}
-        </div>
-      </aside>
-    </div>
-  )}
-
-  <!-- ============================================================
-       MILESTONE edit/add slide-over
-       ============================================================ -->
-  {(addingMilestone || loadedMilestone) && (
-    <div class="fixed inset-0 z-30">
-      <a href={back} class="absolute inset-0 bg-black/20"></a>
-      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
-        <div class="p-6 space-y-5">
-          <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold text-stone-900">{loadedMilestone ? 'עריכת אבן דרך' : 'הוספת אבן דרך'}</h2>
-            <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
-          </div>
-
-          <form method="POST" action="/api/milestones" class="space-y-4">
-            <input type="hidden" name="_action" value={loadedMilestone ? 'update' : 'create'} />
-            {loadedMilestone && <input type="hidden" name="id" value={loadedMilestone.id} />}
-            <input type="hidden" name="back" value={loadedMilestone ? `/rocks?milestone=${loadedMilestone.id}` : back} />
-
-            <div>
-              <label class="text-sm font-medium text-stone-700">כותרת</label>
-              <input type="text" name="title" required value={loadedMilestone?.title ?? ''}
-                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
-            </div>
-
-            <div>
-              <label class="text-sm font-medium text-stone-700">תיאור</label>
-              <div class="mt-1">
-                <RichTextEditor
-                  client:only="svelte"
-                  name="description"
-                  initial={loadedMilestone?.description ?? ''}
-                  autosaveUrl={loadedMilestone ? '/api/milestones' : undefined}
-                  autosaveId={loadedMilestone?.id}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label class="text-sm font-medium text-stone-700">פרוייקט אב</label>
-              <select name="rock_id" required class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">בחירת פרוייקט...</option>
-                {rocks?.map((r) => <option value={r.id} selected={r.id === loadedMilestone?.rock_id}>{r.title}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label class="text-sm font-medium text-stone-700">צוות</label>
-              <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">ללא צוות</option>
-                {allowedTeams.map((t) => (
-                  <option
-                    value={t.id}
-                    selected={loadedMilestone ? t.id === loadedMilestone.team_id : t.id === team?.id}
-                  >
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label class="text-sm font-medium text-stone-700">אחראי</label>
-              <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">ללא</option>
-                {employees?.map((e) => (
-                  <option value={e.id} selected={e.id === loadedMilestone?.owner_employee_id}>{e.full_name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="text-sm font-medium text-stone-700">תאריך יעד</label>
-                <input type="date" name="due_date" value={loadedMilestone?.due_date ?? ''}
-                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label class="text-sm font-medium text-stone-700">סטטוס</label>
-                <select name="status" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                  {(['on_track', 'off_track', 'done'] as const).map((s) => (
-                    <option value={s} selected={s === (loadedMilestone?.status ?? 'on_track')}>{statusLabel[s]}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
-              {loadedMilestone ? 'שמירת שינויים' : 'יצירת אבן דרך'}
-            </button>
-          </form>
-
-          {loadedMilestone && (
-            <form
-              method="POST"
-              action="/api/milestones"
-              class="pt-4 border-t border-stone-200"
-              onsubmit="return confirm('למחוק אבן דרך זו?');"
-            >
-              <input type="hidden" name="_action" value="delete" />
-              <input type="hidden" name="id" value={loadedMilestone.id} />
-              <input type="hidden" name="back" value={back} />
-              <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
-                <Trash2 size={14} /> מחיקת אבן דרך
               </button>
             </form>
           )}
