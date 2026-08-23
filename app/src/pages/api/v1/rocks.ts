@@ -1,13 +1,9 @@
 import type { APIRoute } from 'astro';
 import { sql, pool } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
+import { resolveEmployeeByEmail } from '~/lib/api-lookup';
 
 const ROCK_STATUSES = new Set(['on_track', 'off_track', 'done']);
-
-async function resolveEmployeeByEmail(email: string): Promise<string | null> {
-  const rows = await sql`select id from employees where email ilike ${email}`;
-  return (rows[0] as any)?.id ?? null;
-}
 
 export const GET: APIRoute = async ({ request, url }) => {
   const unauth = requireApiKey(request);

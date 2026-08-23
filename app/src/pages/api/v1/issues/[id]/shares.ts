@@ -1,13 +1,7 @@
 import type { APIRoute } from 'astro';
 import { sql } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
-
-async function resolveTeam(teamId: string | null, teamName: string | null): Promise<string | null> {
-  if (teamId) return teamId;
-  if (!teamName) return null;
-  const rows = await sql`select id from teams where name ilike ${teamName}`;
-  return (rows[0] as any)?.id ?? null;
-}
+import { resolveTeamRef } from '~/lib/api-lookup';
 
 // ============================================================
 // GET /api/v1/issues/:id/shares
@@ -53,9 +47,8 @@ export const POST: APIRoute = async ({ request, params }) => {
   let body: any;
   try { body = await request.json(); } catch { return json({ error: 'body must be JSON' }, 400); }
 
-  const teamId = await resolveTeam(
-    body.team_id ? String(body.team_id) : null,
-    body.team_name ? String(body.team_name) : null,
+  const teamId = await resolveTeamRef(
+    body.team_id ? String(body.team_id) : (body.team_name ? String(body.team_name) : null),
   );
   if (!teamId) return json({ error: 'team_id or team_name is required and must match an existing team' }, 400);
 
@@ -87,9 +80,8 @@ export const DELETE: APIRoute = async ({ request, params }) => {
   let body: any;
   try { body = await request.json(); } catch { return json({ error: 'body must be JSON' }, 400); }
 
-  const teamId = await resolveTeam(
-    body.team_id ? String(body.team_id) : null,
-    body.team_name ? String(body.team_name) : null,
+  const teamId = await resolveTeamRef(
+    body.team_id ? String(body.team_id) : (body.team_name ? String(body.team_name) : null),
   );
   if (!teamId) return json({ error: 'team_id or team_name is required and must match an existing team' }, 400);
 

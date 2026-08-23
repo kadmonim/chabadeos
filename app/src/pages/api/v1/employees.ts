@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { sql, pool } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
+import { resolveTeamRef } from '~/lib/api-lookup';
 
 const TEAM_ROLES = new Set(['admin', 'member']);
 
@@ -54,9 +55,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   let teamId: string | null = null;
   if (body.team_id || body.team_name) {
-    teamId = body.team_id
-      ? String(body.team_id)
-      : ((await sql`select id from teams where name ilike ${String(body.team_name)}`)[0] as any)?.id ?? null;
+    teamId = await resolveTeamRef(String(body.team_id || body.team_name));
     if (!teamId) return json({ error: 'team not found' }, 400);
   }
 

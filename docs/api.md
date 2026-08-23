@@ -33,15 +33,15 @@ Valid keys come from the `CHABADEOS_API_KEYS` environment variable on the server
 | GET | `/api/v1/rocks` | List non-archived rocks (projects). Optional `?include_archived=1`. |
 | POST | `/api/v1/rocks` | Create a rock (project). |
 | PATCH | `/api/v1/rocks` | Update a rock — including archiving it. |
-| GET | `/api/v1/issues` | Optional `?assignee=<email>`, `?team_id=`, `?status=`, `?term=short_term\|long_term\|idea_backlog`. |
+| GET | `/api/v1/issues` | Optional `?assignee=<email>`, `?team=` (id **or** name), `?status=`, `?term=short_term\|long_term\|idea_backlog`. |
 | POST | `/api/v1/issues` | Create an issue. |
-| PATCH | `/api/v1/issues` | Mark an issue solved/open. |
+| PATCH | `/api/v1/issues` | Update an issue — including moving it to another team. |
 | GET | `/api/v1/issues/:id/shares` | List teams an issue is shared with. |
 | POST | `/api/v1/issues/:id/shares` | Share an issue with a team. Body: `{ team_id }` or `{ team_name }`. |
 | DELETE | `/api/v1/issues/:id/shares` | Unshare. Body: `{ team_id }` or `{ team_name }`. |
-| GET | `/api/v1/todos` | Optional `?assignee=<email>`, `?team_id=`, `?status=open\|done\|archived\|all` (default `open`). |
+| GET | `/api/v1/todos` | Optional `?assignee=<email>`, `?team=` (id **or** name), `?status=open\|done\|archived\|all` (default `open`). |
 | POST | `/api/v1/todos` | Create a todo. |
-| PATCH | `/api/v1/todos` | Mark a todo done/open. |
+| PATCH | `/api/v1/todos` | Update a todo — including moving it to another team. |
 | GET | `/api/v1/feature-ideas` | Optional `?owner=<email>` (or `?assignee=`), `?status=`, `?term=`, `?tag=`. |
 | POST | `/api/v1/feature-ideas` | Create a feature idea. |
 | PATCH | `/api/v1/feature-ideas` | Update a feature idea. |
@@ -75,10 +75,24 @@ Returns `{ "id": "…" }`. `team_id` and `team_name` are mutually exclusive.
 **`PATCH /api/v1/issues`**
 
 ```json
-{ "id": "…", "solved": true }
+{
+  "id": "…",
+  "solved": true,
+  "status": "open | solved | archived",
+  "title": "…",
+  "description": "…",
+  "team_name": "תפילות",
+  "team_id": "…",
+  "owner_email": "alice@example.com",
+  "term_type": "short_term | long_term | idea_backlog",
+  "type": "problem | idea | question | brainstorm | update",
+  "priority": 3
+}
 ```
 
-`solved` defaults to `true` if omitted.
+Every field except `id` is optional. Sending only `{ "id": … }` marks the issue solved, as before.
+
+**Moving an issue between teams** is `{"id": …, "team_name": "…"}`. This keeps the issue's id, created date, comments and shares — recreating it under the new team instead would lose all of that. Pass `null` to leave it unassigned. Note that *sharing* an issue with a team does not make it appear under that team's list; only reassigning `team_id` does.
 
 **`POST /api/v1/employees`**
 
@@ -199,10 +213,20 @@ Returns `{ "id": "…" }`. New todos start in `open` status. `team_id` / `team_n
 **`PATCH /api/v1/todos`**
 
 ```json
-{ "id": "…", "done": true }
+{
+  "id": "…",
+  "done": true,
+  "status": "open | done | archived",
+  "title": "…",
+  "description": "…",
+  "is_urgent": false,
+  "due_date": "2026-04-20",
+  "assignee_email": "alice@example.com",
+  "team_name": "תפילות"
+}
 ```
 
-`done` defaults to `true`. Also accepts `is_urgent`, `due_date`, `assignee_email` (set `""`/`null` to clear).
+Every field except `id` is optional. Set `""`/`null` to clear `assignee_email`, `due_date`, `description` or the team. Reassigning the team moves the todo while keeping its id and history.
 
 **`POST /api/v1/feature-ideas`**
 
@@ -312,7 +336,8 @@ All errors are JSON:
 - Responses are pretty-printed JSON with `cache-control: no-store`.
 - `team_name` lookups are case-insensitive exact matches.
 - **Read-only resources** (no POST/PATCH/DELETE): V/TO.
-- Anywhere a path takes `:id` for a team, a team *name* works too.
+- Anywhere a team is referenced — `?team=`, `team_id`, `team_name`, or `:id` in a path — a team **name** works as well as a uuid. Names are matched case-insensitively.
+- Prefer `PATCH` over delete-and-recreate when moving records between teams: a new record loses the original's id, timestamps and comment history.
 - No per-key scoping or rate limiting — every valid key gets the full surface. Hand keys only to trusted integrations.
 - The UI is Hebrew; the API contract (field names, status values, error strings) is English and stable.
 

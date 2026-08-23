@@ -1,11 +1,7 @@
 import type { APIRoute } from 'astro';
 import { sql, pool } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
-
-async function resolveEmployeeByEmail(email: string): Promise<string | null> {
-  const rows = await sql`select id from employees where email ilike ${email}`;
-  return (rows[0] as any)?.id ?? null;
-}
+import { resolveEmployeeByEmail } from '~/lib/api-lookup';
 
 // ============================================================
 // GET /api/v1/feature-ideas

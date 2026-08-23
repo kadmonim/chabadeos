@@ -5,7 +5,7 @@ export const GET: APIRoute = async ({ request }) => {
   const unauth = requireApiKey(request);
   if (unauth) return unauth;
   return json({
-    name: 'Chabad Central Read API',
+    name: 'Chabad Central API',
     version: 1,
     docs: 'https://github.com/webshadoworg/eos',
     auth: 'Authorization: Bearer <API_KEY>',
@@ -23,15 +23,15 @@ export const GET: APIRoute = async ({ request }) => {
       'GET /api/v1/rocks':                'List non-archived rocks (projects). Optional ?include_archived=1.',
       'POST /api/v1/rocks':               'Create a rock. Body: { title, description?, owner_email?, due_date?, status? (on_track|off_track|done, default on_track), priority_order? }. Returns { id }.',
       'PATCH /api/v1/rocks':              'Update a rock. Body: { id, title?, description?, owner_email?, due_date?, status?, priority_order?, is_archived? }.',
-      'GET /api/v1/issues':               'List issues. Optional ?assignee=<email>, ?team_id=, ?status=, ?term=short_term|long_term|idea_backlog.',
+      'GET /api/v1/issues':               'List issues. Optional ?assignee=<email>, ?team= (id or name), ?status=, ?term=short_term|long_term|idea_backlog.',
       'POST /api/v1/issues':              'Create an issue. Body: { title, description?, owner_email?, team_id? | team_name?, term_type? (short_term|long_term|idea_backlog, default short_term), type?, priority? (1-5) }. Returns { id }.',
-      'PATCH /api/v1/issues':             'Mark an issue solved/open. Body: { id, solved? (default true) }.',
+      'PATCH /api/v1/issues':             'Update an issue. Body: { id, solved?, status?, title?, description?, team_id? | team_name? (moves it), owner_email?, term_type?, type?, priority? }. Bare { id } marks it solved.',
       'GET /api/v1/issues/:id/shares':    'List teams the issue is shared with.',
       'POST /api/v1/issues/:id/shares':   'Share the issue with a team. Body: { team_id } or { team_name }.',
       'DELETE /api/v1/issues/:id/shares': 'Unshare. Body: { team_id } or { team_name }.',
-      'GET /api/v1/todos':                'List todos. Optional ?assignee=<email>, ?team_id=, ?status=open|done|archived|all (default open).',
+      'GET /api/v1/todos':                'List todos. Optional ?assignee=<email>, ?team= (id or name), ?status=open|done|archived|all (default open).',
       'POST /api/v1/todos':               'Create a todo. Body: { title, description?, assignee_email?, team_id? | team_name?, due_date?, is_urgent? }. Returns { id }.',
-      'PATCH /api/v1/todos':              'Mark a todo done/open. Body: { id, done? (default true) }.',
+      'PATCH /api/v1/todos':              'Update a todo. Body: { id, done?, status?, title?, description?, is_urgent?, due_date?, assignee_email?, team_id? | team_name? (moves it) }.',
       'GET /api/v1/feature-ideas':         'List feature ideas. Optional ?owner=<email>, ?status=, ?term=, ?tag=.',
       'POST /api/v1/feature-ideas':        'Create a feature idea. Body: { title, description?, owner_email?, term_type?, priority? (1-5), tags? (string[]) }. Returns { id }.',
       'PATCH /api/v1/feature-ideas':       'Update a feature idea. Body: { id, solved?, status?, tags? }.',

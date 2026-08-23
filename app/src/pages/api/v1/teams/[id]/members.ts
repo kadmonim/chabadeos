@@ -1,22 +1,15 @@
 import type { APIRoute } from 'astro';
 import { sql, pool } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
+// Teams are addressable by id or name, so integrations need not hardcode ids.
+import { resolveTeamRef, resolveEmployeeByEmail } from '~/lib/api-lookup';
 
 const TEAM_ROLES = new Set(['admin', 'member']);
-
-// Teams can be addressed by id or by name, so integrations don't need to
-// hardcode ids: /api/v1/teams/Finance/members works as well as /api/v1/teams/<id>/members.
-async function resolveTeam(idOrName: string): Promise<string | null> {
-  const rows = await sql`
-    select id from teams where id = ${idOrName} or name ilike ${idOrName} limit 1`;
-  return (rows[0] as any)?.id ?? null;
-}
 
 async function resolveEmployee(body: any): Promise<string | null> {
   if (body?.employee_id) return String(body.employee_id);
   if (!body?.email) return null;
-  const rows = await sql`select id from employees where email ilike ${String(body.email)}`;
-  return (rows[0] as any)?.id ?? null;
+  return resolveEmployeeByEmail(String(body.email));
 }
 
 // ============================================================
@@ -26,7 +19,7 @@ export const GET: APIRoute = async ({ request, params }) => {
   const unauth = requireApiKey(request);
   if (unauth) return unauth;
 
-  const teamId = await resolveTeam(params.id!);
+  const teamId = await resolveTeamRef(params.id!);
   if (!teamId) return json({ error: 'team not found' }, 404);
 
   let data: any[];
@@ -65,7 +58,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   let body: any;
   try { body = await request.json(); } catch { return json({ error: 'body must be JSON' }, 400); }
 
-  const teamId = await resolveTeam(params.id!);
+  const teamId = await resolveTeamRef(params.id!);
   if (!teamId) return json({ error: 'team not found' }, 404);
 
   const employeeId = await resolveEmployee(body);
@@ -104,7 +97,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
   let body: any;
   try { body = await request.json(); } catch { return json({ error: 'body must be JSON' }, 400); }
 
-  const teamId = await resolveTeam(params.id!);
+  const teamId = await resolveTeamRef(params.id!);
   if (!teamId) return json({ error: 'team not found' }, 404);
 
   const employeeId = await resolveEmployee(body);

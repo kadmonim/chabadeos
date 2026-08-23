@@ -1,18 +1,7 @@
 import type { APIRoute } from 'astro';
 import { sql, pool } from '~/lib/db';
 import { requireApiKey, json } from '~/lib/api-auth';
-
-// ---------- helpers ----------
-async function resolveEmployeeByEmail(email: string): Promise<string | null> {
-  const rows = await sql`select id from employees where email ilike ${email}`;
-  return (rows[0] as any)?.id ?? null;
-}
-async function resolveTeam(teamId: string | null, teamName: string | null): Promise<string | null> {
-  if (teamId) return teamId;
-  if (!teamName) return null;
-  const rows = await sql`select id from teams where name ilike ${teamName}`;
-  return (rows[0] as any)?.id ?? null;
-}
+import { resolveTeamRef, resolveEmployeeByEmail } from '~/lib/api-lookup';
 
 // ============================================================
 // GET /api/v1/issues
@@ -22,7 +11,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   if (unauth) return unauth;
 
   const ownerEmail = url.searchParams.get('assignee') ?? url.searchParams.get('owner');
-  const teamId = url.searchParams.get('team_id');
+  const teamRef = url.searchParams.get('team_id') ?? url.searchParams.get('team');
   const status = url.searchParams.get('status') ?? 'open';
   const term = url.searchParams.get('term');
 
@@ -30,6 +19,12 @@ export const GET: APIRoute = async ({ request, url }) => {
   if (ownerEmail) {
     ownerId = await resolveEmployeeByEmail(ownerEmail);
     if (!ownerId) return json({ issues: [], count: 0, note: `no employee with email '${ownerEmail}'` });
+  }
+
+  let teamId: string | null = null;
+  if (teamRef) {
+    teamId = await resolveTeamRef(teamRef);
+    if (!teamId) return json({ issues: [], count: 0, note: `no team matching '${teamRef}'` });
   }
 
   const wheres: string[] = [];
@@ -117,9 +112,8 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ error: `no employee with email '${body.owner_email}'` }, 400);
   }
 
-  const teamId = await resolveTeam(
-    body.team_id ? String(body.team_id) : null,
-    body.team_name ? String(body.team_name) : null,
+  const teamId = await resolveTeamRef(
+    body.team_id ? String(body.team_id) : (body.team_name ? String(body.team_name) : null),
   );
   if ((body.team_id || body.team_name) && !teamId) {
     return json({ error: 'team not found' }, 400);
@@ -163,10 +157,14 @@ export const POST: APIRoute = async ({ request }) => {
 };
 
 // ============================================================
-// PATCH /api/v1/issues — mark an issue solved
-// body: { id (required), solved?: boolean (default true) }
-// Only toggles status between 'open' and 'solved'. No other mutations.
+// PATCH /api/v1/issues — update an issue
+// body: { id (required), solved?, status?, title?, description?,
+//         team_id? | team_name?, owner_email?, term_type?, type?, priority? }
+// With only { id }, the issue is marked solved (the historical behaviour).
+// Reassigning team_id moves the issue and keeps its id, history and shares.
 // ============================================================
+const ALLOWED_STATUSES = new Set(['open', 'solved', 'archived']);
+
 export const PATCH: APIRoute = async ({ request }) => {
   const unauth = requireApiKey(request);
   if (unauth) return unauth;
@@ -176,13 +174,99 @@ export const PATCH: APIRoute = async ({ request }) => {
 
   const id = body?.id ? String(body.id) : '';
   if (!id) return json({ error: 'id is required' }, 400);
-  const solved = body.solved === undefined ? true : Boolean(body.solved);
-  const status = solved ? 'solved' : 'open';
 
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  const applied: Record<string, unknown> = {};
+  const set = (col: string, value: unknown) => {
+    vals.push(value);
+    sets.push(`${col} = $${vals.length}`);
+    applied[col] = value;
+  };
+
+  if (body.status !== undefined) {
+    const status = String(body.status);
+    if (!ALLOWED_STATUSES.has(status)) {
+      return json({ error: `status must be one of ${Array.from(ALLOWED_STATUSES).join(', ')}` }, 400);
+    }
+    set('status', status);
+  } else if (body.solved !== undefined) {
+    set('status', Boolean(body.solved) ? 'solved' : 'open');
+  }
+
+  if (body.title !== undefined) {
+    const title = String(body.title).trim();
+    if (!title) return json({ error: 'title cannot be empty' }, 400);
+    set('title', title);
+  }
+
+  if (body.description !== undefined) {
+    set('description', body.description ? String(body.description) : null);
+  }
+
+  if (body.team_id !== undefined || body.team_name !== undefined) {
+    const raw = body.team_id ?? body.team_name;
+    if (!raw) {
+      set('team_id', null);
+    } else {
+      const teamId = await resolveTeamRef(String(raw));
+      if (!teamId) return json({ error: `no team matching '${raw}'` }, 400);
+      set('team_id', teamId);
+    }
+  }
+
+  if (body.owner_email !== undefined) {
+    if (!body.owner_email) {
+      set('owner_employee_id', null);
+    } else {
+      const ownerId = await resolveEmployeeByEmail(String(body.owner_email));
+      if (!ownerId) return json({ error: `no employee with email '${body.owner_email}'` }, 400);
+      set('owner_employee_id', ownerId);
+    }
+  }
+
+  if (body.term_type !== undefined) {
+    const termType = String(body.term_type);
+    if (!ALLOWED_TERMS.has(termType)) {
+      return json({ error: `term_type must be one of ${Array.from(ALLOWED_TERMS).join(', ')}` }, 400);
+    }
+    set('term_type', termType);
+  }
+
+  if (body.type !== undefined) {
+    if (!body.type) {
+      set('type', null);
+    } else {
+      const type = String(body.type);
+      if (!ALLOWED_ISSUE_TYPES.has(type)) {
+        return json({ error: `type must be one of ${Array.from(ALLOWED_ISSUE_TYPES).join(', ')}` }, 400);
+      }
+      set('type', type);
+    }
+  }
+
+  if (body.priority !== undefined) {
+    const n = Number(body.priority);
+    if (!Number.isInteger(n) || n < 1 || n > 5) {
+      return json({ error: 'priority must be an integer 1..5' }, 400);
+    }
+    set('priority', n);
+  }
+
+  // Bare { id } keeps meaning "mark this solved".
+  if (sets.length === 0) set('status', 'solved');
+
+  vals.push(id);
+  let result: any;
   try {
-    await sql`update issues set status = ${status} where id = ${id}`;
+    result = await pool.query(
+      `update issues set ${sets.join(', ')} where id = $${vals.length} returning id`,
+      vals,
+    );
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
-  return json({ id, status });
+  if (result.rowCount === 0) return json({ error: `no issue with id '${id}'` }, 404);
+
+  return json({ id, ...applied });
 };
