@@ -61,8 +61,15 @@ const canEdit = (createdBy: string | null) => admin || createdBy === user.employ
 const adding = url.searchParams.get('add') === '1';
 const editId = url.searchParams.get('edit');
 const seriesId = url.searchParams.get('series');
-const prefillDate = isValidDate(url.searchParams.get('date')) ? url.searchParams.get('date')! : today;
-const prefillRoom = url.searchParams.get('room') ?? rooms[0]?.id ?? '';
+
+// Values echoed back by /api/rooms when a submission was rejected. They win over
+// both the URL prefills and what's in the database, so a clash reopens the form
+// exactly as it was typed.
+const draft = (k: string) => url.searchParams.get(`f_${k}`) || null;
+
+const dateParam = draft('event_date') ?? url.searchParams.get('date');
+const prefillDate = isValidDate(dateParam) ? dateParam : today;
+const prefillRoom = draft('room_id') ?? url.searchParams.get('room') ?? rooms[0]?.id ?? '';
 
 let editing: any = null;
 if (editId) {
@@ -106,7 +113,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
     הוספה
   </a>
 
-  {err && (
+  {err && !panelOpen && (
     <div class="mb-4 bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
       <CircleAlert size={16} class="mt-0.5 shrink-0" />
       <span>{err}</span>
@@ -362,6 +369,16 @@ const panelOpen = adding || !!editing || !!editingSeries;
             <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
           </div>
 
+          {err && (
+            <div class="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
+              <CircleAlert size={16} class="mt-0.5 shrink-0" />
+              <div>
+                <p>{err}</p>
+                <p class="text-xs text-rose-600 mt-1">הפרטים נשמרו כאן — אפשר לשנות שעה או חלל ולשמור שוב.</p>
+              </div>
+            </div>
+          )}
+
           {adding && (
             <form method="POST" action="/api/rooms" class="space-y-4">
               <input type="hidden" name="_action" value="create" />
@@ -376,30 +393,33 @@ const panelOpen = adding || !!editing || !!editingSeries;
 
               <div>
                 <label class="text-sm font-medium text-stone-700">מה זה?</label>
-                <input type="text" name="title" required placeholder="לדוגמה: שיעור תניא"
+                <input type="text" name="title" required placeholder="לדוגמה: שיעור תניא" value={draft('title') ?? ''}
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-400" />
               </div>
 
               <div>
                 <label class="text-sm font-medium text-stone-700">מטרת השימוש</label>
                 <select name="purpose" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                  {PURPOSES.map((p) => <option value={p.key} selected={p.key === (activePurpose ?? 'class')}>{p.label}</option>)}
+                  {PURPOSES.map((p) => (
+                    <option value={p.key} selected={p.key === (draft('purpose') ?? activePurpose ?? 'class')}>{p.label}</option>
+                  ))}
                 </select>
               </div>
 
               <div>
                 <label class="text-sm font-medium text-stone-700">מי באחריות</label>
                 <input type="text" name="in_charge_name" required placeholder="שם המרצה או האחראי"
+                  value={draft('in_charge_name') ?? ''}
                   class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-400" />
               </div>
 
               <div class="flex gap-2">
                 <label class="flex-1 flex items-center gap-2 text-sm border border-stone-300 rounded-lg px-3 py-2 cursor-pointer has-checked:border-teal-500 has-checked:bg-teal-50">
-                  <input type="radio" name="repeat" value="once" checked />
+                  <input type="radio" name="repeat" value="once" checked={draft('repeat') !== 'weekly'} />
                   חד־פעמי
                 </label>
                 <label class="flex-1 flex items-center gap-2 text-sm border border-stone-300 rounded-lg px-3 py-2 cursor-pointer has-checked:border-teal-500 has-checked:bg-teal-50">
-                  <input type="radio" name="repeat" value="weekly" />
+                  <input type="radio" name="repeat" value="weekly" checked={draft('repeat') === 'weekly'} />
                   כל שבוע
                 </label>
               </div>
@@ -416,12 +436,12 @@ const panelOpen = adding || !!editing || !!editingSeries;
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="text-sm font-medium text-stone-700">משעה</label>
-                  <input type="time" name="start_time" required value="19:00"
+                  <input type="time" name="start_time" required value={draft('start_time') ?? '19:00'}
                     class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label class="text-sm font-medium text-stone-700">עד שעה</label>
-                  <input type="time" name="end_time" required value="20:30"
+                  <input type="time" name="end_time" required value={draft('end_time') ?? '20:30'}
                     class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
@@ -429,7 +449,8 @@ const panelOpen = adding || !!editing || !!editingSeries;
               <div>
                 <label class="text-sm font-medium text-stone-700">הערות</label>
                 <textarea name="notes" rows="2"
-                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"></textarea>
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
+                >{draft('notes') ?? ''}</textarea>
               </div>
 
               <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
@@ -471,7 +492,9 @@ const panelOpen = adding || !!editing || !!editingSeries;
                     <div>
                       <label class="text-sm font-medium text-stone-700">חלל</label>
                       <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                        {rooms.map((r) => <option value={r.id} selected={r.id === editing.room_id}>{r.name}</option>)}
+                        {rooms.map((r) => (
+                          <option value={r.id} selected={r.id === (draft('room_id') ?? editing.room_id)}>{r.name}</option>
+                        ))}
                       </select>
                       {editing.series_id && (
                         <p class="text-xs text-stone-500 mt-1">שינוי כאן חל על האירוע הזה בלבד.</p>
@@ -480,19 +503,19 @@ const panelOpen = adding || !!editing || !!editingSeries;
 
                     <div>
                       <label class="text-sm font-medium text-stone-700">תאריך</label>
-                      <input type="date" name="event_date" required value={editing.event_date}
+                      <input type="date" name="event_date" required value={draft('event_date') ?? editing.event_date}
                         class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">
                       <div>
                         <label class="text-sm font-medium text-stone-700">משעה</label>
-                        <input type="time" name="start_time" required value={hhmm(editing.start_time)}
+                        <input type="time" name="start_time" required value={draft('start_time') ?? hhmm(editing.start_time)}
                           class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                       </div>
                       <div>
                         <label class="text-sm font-medium text-stone-700">עד שעה</label>
-                        <input type="time" name="end_time" required value={hhmm(editing.end_time)}
+                        <input type="time" name="end_time" required value={draft('end_time') ?? hhmm(editing.end_time)}
                           class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                       </div>
                     </div>
@@ -501,19 +524,19 @@ const panelOpen = adding || !!editing || !!editingSeries;
                       <>
                         <div>
                           <label class="text-sm font-medium text-stone-700">מה זה?</label>
-                          <input type="text" name="title" required value={editing.title ?? ''}
+                          <input type="text" name="title" required value={draft('title') ?? editing.title ?? ''}
                             class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                         </div>
                         <div>
                           <label class="text-sm font-medium text-stone-700">מי באחריות</label>
-                          <input type="text" name="in_charge_name" required value={editing.in_charge_name ?? ''}
+                          <input type="text" name="in_charge_name" required value={draft('in_charge_name') ?? editing.in_charge_name ?? ''}
                             class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                         </div>
                         <div>
                           <label class="text-sm font-medium text-stone-700">מטרת השימוש</label>
                           <select name="purpose" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                             {PURPOSES.map((p) => (
-                              <option value={p.key} selected={p.key === (editing.purpose ?? 'class')}>{p.label}</option>
+                              <option value={p.key} selected={p.key === (draft('purpose') ?? editing.purpose ?? 'class')}>{p.label}</option>
                             ))}
                           </select>
                         </div>
@@ -521,7 +544,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                           <label class="text-sm font-medium text-stone-700">הערות</label>
                           <textarea name="notes" rows="2"
                             class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
-                          >{editing.notes ?? ''}</textarea>
+                          >{draft('notes') ?? editing.notes ?? ''}</textarea>
                         </div>
                       </>
                     )}
@@ -578,14 +601,14 @@ const panelOpen = adding || !!editing || !!editingSeries;
 
                     <div>
                       <label class="text-sm font-medium text-stone-700">מה זה?</label>
-                      <input type="text" name="title" required value={editingSeries.title}
+                      <input type="text" name="title" required value={draft('title') ?? editingSeries.title}
                         class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                       <p class="text-xs text-stone-500 mt-1">שינוי השם משנה את כל האירועים, כולל אלה שעברו.</p>
                     </div>
 
                     <div>
                       <label class="text-sm font-medium text-stone-700">מי באחריות</label>
-                      <input type="text" name="in_charge_name" required value={editingSeries.in_charge_name}
+                      <input type="text" name="in_charge_name" required value={draft('in_charge_name') ?? editingSeries.in_charge_name}
                         class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                     </div>
 
@@ -593,7 +616,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                       <label class="text-sm font-medium text-stone-700">מטרת השימוש</label>
                       <select name="purpose" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                         {PURPOSES.map((p) => (
-                          <option value={p.key} selected={p.key === (editingSeries.purpose ?? 'class')}>{p.label}</option>
+                          <option value={p.key} selected={p.key === (draft('purpose') ?? editingSeries.purpose ?? 'class')}>{p.label}</option>
                         ))}
                       </select>
                     </div>
@@ -601,7 +624,9 @@ const panelOpen = adding || !!editing || !!editingSeries;
                     <div>
                       <label class="text-sm font-medium text-stone-700">חלל</label>
                       <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                        {rooms.map((r) => <option value={r.id} selected={r.id === editingSeries.room_id}>{r.name}</option>)}
+                        {rooms.map((r) => (
+                          <option value={r.id} selected={r.id === (draft('room_id') ?? editingSeries.room_id)}>{r.name}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -609,7 +634,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                       <label class="text-sm font-medium text-stone-700">יום בשבוע</label>
                       <select name="weekday" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
                         {WEEKDAY_NAMES.map((n, i) => (
-                          <option value={i} selected={i === editingSeries.weekday}>{n}</option>
+                          <option value={i} selected={String(i) === (draft('weekday') ?? String(editingSeries.weekday))}>{n}</option>
                         ))}
                       </select>
                     </div>
@@ -617,19 +642,19 @@ const panelOpen = adding || !!editing || !!editingSeries;
                     <div class="grid grid-cols-2 gap-3">
                       <div>
                         <label class="text-sm font-medium text-stone-700">משעה</label>
-                        <input type="time" name="start_time" required value={hhmm(editingSeries.start_time)}
+                        <input type="time" name="start_time" required value={draft('start_time') ?? hhmm(editingSeries.start_time)}
                           class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                       </div>
                       <div>
                         <label class="text-sm font-medium text-stone-700">עד שעה</label>
-                        <input type="time" name="end_time" required value={hhmm(editingSeries.end_time)}
+                        <input type="time" name="end_time" required value={draft('end_time') ?? hhmm(editingSeries.end_time)}
                           class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                       </div>
                     </div>
 
                     <div>
                       <label class="text-sm font-medium text-stone-700">בתוקף מתאריך</label>
-                      <input type="date" name="effective_from" required value={today}
+                      <input type="date" name="effective_from" required value={draft('effective_from') ?? today}
                         class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
                       <p class="text-xs text-stone-500 mt-1">
                         אירועים שלפני התאריך הזה נשארים כמו שהיו. אירועים שהוזזו או בוטלו ידנית לא ישתנו.
@@ -640,7 +665,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                       <label class="text-sm font-medium text-stone-700">הערות</label>
                       <textarea name="notes" rows="2"
                         class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
-                      >{editingSeries.notes ?? ''}</textarea>
+                      >{draft('notes') ?? editingSeries.notes ?? ''}</textarea>
                     </div>
 
                     <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">

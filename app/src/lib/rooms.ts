@@ -252,6 +252,45 @@ export async function ensureHorizon(throughDate?: string): Promise<void> {
   }
 }
 
+type SeriesShape = {
+  id?: string | null;
+  room_id: string;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+};
+
+export type SlotPlan = { free: string[]; clashes: { date: string; clash: Clash }[] };
+
+// Walks the weeks a series would occupy in [from, to] without writing anything,
+// so a caller can see how a slot lands before committing to it. `id` is optional
+// precisely so a series that doesn't exist yet can be checked first.
+export async function planSlots(series: SeriesShape, from: string, to: string): Promise<SlotPlan> {
+  const plan: SlotPlan = { free: [], clashes: [] };
+  if (from > to) return plan;
+
+  // Weeks this series already owns. They're left completely alone — including
+  // ones that were moved or cancelled — and don't count as clashes with itself.
+  let existing = new Set<string>();
+  if (series.id) {
+    const rows = await sql`
+      select series_date::text as d from bookings
+      where series_id = ${series.id} and series_date >= ${from} and series_date <= ${to}`;
+    existing = new Set((rows as any[]).map((r) => r.d));
+  }
+
+  let date = addDays(from, (series.weekday - weekdayOf(from) + 7) % 7);
+  while (date <= to) {
+    if (!existing.has(date)) {
+      const clash = await findClash(series.room_id, date, series.start_time, series.end_time);
+      if (clash) plan.clashes.push({ date, clash });
+      else plan.free.push(date);
+    }
+    date = addDays(date, 7);
+  }
+  return plan;
+}
+
 // Inserts the weekly slots for a series in [from, to]. Slots that already exist
 // are skipped; slots that would double-book are skipped and returned, so the
 // caller can say which dates didn't make it rather than failing silently.
@@ -260,38 +299,22 @@ export async function generateSlots(
   from: string,
   to: string,
 ): Promise<string[]> {
-  const skipped: string[] = [];
-  if (from > to) return skipped;
+  const plan = await planSlots(series, from, to);
+  const skipped = plan.clashes.map((c) => c.date);
 
-  // Weeks this series already owns. They're left completely alone — including
-  // ones that were moved or cancelled — and don't count as clashes with itself.
-  const rows = await sql`
-    select series_date::text as d from bookings
-    where series_id = ${series.id} and series_date >= ${from} and series_date <= ${to}`;
-  const existing = new Set((rows as any[]).map((r) => r.d));
-
-  let date = addDays(from, (series.weekday - weekdayOf(from) + 7) % 7);
-
-  while (date <= to) {
-    if (!existing.has(date)) {
-      const clash = await findClash(series.room_id, date, series.start_time, series.end_time);
-      if (clash) {
-        skipped.push(date);
-      } else {
-        try {
-          await sql`
-            insert into bookings (series_id, series_date, room_id, event_date, start_time, end_time)
-            values (${series.id}, ${date}, ${series.room_id}, ${date}, ${series.start_time}, ${series.end_time})
-            on conflict (series_id, series_date) where series_id is not null do nothing`;
-        } catch (e) {
-          // Someone claimed the room between the check and the insert.
-          if (isOverlapError(e)) skipped.push(date);
-          else throw e;
-        }
-      }
+  for (const date of plan.free) {
+    try {
+      await sql`
+        insert into bookings (series_id, series_date, room_id, event_date, start_time, end_time)
+        values (${series.id}, ${date}, ${series.room_id}, ${date}, ${series.start_time}, ${series.end_time})
+        on conflict (series_id, series_date) where series_id is not null do nothing`;
+    } catch (e) {
+      // Someone claimed the room between the check and the insert.
+      if (isOverlapError(e)) skipped.push(date);
+      else throw e;
     }
-    date = addDays(date, 7);
   }
+  skipped.sort();
   return skipped;
 }
 
@@ -325,6 +348,18 @@ export async function findClash(
 
 export function clashMessage(clash: Clash, roomName: string): string {
   return `${roomName} תפוס בשעה הזו — ${clash.title} (${hhmm(clash.start_time)}–${hhmm(clash.end_time)}), באחריות ${clash.in_charge_name}.`;
+}
+
+// A list of 25 ISO dates is unreadable. Show a few as day.month and count the rest.
+export function skippedMessage(dates: string[]): string {
+  const short = (d: string) => {
+    const [, m, day] = d.split('-');
+    return `${Number(day)}.${Number(m)}`;
+  };
+  const shown = dates.slice(0, 5).map(short).join(', ');
+  const rest = dates.length - 5;
+  const weeks = dates.length === 1 ? 'שבוע אחד' : `${dates.length} שבועות`;
+  return `${weeks} לא נוספו כי החלל תפוס: ${shown}${rest > 0 ? ` ועוד ${rest}` : ''}.`;
 }
 
 // ---------- right now ----------

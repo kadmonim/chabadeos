@@ -2,8 +2,9 @@ import type { APIRoute } from 'astro';
 import { sql } from '~/lib/db';
 import { isSystemAdmin } from '~/lib/permissions';
 import {
-  findClash, clashMessage, generateSlots, isValidDate, isValidTime, weekdayOf,
-  addMonths, todayInJerusalem, isOverlapError, isPurpose, HORIZON_MONTHS,
+  findClash, clashMessage, skippedMessage, generateSlots, planSlots, isValidDate,
+  isValidTime, weekdayOf, addMonths, todayInJerusalem, isOverlapError, isPurpose,
+  HORIZON_MONTHS,
 } from '~/lib/rooms';
 
 // Form-post endpoint behind the /rooms screen. Everyone logged in can create;
@@ -11,8 +12,22 @@ import {
 // admins — otherwise a booking made by someone who has since left would hold a
 // room every week with nobody able to touch it.
 
-const bad = (back: string, message: string) =>
-  new Response(null, { status: 303, headers: { Location: `${back}&err=${encodeURIComponent(message)}` } });
+// Fields worth handing back when a submission is rejected. Anything the user
+// typed by hand is here; ids and _action are rebuilt from scratch instead.
+const KEEP = [
+  'room_id', 'title', 'purpose', 'in_charge_name', 'event_date',
+  'start_time', 'end_time', 'notes', 'repeat', 'weekday', 'effective_from',
+];
+
+// Which panel to put back on screen, so the error lands next to the form that
+// caused it rather than on the calendar behind it.
+function reopen(form: FormData): [string, string] | null {
+  const action = String(form.get('_action') ?? '');
+  const id = String(form.get('id') ?? '');
+  if (action === 'create') return ['add', '1'];
+  if (!id) return null;
+  return action === 'update_series' || action === 'delete_series' ? ['series', id] : ['edit', id];
+}
 
 const ok = (back: string, message?: string) =>
   new Response(null, {
@@ -31,6 +46,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const admin = isSystemAdmin(user.email);
 
   const form = await request.formData();
+
+  // A rejection must not cost the user what they typed: bounce back to the same
+  // open panel with the submitted values echoed as f_* params, so the form comes
+  // back filled in and only the offending field needs changing.
+  const bad = (back: string, message: string) => {
+    const p = new URLSearchParams({ err: message });
+    const panel = reopen(form);
+    if (panel) p.set(panel[0], panel[1]);
+    for (const key of KEEP) {
+      const v = form.get(key);
+      if (typeof v === 'string' && v) p.set(`f_${key}`, v);
+    }
+    return new Response(null, { status: 303, headers: { Location: `${back}&${p}` } });
+  };
+
   const action = String(form.get('_action') ?? '');
   const back = String(form.get('back') ?? '/rooms');
   const str = (k: string) => String(form.get(k) ?? '').trim();
@@ -67,30 +97,43 @@ export const POST: APIRoute = async ({ request, locals }) => {
         return ok(back, 'ההזמנה נוספה.');
       }
 
-      // The first week has to fit, or there's nothing to start. Checking before
-      // creating the series avoids leaving one behind that can never place a slot.
-      const firstClash = await findClash(roomId, date, startTime, endTime);
-      if (firstClash) return bad(back, clashMessage(firstClash, await roomName(roomId)));
+      // Look at the whole horizon before writing anything. A weekly slot that's
+      // already held by another weekly booking would otherwise produce a series
+      // with almost no events in it and a wall of clash dates — so refuse, name
+      // what's in the way, and let the time or the space be changed instead.
+      const weekday = weekdayOf(date);
+      const plan = await planSlots(
+        { room_id: roomId, weekday, start_time: startTime, end_time: endTime },
+        date,
+        addMonths(todayInJerusalem(), HORIZON_MONTHS),
+      );
+      if (!plan.free.length || plan.clashes.length > plan.free.length) {
+        const first = plan.clashes[0];
+        return bad(
+          back,
+          `${clashMessage(first.clash, await roomName(roomId))} ` +
+            `${plan.clashes.length} מתוך ${plan.clashes.length + plan.free.length} השבועות מתנגשים, ` +
+            'לכן הסדרה לא נוצרה. אפשר לשנות שעה או לבחור חלל אחר.',
+        );
+      }
 
       const rows = await sql`
         insert into booking_series
           (room_id, title, in_charge_name, purpose, notes, weekday, start_time, end_time, starts_on, created_by)
-        values (${roomId}, ${title}, ${inCharge}, ${purposeOf()}, ${notes}, ${weekdayOf(date)},
+        values (${roomId}, ${title}, ${inCharge}, ${purposeOf()}, ${notes}, ${weekday},
                 ${startTime}, ${endTime}, ${date}, ${user.employeeId})
         returning id`;
       const series = {
         id: (rows[0] as any).id,
         room_id: roomId,
-        weekday: weekdayOf(date),
+        weekday,
         start_time: startTime,
         end_time: endTime,
       };
       const skipped = await generateSlots(series, date, addMonths(todayInJerusalem(), HORIZON_MONTHS));
       return ok(
         back,
-        skipped.length
-          ? `הסדרה נוצרה. ${skipped.length} אירועים לא נוספו בגלל התנגשות: ${skipped.join(', ')}`
-          : 'הסדרה השבועית נוצרה.',
+        skipped.length ? `הסדרה נוצרה. ${skippedMessage(skipped)}` : 'הסדרה השבועית נוצרה.',
       );
     }
 
@@ -214,9 +257,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
       return ok(
         back,
-        skipped.length
-          ? `הסדרה עודכנה. ${skipped.length} אירועים לא נוספו בגלל התנגשות: ${skipped.join(', ')}`
-          : 'הסדרה עודכנה.',
+        skipped.length ? `הסדרה עודכנה. ${skippedMessage(skipped)}` : 'הסדרה עודכנה.',
       );
     }
 
