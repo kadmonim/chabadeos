@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    Menu, X, Target, AlertCircle, ListTodo, ChartBar, Eye,
+    Menu, X, Target, AlertCircle, ListTodo, ChartBar, Eye, Settings,
     ListChecks, Contact, BookOpen, Users, Link2, Network, Wallet, LogOut,
   } from 'lucide-svelte';
 
@@ -12,6 +12,8 @@
     userName,
     backPath,
     canSeeExpenses = false,
+    hideVto = false,
+    hideScorecard = false,
   } = $props<{
     teams: Team[];
     currentTeamId: string | null;
@@ -19,6 +21,8 @@
     userName: string;
     backPath: string;
     canSeeExpenses?: boolean;
+    hideVto?: boolean;
+    hideScorecard?: boolean;
   }>();
 
   let open = $state(false);
@@ -40,12 +44,14 @@
 
   const primary = [
     { href: '/',          label: 'דף הבית',     icon: Target,      match: (p: string) => p === '/' },
-    { href: '/vto',       label: 'חזון (V/TO)', icon: Eye,         match: (p: string) => p.startsWith('/vto') },
+    { href: '/vto',       label: 'חזון',        icon: Eye,         match: (p: string) => p.startsWith('/vto') },
     { href: '/rocks',     label: 'פרוייקטים',       icon: Target,      match: (p: string) => p.startsWith('/rocks') },
     { href: '/issues',    label: 'נושאים',      icon: AlertCircle, match: (p: string) => p.startsWith('/issues') },
     { href: '/todos',     label: 'משימות',      icon: ListTodo,    match: (p: string) => p.startsWith('/todos') },
     { href: '/scorecard', label: 'לוח מדדים',   icon: ChartBar,    match: (p: string) => p.startsWith('/scorecard') },
-  ];
+  ].filter(
+    (i) => !(i.href === '/vto' && hideVto) && !(i.href === '/scorecard' && hideScorecard),
+  );
 
   const allSecondary = [
     { href: '/chart',          label: 'מבנה ארגוני',   icon: Network,     always: true },
@@ -55,6 +61,7 @@
     { href: '/processes',      label: 'תהליכים',       icon: BookOpen,    always: true },
     { href: '/teams',          label: 'צוותים ואנשים', icon: Users,       always: true },
     { href: '/links',          label: 'קישורים',       icon: Link2,       always: true },
+    { href: '/settings',       label: 'הגדרות',        icon: Settings,    always: true },
   ];
   const secondary = $derived(allSecondary.filter((i) => i.always || (i.href === '/expenses' && canSeeExpenses)));
 </script>

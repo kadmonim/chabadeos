@@ -35,6 +35,7 @@
     { href: '/processes',      label: 'תהליכים',       icon: BookOpen,    always: true },
     { href: '/teams',          label: 'צוותים ואנשים', icon: Users,       always: true },
     { href: '/links',          label: 'קישורים',       icon: Link2,       always: true },
+    { href: '/settings',       label: 'הגדרות',        icon: Settings,    always: true },
   ];
   const items = $derived(allItems.filter((i) => i.always || (i.href === '/expenses' && canSeeExpenses)));
 </script>

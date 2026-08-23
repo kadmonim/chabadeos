@@ -1,6 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { readSession } from '~/lib/session';
 import { fetchAllowedTeams, resolveCurrentTeam } from '~/lib/team';
+import { getUiPrefs } from '~/lib/prefs';
 
 const PUBLIC_PATHS = new Set<string>(['/login', '/auth/google', '/auth/callback']);
 
@@ -9,6 +10,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   context.locals.user = session;
   context.locals.allowedTeams = [];
   context.locals.currentTeam = null;
+  context.locals.uiPrefs = {};
 
   const path = context.url.pathname;
   const isPublic = PUBLIC_PATHS.has(path) || path.startsWith('/_');
@@ -23,9 +25,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
 
   if (session) {
-    const allowed = await fetchAllowedTeams(session.employeeId);
+    const [allowed, prefs] = await Promise.all([
+      fetchAllowedTeams(session.employeeId),
+      getUiPrefs(session.employeeId),
+    ]);
     context.locals.allowedTeams = allowed;
     context.locals.currentTeam = resolveCurrentTeam(context.cookies, allowed);
+    context.locals.uiPrefs = prefs;
   }
 
   return next();

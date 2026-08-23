@@ -1,0 +1,42 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import { Settings as SettingsIcon } from 'lucide-svelte';
+
+const prefs = Astro.locals.uiPrefs ?? {};
+const saved = Astro.url.searchParams.get('saved') === '1';
+---
+<AppLayout title={'הגדרות · מרכז חב"ד'}>
+  <div class="max-w-xl">
+    <div class="flex items-center gap-2 mb-1">
+      <SettingsIcon size={20} class="text-stone-500" />
+      <h1 class="text-2xl font-semibold text-stone-900">הגדרות</h1>
+    </div>
+    <p class="text-sm text-stone-500 mb-6">העדפות אישיות — משפיעות רק על המשתמש שלך.</p>
+
+    {saved && (
+      <div class="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-xl px-4 py-2.5">
+        ההגדרות נשמרו.
+      </div>
+    )}
+
+    <form method="POST" action="/api/settings" class="bg-white border border-stone-200 rounded-2xl p-5 space-y-4">
+      <h2 class="text-sm font-semibold text-stone-700">פריטי ניווט</h2>
+
+      <label class="flex items-center gap-3 text-sm text-stone-700">
+        <input type="checkbox" name="show_vto" checked={!prefs.hide_vto} class="rounded border-stone-300" />
+        הצגת חזון
+      </label>
+
+      <label class="flex items-center gap-3 text-sm text-stone-700">
+        <input type="checkbox" name="show_scorecard" checked={!prefs.hide_scorecard} class="rounded border-stone-300" />
+        הצגת לוח מדדים
+      </label>
+
+      <div class="pt-2">
+        <button class="bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-xl px-4 py-2">
+          שמירה
+        </button>
+      </div>
+    </form>
+  </div>
+</AppLayout>

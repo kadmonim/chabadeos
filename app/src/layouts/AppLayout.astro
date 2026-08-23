@@ -17,13 +17,18 @@ const currentTeam = Astro.locals.currentTeam;
 const canSeeExpenses = canAccessExpenses(Astro.locals);
 const backPath = Astro.url.pathname + Astro.url.search;
 
+const uiPrefs = Astro.locals.uiPrefs ?? {};
 const nav = [
-  { href: '/vto',       label: 'חזון (V/TO)', icon: Eye },
+  { href: '/vto',       label: 'חזון',        icon: Eye },
   { href: '/rocks',     label: 'פרוייקטים',       icon: Target },
   { href: '/issues',    label: 'נושאים',      icon: AlertCircle },
   { href: '/todos',     label: 'משימות',      icon: ListTodo },
   { href: '/scorecard', label: 'לוח מדדים',   icon: ChartBar },
-];
+].filter(
+  (i) =>
+    !(i.href === '/vto' && uiPrefs.hide_vto) &&
+    !(i.href === '/scorecard' && uiPrefs.hide_scorecard),
+);
 
 const initials = (n: string) =>
   n.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
@@ -49,6 +54,8 @@ const initials = (n: string) =>
             userName={user?.fullName || user?.email || ''}
             backPath={backPath}
             canSeeExpenses={canSeeExpenses}
+            hideVto={uiPrefs.hide_vto ?? false}
+            hideScorecard={uiPrefs.hide_scorecard ?? false}
           />
         </div>
 
