@@ -42,7 +42,7 @@ const statusNowFor = (roomId: string) => {
 };
 ---
 <RoomsLayout title={'זמינות חדרים · חב"ד כרמיאל'} subtitle="זמינות חדרים" noindex={true}>
-  <section class="grid gap-2 sm:grid-cols-2 mb-5">
+  <section class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 mb-5">
     {rooms.map((room) => {
       const { busy, next } = statusNowFor(room.id);
       return (

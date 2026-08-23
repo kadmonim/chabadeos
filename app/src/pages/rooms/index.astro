@@ -96,7 +96,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
   )}
 
   <!-- Right now: the answer most visits are looking for -->
-  <section class="grid gap-2 sm:grid-cols-2 mb-5">
+  <section class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 mb-5">
     {statuses.map(({ room, busy, next }) => (
       <div class={`rounded-2xl border p-4 ${busy ? 'bg-white border-amber-200' : 'bg-white border-emerald-200'}`}>
         <div class="flex items-center justify-between gap-2">
