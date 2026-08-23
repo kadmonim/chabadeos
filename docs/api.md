@@ -45,6 +45,10 @@ Valid keys come from the `CHABADEOS_API_KEYS` environment variable on the server
 | GET | `/api/v1/feature-ideas` | Optional `?owner=<email>` (or `?assignee=`), `?status=`, `?term=`, `?tag=`. |
 | POST | `/api/v1/feature-ideas` | Create a feature idea. |
 | PATCH | `/api/v1/feature-ideas` | Update a feature idea. |
+| GET | `/api/v1/org-seats` | Org chart as a nested tree. `?flat=1` for a flat list. |
+| POST | `/api/v1/org-seats` | Create a seat. |
+| PATCH | `/api/v1/org-seats` | Update a seat, or move it under a different parent. |
+| DELETE | `/api/v1/org-seats` | Delete a seat. Needs `cascade` if it has reports. |
 | GET | `/api/v1/vto` | Get the singleton V/TO (vision + traction + SWOT). |
 
 Note: feature ideas no longer have a UI page — the API remains for integrations.
@@ -220,6 +224,38 @@ Returns `{ "id": "…" }`.
 ```json
 { "id": "…", "solved": true, "status": "open|solved|archived", "tags": ["…"] }
 ```
+
+**`POST /api/v1/org-seats`**
+
+```json
+{
+  "title": "string (required)",
+  "parent_title": "Director of Operations",
+  "parent_id": "…",
+  "employee_email": "alice@example.com",
+  "person_name": "Someone not in the system",
+  "responsibilities": ["Budget", "Vendor contracts"],
+  "display_order": 0
+}
+```
+
+Returns `{ "id": … }`. Omit the parent for a top-level seat. A seat's occupant is either a linked employee (`employee_email`) or free text (`person_name`) — linking is preferable, since the name then follows the employee record. `responsibilities` also accepts a newline-separated string.
+
+**`PATCH /api/v1/org-seats`**
+
+```json
+{ "title": "Bookkeeper", "new_title": "Controller", "parent_title": "CFO", "responsibilities": ["…"] }
+```
+
+Identify the seat with `id` or `title`; use `new_title` to rename it. Setting `parent_id`/`parent_title` moves the seat — pass `null` to move it to the top level. Moving a seat under one of its own descendants is rejected, since it would detach that branch from the chart.
+
+**`DELETE /api/v1/org-seats`**
+
+```json
+{ "title": "Bookkeeper", "cascade": false }
+```
+
+Deleting a seat deletes every seat beneath it. If it has reports, the call is refused with `409` and the descendant count until you resend with `"cascade": true`.
 
 ## Examples
 

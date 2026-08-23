@@ -35,6 +35,10 @@ export const GET: APIRoute = async ({ request }) => {
       'GET /api/v1/feature-ideas':         'List feature ideas. Optional ?owner=<email>, ?status=, ?term=, ?tag=.',
       'POST /api/v1/feature-ideas':        'Create a feature idea. Body: { title, description?, owner_email?, term_type?, priority? (1-5), tags? (string[]) }. Returns { id }.',
       'PATCH /api/v1/feature-ideas':       'Update a feature idea. Body: { id, solved?, status?, tags? }.',
+      'GET /api/v1/org-seats':            'Get the org chart as a nested tree. ?flat=1 for a flat list.',
+      'POST /api/v1/org-seats':           'Create a seat. Body: { title, parent_id? | parent_title?, employee_email?, person_name?, responsibilities?, display_order? }. Returns { id }.',
+      'PATCH /api/v1/org-seats':          'Update or move a seat. Body: { id? | title?, new_title?, parent_id? | parent_title?, employee_email?, person_name?, responsibilities?, display_order? }.',
+      'DELETE /api/v1/org-seats':         'Delete a seat. Body: { id? | title?, cascade? }. Seats with reports need cascade: true.',
       'GET /api/v1/vto':                  'Get the singleton V/TO (vision + traction + swot).',
     },
   });
