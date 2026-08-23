@@ -88,7 +88,7 @@
     <aside class="absolute start-0 top-0 bottom-0 w-[85%] max-w-xs bg-white shadow-2xl flex flex-col overflow-y-auto">
       <header class="flex items-center justify-between p-4 border-b border-stone-200">
         <div>
-          <div class="font-semibold text-stone-900">מרכז חב"ד</div>
+          <div class="font-semibold text-stone-900">חב"ד כרמיאל</div>
           {#if userName}
             <div class="text-xs text-stone-500 mt-0.5 truncate max-w-[200px]">{userName}</div>
           {/if}
