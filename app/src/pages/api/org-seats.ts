@@ -34,7 +34,28 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (action === 'update') {
     const id = String(form.get('id') ?? '');
     if (!id) return new Response('id required', { status: 400 });
+
+    // Moving a seat is just a new parent. The form already hides the illegal
+    // choices, but a cycle would orphan a whole branch from the tree, so it's
+    // checked here too: walk up from the proposed parent and refuse if we
+    // arrive back at the seat being moved.
+    const newParent = String(form.get('parent_id') ?? '') || null;
+    if (newParent) {
+      if (newParent === id) return new Response('a seat cannot report to itself', { status: 400 });
+      const cycle = await sql`
+        with recursive up as (
+          select id, parent_id from org_seats where id = ${newParent}
+          union all
+          select s.id, s.parent_id from org_seats s join up on s.id = up.parent_id
+        )
+        select 1 from up where id = ${id}`;
+      if (cycle.length) {
+        return new Response('a seat cannot report to one of its own reports', { status: 400 });
+      }
+    }
+
     try {
+      if (newParent) await sql`update org_seats set parent_id = ${newParent} where id = ${id}`;
       await sql`
         update org_seats set
           title = ${String(form.get('title') ?? '').trim()},

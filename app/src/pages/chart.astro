@@ -82,6 +82,26 @@ const exportTree: SeatExport | null = root ? toExport(root) : null;
 const editing = editId ? seatById.get(editId) ?? null : null;
 const addingUnder = addUnderId ? seatById.get(addUnderId) ?? null : null;
 
+// Candidate parents for the seat being edited. It can't be moved under itself or
+// under one of its own reports, and the path is spelled out so two seats with the
+// same title are distinguishable.
+function collectDescendants(s: Seat, acc: Set<string>) {
+  for (const c of s.children) {
+    acc.add(c.id);
+    collectDescendants(c, acc);
+  }
+}
+const parentOptions: { id: string; label: string }[] = [];
+if (root && editing) {
+  const blocked = new Set<string>([editing.id]);
+  collectDescendants(editing, blocked);
+  const walk = (s: Seat, path: string[]) => {
+    if (!blocked.has(s.id)) parentOptions.push({ id: s.id, label: [...path, s.title].join(' › ') });
+    for (const c of s.children) walk(c, [...path, s.title]);
+  };
+  walk(root, []);
+}
+
 const back = '/chart';
 ---
 <AppLayout title={'מבנה ארגוני · חב"ד כרמיאל'} fullWidth={true}>
@@ -146,6 +166,20 @@ const back = '/chart';
               <input type="text" name="title" required value={editing?.title ?? ''}
                 class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
             </div>
+
+            {editing && editing.parent_id && (
+              <div>
+                <label class="text-sm font-medium text-stone-700">כפוף ל</label>
+                <select name="parent_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  {parentOptions.map((o) => (
+                    <option value={o.id} selected={o.id === editing.parent_id}>{o.label}</option>
+                  ))}
+                </select>
+                <p class="text-xs text-stone-500 mt-1">
+                  שינוי כאן מעביר את התפקיד — וכל הכפופים לו — למקום אחר בתרשים.
+                </p>
+              </div>
+            )}
 
             <div>
               <label class="text-sm font-medium text-stone-700">עובד</label>
@@ -295,21 +329,24 @@ const back = '/chart';
     list-style: none;
   }
 
-  /* Horizontal bar across siblings + vertical stub down into each li */
+  /* Horizontal bar across siblings + vertical stub down into each li.
+     Written with logical properties (inline-start/end) rather than left/right:
+     the page is RTL, so the first child sits on the physical right, and
+     hard-coded sides put the outer elbows on the wrong ends. */
   .org-chart li::before,
   .org-chart li::after {
     content: '';
     position: absolute;
     top: 0;
-    right: 50%;
+    inset-inline-end: 50%;
     border-top: var(--line-width) solid var(--line);
     width: 50%;
     height: 24px;
   }
   .org-chart li::after {
-    right: auto;
-    left: 50%;
-    border-left: var(--line-width) solid var(--line);
+    inset-inline-end: auto;
+    inset-inline-start: 50%;
+    border-inline-start: var(--line-width) solid var(--line);
   }
   /* Single-child row: no horizontal bar; the parent's drop line reaches
      straight into the child card's top. */
@@ -320,10 +357,10 @@ const back = '/chart';
   .org-chart li:first-child::before,
   .org-chart li:last-child::after { border: 0 none; }
   .org-chart li:last-child::before {
-    border-right: var(--line-width) solid var(--line);
-    border-radius: 0 4px 0 0;
+    border-inline-end: var(--line-width) solid var(--line);
+    border-start-end-radius: 4px;
   }
-  .org-chart li:first-child::after { border-radius: 4px 0 0 0; }
+  .org-chart li:first-child::after { border-start-start-radius: 4px; }
 
   /* Drop line from each non-leaf card to its children row (only when expanded) */
   .org-chart .seat-wrapper:not(.leaf) > .expand-toggle:checked ~ .seat-card::after {
