@@ -489,6 +489,23 @@ const panelOpen = adding || !!editing || !!editingSeries;
                       {editing.series_id && <span class="text-teal-700"> · אירוע מתוך סדרה שבועית</span>}
                     </p>
 
+                    {editing.series_id && (
+                      <div class="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-2">
+                        <p class="text-xs font-medium text-stone-600">השינויים כאן יחולו על:</p>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="radio" name="scope" value="series" checked={draft('scope') !== 'one'} />
+                          כל האירועים מהתאריך הזה והלאה
+                        </label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="radio" name="scope" value="one" checked={draft('scope') === 'one'} />
+                          האירוע הזה בלבד
+                        </label>
+                        <p class="text-xs text-stone-500">
+                          אירועים אחרים שהוזזו או בוטלו ידנית יישארו כמו שהם.
+                        </p>
+                      </div>
+                    )}
+
                     <div>
                       <label class="text-sm font-medium text-stone-700">חלל</label>
                       <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
@@ -496,9 +513,6 @@ const panelOpen = adding || !!editing || !!editingSeries;
                           <option value={r.id} selected={r.id === (draft('room_id') ?? editing.room_id)}>{r.name}</option>
                         ))}
                       </select>
-                      {editing.series_id && (
-                        <p class="text-xs text-stone-500 mt-1">שינוי כאן חל על האירוע הזה בלבד.</p>
-                      )}
                     </div>
 
                     <div>
@@ -550,7 +564,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                     )}
 
                     <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
-                      שמירת האירוע הזה
+                      שמירה
                     </button>
                   </form>
 

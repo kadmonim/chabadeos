@@ -16,7 +16,7 @@ import {
 // typed by hand is here; ids and _action are rebuilt from scratch instead.
 const KEEP = [
   'room_id', 'title', 'purpose', 'in_charge_name', 'event_date',
-  'start_time', 'end_time', 'notes', 'repeat', 'weekday', 'effective_from',
+  'start_time', 'end_time', 'notes', 'repeat', 'weekday', 'effective_from', 'scope',
 ];
 
 // Which panel to put back on screen, so the error lands next to the form that
@@ -140,7 +140,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (action === 'update_occurrence') {
       const id = str('id');
       const rows = await sql`
-        select b.id, b.series_id, b.room_id, coalesce(b.created_by, s.created_by) as created_by
+        select b.id, b.series_id, b.room_id, b.series_date::text as series_date,
+               coalesce(b.created_by, s.created_by) as created_by
         from bookings b left join booking_series s on s.id = b.series_id
         where b.id = ${id}`;
       const row = rows[0] as any;
@@ -159,13 +160,44 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (clash) return bad(back, clashMessage(clash, await roomName(roomId)));
 
       if (row.series_id) {
+        // Editing one week of a weekly class almost always means "from now on" —
+        // a one-week change is the exception, so the form asks and defaults to
+        // the series.
+        if (str('scope') !== 'one') {
+          const seriesId = row.series_id;
+          const from = row.series_date;
+          const weekday = weekdayOf(date);
+          await sql`
+            update booking_series
+            set room_id = ${roomId}, weekday = ${weekday},
+                start_time = ${startTime}, end_time = ${endTime}
+            where id = ${seriesId}`;
+          // This week becomes the new rule, so it gets rebuilt too even if it was
+          // hand-edited before. Other hand-edited weeks are still left alone.
+          await sql`
+            delete from bookings
+            where series_id = ${seriesId} and series_date >= ${from}
+              and (not is_modified or id = ${id})`;
+          const skipped = await generateSlots(
+            { id: seriesId, room_id: roomId, weekday, start_time: startTime, end_time: endTime },
+            from,
+            addMonths(todayInJerusalem(), HORIZON_MONTHS),
+          );
+          return ok(
+            back,
+            skipped.length
+              ? `הסדרה עודכנה מהתאריך הזה והלאה. ${skippedMessage(skipped)}`
+              : 'הסדרה עודכנה מהתאריך הזה והלאה.',
+          );
+        }
+
         // Flagged as modified so regenerating the series leaves this week alone.
         await sql`
           update bookings
           set room_id = ${roomId}, event_date = ${date}, start_time = ${startTime},
               end_time = ${endTime}, is_modified = true
           where id = ${id}`;
-        return ok(back, 'האירוע עודכן.');
+        return ok(back, 'האירוע הזה בלבד עודכן.');
       }
 
       const title = str('title');
