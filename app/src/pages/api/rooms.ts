@@ -150,6 +150,10 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       const startTime = str('start_time');
       const endTime = str('end_time');
       const roomId = str('room_id') || row.room_id;
+      const title = str('title');
+      const inCharge = str('in_charge_name');
+      const notes = str('notes') || null;
+      if (!title || !inCharge) return bad(back, 'שם ואחראי הם שדות חובה.');
       if (!isValidDate(date)) return bad(back, 'תאריך לא תקין.');
       if (!isValidTime(startTime) || !isValidTime(endTime)) return bad(back, 'שעה לא תקינה.');
       if (endTime <= startTime) return bad(back, 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.');
@@ -168,7 +172,9 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
           await sql`
             update booking_series
             set room_id = ${roomId}, weekday = ${weekday},
-                start_time = ${startTime}, end_time = ${endTime}
+                start_time = ${startTime}, end_time = ${endTime},
+                title = ${title}, in_charge_name = ${inCharge},
+                purpose = ${purposeOf()}, notes = ${notes}
             where id = ${seriesId}`;
           // This week becomes the new rule, so it gets rebuilt too even if it was
           // hand-edited before. Other hand-edited weeks are still left alone.
@@ -190,22 +196,22 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
         }
 
         // Flagged as modified so regenerating the series leaves this week alone.
+        // Title & co. are stored on the booking itself, overriding the series
+        // values for just this week (they win in the coalesce on read).
         await sql`
           update bookings
           set room_id = ${roomId}, event_date = ${date}, start_time = ${startTime},
-              end_time = ${endTime}, is_modified = true
+              end_time = ${endTime}, title = ${title}, in_charge_name = ${inCharge},
+              purpose = ${purposeOf()}, notes = ${notes}, is_modified = true
           where id = ${id}`;
         return ok(back, 'האירוע הזה בלבד עודכן.');
       }
 
-      const title = str('title');
-      const inCharge = str('in_charge_name');
-      if (!title || !inCharge) return bad(back, 'שם ואחראי הם שדות חובה.');
       await sql`
         update bookings
         set room_id = ${roomId}, event_date = ${date}, start_time = ${startTime},
             end_time = ${endTime}, title = ${title}, in_charge_name = ${inCharge},
-            purpose = ${purposeOf()}, notes = ${str('notes') || null}, is_modified = true
+            purpose = ${purposeOf()}, notes = ${notes}, is_modified = true
         where id = ${id}`;
       return ok(back, 'ההזמנה עודכנה.');
     }

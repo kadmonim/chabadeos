@@ -81,6 +81,7 @@ if (editId) {
            coalesce(b.title, s.title) as shown_title,
            coalesce(b.in_charge_name, s.in_charge_name) as shown_in_charge,
            coalesce(b.purpose, s.purpose) as shown_purpose,
+           coalesce(b.notes, s.notes) as shown_notes,
            coalesce(b.created_by, s.created_by) as created_by,
            r.name as room_name
     from bookings b
@@ -528,34 +529,30 @@ const panelOpen = adding || !!editing || !!editingSeries;
                       </div>
                     </div>
 
-                    {!editing.series_id && (
-                      <>
-                        <div>
-                          <label class="text-sm font-medium text-stone-700">מה זה?</label>
-                          <input type="text" name="title" required value={draft('title') ?? editing.title ?? ''}
-                            class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
-                        </div>
-                        <div>
-                          <label class="text-sm font-medium text-stone-700">מי באחריות</label>
-                          <input type="text" name="in_charge_name" required value={draft('in_charge_name') ?? editing.in_charge_name ?? ''}
-                            class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
-                        </div>
-                        <div>
-                          <label class="text-sm font-medium text-stone-700">מטרת השימוש</label>
-                          <select name="purpose" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
-                            {PURPOSES.map((p) => (
-                              <option value={p.key} selected={p.key === (draft('purpose') ?? editing.purpose ?? 'class')}>{p.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label class="text-sm font-medium text-stone-700">הערות</label>
-                          <textarea name="notes" rows="2"
-                            class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
-                          >{draft('notes') ?? editing.notes ?? ''}</textarea>
-                        </div>
-                      </>
-                    )}
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">מה זה?</label>
+                      <input type="text" name="title" required value={draft('title') ?? editing.shown_title ?? ''}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">מי באחריות</label>
+                      <input type="text" name="in_charge_name" required value={draft('in_charge_name') ?? editing.shown_in_charge ?? ''}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">מטרת השימוש</label>
+                      <select name="purpose" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                        {PURPOSES.map((p) => (
+                          <option value={p.key} selected={p.key === (draft('purpose') ?? editing.shown_purpose ?? 'class')}>{p.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">הערות</label>
+                      <textarea name="notes" rows="2"
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
+                      >{draft('notes') ?? editing.shown_notes ?? ''}</textarea>
+                    </div>
 
                     <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
                       שמירה
