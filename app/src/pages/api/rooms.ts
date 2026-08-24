@@ -1,16 +1,15 @@
 import type { APIRoute } from 'astro';
 import { sql } from '~/lib/db';
-import { isSystemAdmin } from '~/lib/permissions';
+import { hasRoomsAccess } from '~/lib/rooms-access';
 import {
   findClash, clashMessage, skippedMessage, generateSlots, planSlots, isValidDate,
   isValidTime, weekdayOf, addMonths, todayInJerusalem, isOverlapError, isPurpose,
   HORIZON_MONTHS,
 } from '~/lib/rooms';
 
-// Form-post endpoint behind the /rooms screen. Everyone logged in can create;
-// editing and deleting is limited to whoever created the thing, plus system
-// admins — otherwise a booking made by someone who has since left would hold a
-// room every week with nobody able to touch it.
+// Form-post endpoint behind the /rooms screen. Access is a shared code (or an
+// EOS login), so there is no per-person ownership: anyone who is in can create,
+// edit and delete anything.
 
 // Fields worth handing back when a submission is rejected. Anything the user
 // typed by hand is here; ids and _action are rebuilt from scratch instead.
@@ -40,10 +39,12 @@ async function roomName(id: string): Promise<string> {
   return (rows[0] as any)?.name ?? 'החלל';
 }
 
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request, locals, cookies }) => {
   const user = locals.user;
-  if (!user) return new Response('unauthorized', { status: 401 });
-  const admin = isSystemAdmin(user.email);
+  if (!user && !(await hasRoomsAccess(cookies))) {
+    // The code cookie expired mid-visit — send the form back through the gate.
+    return new Response(null, { status: 303, headers: { Location: '/rooms/enter' } });
+  }
 
   const form = await request.formData();
 
@@ -68,8 +69,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // anything depends on.
   const purposeOf = () => (isPurpose(str('purpose')) ? str('purpose') : null);
 
-  const mayTouch = (createdBy: string | null) => admin || createdBy === user.employeeId;
-
   try {
     if (action === 'create') {
       const roomId = str('room_id');
@@ -93,7 +92,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           insert into bookings
             (room_id, event_date, start_time, end_time, title, in_charge_name, purpose, notes, created_by)
           values (${roomId}, ${date}, ${startTime}, ${endTime}, ${title}, ${inCharge},
-                  ${purposeOf()}, ${notes}, ${user.employeeId})`;
+                  ${purposeOf()}, ${notes}, ${user?.employeeId ?? null})`;
         return ok(back, 'ההזמנה נוספה.');
       }
 
@@ -121,7 +120,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         insert into booking_series
           (room_id, title, in_charge_name, purpose, notes, weekday, start_time, end_time, starts_on, created_by)
         values (${roomId}, ${title}, ${inCharge}, ${purposeOf()}, ${notes}, ${weekday},
-                ${startTime}, ${endTime}, ${date}, ${user.employeeId})
+                ${startTime}, ${endTime}, ${date}, ${user?.employeeId ?? null})
         returning id`;
       const series = {
         id: (rows[0] as any).id,
@@ -146,7 +145,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         where b.id = ${id}`;
       const row = rows[0] as any;
       if (!row) return bad(back, 'ההזמנה לא נמצאה.');
-      if (!mayTouch(row.created_by)) return bad(back, 'רק מי שיצר את ההזמנה יכול לערוך אותה.');
 
       const date = str('event_date');
       const startTime = str('start_time');
@@ -222,7 +220,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         where b.id = ${id}`;
       const row = rows[0] as any;
       if (!row) return bad(back, 'ההזמנה לא נמצאה.');
-      if (!mayTouch(row.created_by)) return bad(back, 'רק מי שיצר את ההזמנה יכול לערוך אותה.');
 
       if (action === 'restore_occurrence') {
         const clash = await findClash(row.room_id, row.event_date, row.start_time, row.end_time, id);
@@ -243,7 +240,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const row = rows[0] as any;
       if (!row) return bad(back, 'ההזמנה לא נמצאה.');
       if (row.series_id) return bad(back, 'אירוע מתוך סדרה מבוטל ולא נמחק.');
-      if (!mayTouch(row.created_by)) return bad(back, 'רק מי שיצר את ההזמנה יכול למחוק אותה.');
       await sql`delete from bookings where id = ${id}`;
       return ok(back, 'ההזמנה נמחקה.');
     }
@@ -253,7 +249,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const rows = await sql`select id, created_by from booking_series where id = ${id}`;
       const row = rows[0] as any;
       if (!row) return bad(back, 'הסדרה לא נמצאה.');
-      if (!mayTouch(row.created_by)) return bad(back, 'רק מי שיצר את הסדרה יכול לערוך אותה.');
 
       const roomId = str('room_id');
       const title = str('title');
@@ -298,7 +293,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const rows = await sql`select id, created_by from booking_series where id = ${id}`;
       const row = rows[0] as any;
       if (!row) return bad(back, 'הסדרה לא נמצאה.');
-      if (!mayTouch(row.created_by)) return bad(back, 'רק מי שיצר את הסדרה יכול להפסיק אותה.');
 
       // Stop it rather than erase it: future slots go, past ones stay as history.
       const today = todayInJerusalem();

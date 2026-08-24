@@ -3,9 +3,13 @@ import { readSession } from '~/lib/session';
 import { fetchAllowedTeams, resolveCurrentTeam } from '~/lib/team';
 import { getUiPrefs } from '~/lib/prefs';
 
-// /rooms/open is the view-only room availability page: busy/free times with no
-// details, deliberately readable without a login.
-const PUBLIC_PATHS = new Set<string>(['/login', '/auth/google', '/auth/callback', '/rooms/open']);
+// The /rooms screens are gated by a shared access code (see lib/rooms-access),
+// not by the login: /rooms/open is view-only for everyone, /rooms/enter asks
+// for the code, and /rooms plus its form API check the code cookie themselves.
+const PUBLIC_PATHS = new Set<string>([
+  '/login', '/auth/google', '/auth/callback',
+  '/rooms', '/rooms/open', '/rooms/enter', '/api/rooms',
+]);
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const session = await readSession(context.cookies);

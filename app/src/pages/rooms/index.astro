@@ -4,7 +4,7 @@ import SpaceIcon from '~/components/SpaceIcon.astro';
 import { Plus, ChevronRight, ChevronLeft, X, Trash2, Repeat, Ban, Pencil, CircleAlert } from 'lucide-svelte';
 import { sql } from '~/lib/db';
 import { fmtDualDate, fmtHebrewDate } from '~/lib/dates';
-import { isSystemAdmin } from '~/lib/permissions';
+import { hasRoomsAccess } from '~/lib/rooms-access';
 import {
   listRooms, occurrencesBetween, ensureHorizon, statusNow, weekDates, weekStart,
   addDays, todayInJerusalem, nowTimeInJerusalem, isValidDate, hhmm, WEEKDAY_NAMES,
@@ -12,8 +12,12 @@ import {
 } from '~/lib/rooms';
 
 const url = Astro.url;
-const user = Astro.locals.user!;
-const admin = isSystemAdmin(user.email);
+
+// In with the shared code or with an EOS login — either way, full access.
+const user = Astro.locals.user;
+if (!user && !(await hasRoomsAccess(Astro.cookies))) {
+  return Astro.redirect('/rooms/enter');
+}
 
 const today = todayInJerusalem();
 const nowTime = nowTimeInJerusalem();
@@ -54,8 +58,6 @@ const q = (extra: Record<string, string | null> = {}) => {
 
 const cellFor = (date: string, roomId: string) =>
   occurrences.filter((o) => o.event_date === date && o.room_id === roomId);
-
-const canEdit = (createdBy: string | null) => admin || createdBy === user.employeeId;
 
 // ---- panel state, driven entirely by the URL so there's no client JS ----
 const adding = url.searchParams.get('add') === '1';
@@ -254,11 +256,9 @@ const panelOpen = adding || !!editing || !!editingSeries;
                         <div class="flex items-center gap-1.5">
                           <span class="font-semibold tabular-nums">{hhmm(o.start_time)}–{hhmm(o.end_time)}</span>
                           {o.weekly && <Repeat size={11} class="opacity-60" />}
-                          {canEdit(o.created_by) && (
-                            <a href={q({ edit: o.id })} class="ms-auto opacity-50 hover:opacity-100" title="עריכה">
-                              <Pencil size={11} />
-                            </a>
-                          )}
+                          <a href={q({ edit: o.id })} class="ms-auto opacity-50 hover:opacity-100" title="עריכה">
+                            <Pencil size={11} />
+                          </a>
                         </div>
                         <div class="font-medium truncate">{o.title}</div>
                         <div class="opacity-70 truncate">
@@ -329,9 +329,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
                           </span>
                         </span>
                         {o.weekly && <Repeat size={12} class="opacity-60 shrink-0" />}
-                        {canEdit(o.created_by) && (
-                          <a href={q({ edit: o.id })} class="p-1 opacity-50 shrink-0"><Pencil size={13} /></a>
-                        )}
+                        <a href={q({ edit: o.id })} class="p-1 opacity-50 shrink-0"><Pencil size={13} /></a>
                       </div>
                     ))}
                   </div>
@@ -345,7 +343,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
   </div>
 
   <p class="text-xs text-stone-400 mt-5 text-center">
-    כל המשתמשים רואים הכל. אפשר לערוך רק מה שיצרת.
+    הגישה כאן משותפת — כל מי שנכנס עם הקוד יכול להוסיף ולערוך.
   </p>
 
   <!-- On a phone the header button scrolls away, so the + stays put -->
@@ -461,11 +459,7 @@ const panelOpen = adding || !!editing || !!editingSeries;
 
           {editing && (
             <div class="space-y-5">
-              {!canEdit(editing.created_by) ? (
-                <p class="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded-xl p-4">
-                  {editing.shown_title} — באחריות {editing.shown_in_charge}. רק מי שיצר את ההזמנה יכול לערוך אותה.
-                </p>
-              ) : editing.is_cancelled ? (
+              {editing.is_cancelled ? (
                 <form method="POST" action="/api/rooms" class="space-y-4">
                   <input type="hidden" name="_action" value="restore_occurrence" />
                   <input type="hidden" name="id" value={editing.id} />
@@ -602,12 +596,6 @@ const panelOpen = adding || !!editing || !!editingSeries;
 
           {editingSeries && (
             <div class="space-y-5">
-              {!canEdit(editingSeries.created_by) ? (
-                <p class="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded-xl p-4">
-                  רק מי שיצר את הסדרה יכול לערוך אותה.
-                </p>
-              ) : (
-                <>
                   <form method="POST" action="/api/rooms" class="space-y-4">
                     <input type="hidden" name="_action" value="update_series" />
                     <input type="hidden" name="id" value={editingSeries.id} />
@@ -697,8 +685,6 @@ const panelOpen = adding || !!editing || !!editingSeries;
                       <Trash2 size={14} /> הפסקת הסדרה
                     </button>
                   </form>
-                </>
-              )}
             </div>
           )}
         </div>
