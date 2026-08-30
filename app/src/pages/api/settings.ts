@@ -10,6 +10,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
   if (form.get('show_vto') === null) prefs.hide_vto = true;
   if (form.get('show_scorecard') === null) prefs.hide_scorecard = true;
   if (form.get('show_rooms') === null) prefs.hide_rooms = true;
+  if (form.get('show_org_chart') !== null) prefs.show_org_chart = true;
 
   try {
     await setUiPrefs(user.employeeId, prefs);

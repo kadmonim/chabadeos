@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Settings, ListChecks, BookOpen, Users, Link2, Network, Wallet } from 'lucide-svelte';
 
-  let { canSeeExpenses = false } = $props<{ canSeeExpenses?: boolean }>();
+  let { canSeeExpenses = false, showOrgChart = false } = $props<{ canSeeExpenses?: boolean; showOrgChart?: boolean }>();
   let open = $state(false);
   let ref: HTMLDivElement;
 
@@ -28,7 +28,7 @@
   });
 
   const allItems = [
-    { href: '/chart',          label: 'מבנה ארגוני',   icon: Network,     always: true },
+    { href: '/chart',          label: 'מבנה ארגוני',   icon: Network,     always: false },
     { href: '/my-tasks',       label: 'המשימות שלי',   icon: ListChecks,  always: true },
     { href: '/expenses',       label: 'הוצאות',        icon: Wallet,      always: false },
     { href: '/processes',      label: 'תהליכים',       icon: BookOpen,    always: true },
@@ -36,7 +36,14 @@
     { href: '/links',          label: 'קישורים',       icon: Link2,       always: true },
     { href: '/settings',       label: 'הגדרות',        icon: Settings,    always: true },
   ];
-  const items = $derived(allItems.filter((i) => i.always || (i.href === '/expenses' && canSeeExpenses)));
+  const items = $derived(
+    allItems.filter(
+      (i) =>
+        i.always ||
+        (i.href === '/expenses' && canSeeExpenses) ||
+        (i.href === '/chart' && showOrgChart),
+    ),
+  );
 </script>
 
 <div bind:this={ref} class="relative">

@@ -20,6 +20,6 @@ declare namespace App {
     user: { email: string; employeeId: string; fullName: string } | null;
     allowedTeams: TeamRecord[];
     currentTeam: TeamRecord | null;
-    uiPrefs: { hide_vto?: boolean; hide_scorecard?: boolean; hide_rooms?: boolean };
+    uiPrefs: { hide_vto?: boolean; hide_scorecard?: boolean; hide_rooms?: boolean; show_org_chart?: boolean };
   }
 }

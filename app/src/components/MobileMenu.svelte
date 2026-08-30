@@ -15,6 +15,7 @@
     hideVto = false,
     hideScorecard = false,
     hideRooms = false,
+    showOrgChart = false,
   } = $props<{
     teams: Team[];
     currentTeamId: string | null;
@@ -25,6 +26,7 @@
     hideVto?: boolean;
     hideScorecard?: boolean;
     hideRooms?: boolean;
+    showOrgChart?: boolean;
   }>();
 
   let open = $state(false);
@@ -60,7 +62,7 @@
   );
 
   const allSecondary = [
-    { href: '/chart',          label: 'מבנה ארגוני',   icon: Network,     always: true },
+    { href: '/chart',          label: 'מבנה ארגוני',   icon: Network,     always: false },
     { href: '/my-tasks',       label: 'המשימות שלי',   icon: ListChecks,  always: true },
     { href: '/expenses',       label: 'הוצאות',        icon: Wallet,      always: false },
     { href: '/processes',      label: 'תהליכים',       icon: BookOpen,    always: true },
@@ -68,7 +70,14 @@
     { href: '/links',          label: 'קישורים',       icon: Link2,       always: true },
     { href: '/settings',       label: 'הגדרות',        icon: Settings,    always: true },
   ];
-  const secondary = $derived(allSecondary.filter((i) => i.always || (i.href === '/expenses' && canSeeExpenses)));
+  const secondary = $derived(
+    allSecondary.filter(
+      (i) =>
+        i.always ||
+        (i.href === '/expenses' && canSeeExpenses) ||
+        (i.href === '/chart' && showOrgChart),
+    ),
+  );
 </script>
 
 <!-- Hamburger trigger -->

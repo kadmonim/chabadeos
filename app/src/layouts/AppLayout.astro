@@ -59,6 +59,7 @@ const initials = (n: string) =>
             hideVto={uiPrefs.hide_vto ?? false}
             hideScorecard={uiPrefs.hide_scorecard ?? false}
             hideRooms={uiPrefs.hide_rooms ?? false}
+            showOrgChart={uiPrefs.show_org_chart ?? false}
           />
         </div>
 
@@ -111,7 +112,7 @@ const initials = (n: string) =>
 
         <!-- Desktop: gear menu -->
         <div class="hidden md:block">
-          <MoreMenu client:load canSeeExpenses={canSeeExpenses} />
+          <MoreMenu client:load canSeeExpenses={canSeeExpenses} showOrgChart={uiPrefs.show_org_chart ?? false} />
         </div>
 
         <!-- Desktop: user name + logout -->

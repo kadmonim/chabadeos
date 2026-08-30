@@ -6,6 +6,8 @@ export type UiPrefs = {
   hide_vto?: boolean;
   hide_scorecard?: boolean;
   hide_rooms?: boolean;
+  // Opt-in (default hidden), so absence means "hidden".
+  show_org_chart?: boolean;
 };
 
 export async function getUiPrefs(employeeId: string): Promise<UiPrefs> {

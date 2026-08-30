@@ -37,6 +37,11 @@ const saved = Astro.url.searchParams.get('saved') === '1';
         הצגת חדרים
       </label>
 
+      <label class="flex items-center gap-3 text-sm text-stone-700">
+        <input type="checkbox" name="show_org_chart" checked={prefs.show_org_chart} class="rounded border-stone-300" />
+        הצגת מבנה ארגוני
+      </label>
+
       <div class="pt-2">
         <button class="bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-xl px-4 py-2">
           שמירה
