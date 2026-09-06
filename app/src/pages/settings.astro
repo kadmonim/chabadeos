@@ -19,7 +19,7 @@ const saved = Astro.url.searchParams.get('saved') === '1';
       </div>
     )}
 
-    <form method="POST" action="/api/settings" class="bg-white border border-stone-200 rounded-2xl p-5 space-y-4">
+    <form method="POST" action="/api/settings" class="card p-5 space-y-4">
       <h2 class="text-sm font-semibold text-stone-700">פריטי ניווט</h2>
 
       <label class="flex items-center gap-3 text-sm text-stone-700">
@@ -43,7 +43,7 @@ const saved = Astro.url.searchParams.get('saved') === '1';
       </label>
 
       <div class="pt-2">
-        <button class="bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-xl px-4 py-2">
+        <button class="btn btn-primary">
           שמירה
         </button>
       </div>

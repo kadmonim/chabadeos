@@ -1,12 +1,114 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* ------------------------------------------------------------------
+   Design tokens
+   The shell is a dark stone frame; each module sets an accent that the
+   primitives below pick up (bg-accent, text-accent-ink, ...). The body gets
+   .theme-eos / .theme-rooms / .theme-crm from the layout.
+   ------------------------------------------------------------------ */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Assistant", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@theme inline {
+  --color-accent:        var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft:   var(--accent-soft);
+  --color-accent-ink:    var(--accent-ink);
+}
+
+:root, .theme-eos {
+  --accent:        var(--color-violet-600);
+  --accent-strong: var(--color-violet-700);
+  --accent-soft:   var(--color-violet-50);
+  --accent-ink:    var(--color-violet-700);
+}
+.theme-rooms {
+  --accent:        var(--color-teal-600);
+  --accent-strong: var(--color-teal-700);
+  --accent-soft:   var(--color-teal-50);
+  --accent-ink:    var(--color-teal-700);
+}
+.theme-crm {
+  --accent:        var(--color-orange-500);
+  --accent-strong: var(--color-orange-600);
+  --accent-soft:   var(--color-orange-50);
+  --accent-ink:    var(--color-orange-700);
 }
 
 html, body {
   background: #fafaf9;
   color: #1c1917;
   font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ------------------------------------------------------------------
+   Native popovers (quick-create, user menu, rail flyout). Reset the UA
+   centring, then each instance positions itself with fixed coordinates.
+   ------------------------------------------------------------------ */
+[popover] {
+  inset: auto;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
+}
+[popover]::backdrop { background: transparent; }
+[popover]:popover-open { animation: pop-in 120ms ease-out; }
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ------------------------------------------------------------------
+   Primitives. Small, boring, reused everywhere.
+   ------------------------------------------------------------------ */
+@layer components {
+  .card        { @apply bg-white border border-stone-200 rounded-xl shadow-[0_1px_2px_rgba(28,25,23,0.04)]; }
+  .card-header { @apply flex items-center justify-between gap-3 px-4 py-3 border-b border-stone-100; }
+  .card-title  { @apply text-sm font-semibold text-stone-900; }
+  .card-body   { @apply p-4; }
+
+  .btn         { @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition disabled:opacity-50 disabled:pointer-events-none; }
+  .btn-primary { @apply bg-accent text-white hover:bg-accent-strong; }
+  .btn-outline { @apply border border-stone-300 bg-white text-stone-700 hover:bg-stone-50; }
+  .btn-ghost   { @apply text-stone-600 hover:bg-stone-100 hover:text-stone-900; }
+  .btn-danger  { @apply border border-rose-300 bg-white text-rose-700 hover:bg-rose-50; }
+  .btn-sm      { @apply px-2.5 py-1.5 text-xs; }
+  .btn-icon    { @apply inline-grid place-items-center w-9 h-9 rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-900 transition; }
+
+  .input       { @apply w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/15; }
+  .field-label { @apply block text-xs font-medium text-stone-500 mb-1; }
+  .field-value { @apply text-sm text-stone-900; }
+
+  .chip        { @apply inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white px-2.5 py-0.5 text-xs text-stone-700; }
+  .pill        { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium; }
+  .divider     { @apply h-px bg-stone-200; }
+
+  .seg         { @apply inline-flex items-center rounded-lg bg-stone-100 p-0.5 border border-stone-200; }
+  .seg-item    { @apply px-3 py-1.5 rounded-md text-sm text-stone-600 hover:text-stone-900 transition whitespace-nowrap; }
+  .seg-active  { @apply bg-white text-stone-900 shadow-sm; }
+
+  .menu        { @apply min-w-[13rem] bg-white border border-stone-200 rounded-xl shadow-lg p-1; }
+  .menu-item   { @apply flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 rounded-lg w-full text-start; }
+  .menu-label  { @apply px-3 pt-2 pb-1 text-[10px] font-semibold tracking-wide text-stone-400 uppercase; }
+
+  /* Sidebar rail items */
+  .rail-item   { @apply relative flex flex-col items-center justify-center gap-1 w-full rounded-lg py-2 text-[10px] font-medium leading-none text-stone-400 hover:text-white hover:bg-white/5 transition; }
+  .rail-active { @apply text-white bg-white/10; }
+  .rail-active::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: -0.5rem;
+    top: 0.6rem; bottom: 0.6rem;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--accent);
+  }
+  [dir="rtl"] .rail-active::before { border-radius: 3px 0 0 3px; }
 }

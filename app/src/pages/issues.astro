@@ -170,7 +170,7 @@ const backNoDetail = url.pathname + (url.search ? url.search.replace(/[?&]detail
     </a>
   </div>
 
-  <form method="POST" action="/api/issues" class="flex gap-2 mb-4">
+  <form id="new" method="POST" action="/api/issues" class="flex gap-2 mb-4">
     <input type="hidden" name="_action" value="create" />
     <input type="hidden" name="team_id" value={team.id} />
     <input type="hidden" name="term_type" value={term} />

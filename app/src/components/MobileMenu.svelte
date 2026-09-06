@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    Menu, X, Target, AlertCircle, ListTodo, ChartBar, Eye, Settings, CalendarDays,
+    Menu, X, Home, Target, AlertCircle, ListTodo, ChartBar, Eye, Settings, CalendarDays,
     ListChecks, BookOpen, Users, Link2, Network, LogOut,
   } from 'lucide-svelte';
 
@@ -45,7 +45,7 @@
   });
 
   const primary = [
-    { href: '/',          label: 'דף הבית',     icon: Target,      match: (p: string) => p === '/' },
+    { href: '/',          label: 'בית',         icon: Home,        match: (p: string) => p === '/' },
     { href: '/vto',       label: 'חזון',        icon: Eye,         match: (p: string) => p.startsWith('/vto') },
     { href: '/rocks',     label: 'פרוייקטים',       icon: Target,      match: (p: string) => p.startsWith('/rocks') },
     { href: '/issues',    label: 'נושאים',      icon: AlertCircle, match: (p: string) => p.startsWith('/issues') },
@@ -97,18 +97,18 @@
     ></button>
 
     <aside class="absolute start-0 top-0 bottom-0 w-[85%] max-w-xs bg-white shadow-2xl flex flex-col overflow-y-auto">
-      <header class="flex items-center justify-between p-4 border-b border-stone-200">
+      <header class="flex items-center justify-between p-4 bg-stone-900 text-white">
         <div>
-          <div class="font-semibold text-stone-900">חב"ד כרמיאל</div>
+          <div class="font-semibold">חב"ד כרמיאל</div>
           {#if userName}
-            <div class="text-xs text-stone-500 mt-0.5 truncate max-w-[200px]">{userName}</div>
+            <div class="text-xs text-stone-400 mt-0.5 truncate max-w-[200px]">{userName}</div>
           {/if}
         </div>
         <button
           type="button"
           onclick={close}
           aria-label="סגירה"
-          class="p-1 text-stone-400 hover:text-stone-700"
+          class="p-1 text-stone-400 hover:text-white"
         >
           <X size={20} />
         </button>
@@ -122,7 +122,7 @@
           <select
             name="team_id"
             onchange={(e: Event) => (e.currentTarget as HTMLSelectElement).form!.submit()}
-            class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
+            class="input mt-1"
           >
             {#each teams as t}
               <option value={t.id} selected={t.id === currentTeamId}>{t.name}</option>
@@ -138,8 +138,8 @@
             href={item.href}
             onclick={close}
             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition"
-            class:bg-violet-50={item.match(currentPath)}
-            class:text-violet-700={item.match(currentPath)}
+            class:bg-accent-soft={item.match(currentPath)}
+            class:text-accent-ink={item.match(currentPath)}
             class:text-stone-700={!item.match(currentPath)}
             class:hover:bg-stone-50={!item.match(currentPath)}
           >

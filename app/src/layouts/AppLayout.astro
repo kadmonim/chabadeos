@@ -1,37 +1,69 @@
 ---
+// Application shell: a dark icon rail on the start side (desktop), a slim
+// utility bar on top, and the page in between. Modules set an accent via the
+// body theme class; see src/styles/global.css.
 import '~/styles/global.css';
-import { Target, AlertCircle, ListTodo, ChartBar, Eye, CalendarDays, LogOut } from 'lucide-svelte';
-import MoreMenu from '~/components/MoreMenu.svelte';
+import {
+  Home, Target, AlertCircle, ListTodo, ChartBar, Eye, CalendarDays, LogOut, Settings,
+  ListChecks, BookOpen, Users, Link2, Network, MoreHorizontal, Plus, ChevronDown,
+} from 'lucide-svelte';
 import MobileMenu from '~/components/MobileMenu.svelte';
 
 interface Props {
   title?: string;
   fullWidth?: boolean;
+  /** Which module's accent to use. Defaults from the path. */
+  module?: 'eos' | 'rooms' | 'crm';
 }
-const { title = 'חב"ד כרמיאל', fullWidth = false } = Astro.props;
-const user = Astro.locals.user;
 const path = Astro.url.pathname;
+const inferredModule = path.startsWith('/crm') ? 'crm' : path.startsWith('/rooms') ? 'rooms' : 'eos';
+const { title = 'חב"ד כרמיאל', fullWidth = false, module = inferredModule } = Astro.props;
+
+const user = Astro.locals.user;
 const teams = Astro.locals.allowedTeams;
 const currentTeam = Astro.locals.currentTeam;
 const backPath = Astro.url.pathname + Astro.url.search;
-
 const uiPrefs = Astro.locals.uiPrefs ?? {};
-const nav = [
-  { href: '/vto',       label: 'חזון',        icon: Eye },
-  { href: '/rocks',     label: 'פרוייקטים',       icon: Target },
-  { href: '/issues',    label: 'נושאים',      icon: AlertCircle },
-  { href: '/todos',     label: 'משימות',      icon: ListTodo },
-  { href: '/scorecard', label: 'לוח מדדים',   icon: ChartBar },
-  { href: '/rooms',     label: 'חדרים',       icon: CalendarDays },
-].filter(
-  (i) =>
-    !(i.href === '/vto' && uiPrefs.hide_vto) &&
-    !(i.href === '/scorecard' && uiPrefs.hide_scorecard) &&
-    !(i.href === '/rooms' && uiPrefs.hide_rooms),
-);
 
-const initials = (n: string) =>
-  n.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+const isActive = (href: string) => (href === '/' ? path === '/' : path === href || path.startsWith(href + '/'));
+
+// Rail: primary destinations. Hidden items follow the per-user prefs.
+const primary = [
+  { href: '/',          label: 'בית',       icon: Home },
+  { href: '/vto',       label: 'חזון',      icon: Eye,          hide: uiPrefs.hide_vto },
+  { href: '/rocks',     label: 'פרוייקטים', icon: Target },
+  { href: '/issues',    label: 'נושאים',    icon: AlertCircle },
+  { href: '/todos',     label: 'משימות',    icon: ListTodo },
+  { href: '/scorecard', label: 'מדדים',     icon: ChartBar,     hide: uiPrefs.hide_scorecard },
+  { href: '/rooms',     label: 'חדרים',     icon: CalendarDays, hide: uiPrefs.hide_rooms },
+].filter((i) => !i.hide);
+
+// Flyout behind the "more" rail item.
+const secondary = [
+  { href: '/my-tasks',  label: 'המשימות שלי',   icon: ListChecks },
+  { href: '/processes', label: 'תהליכים',       icon: BookOpen },
+  { href: '/teams',     label: 'צוותים ואנשים', icon: Users },
+  { href: '/links',     label: 'קישורים',       icon: Link2 },
+  { href: '/chart',     label: 'מבנה ארגוני',   icon: Network, hide: !uiPrefs.show_org_chart },
+].filter((i) => !i.hide);
+const secondaryActive = secondary.some((i) => isActive(i.href));
+
+// Quick create: one place to start any record.
+const quickCreate = [
+  { href: '/rocks?add_rock=1', label: 'פרוייקט', icon: Target },
+  { href: '/issues#new',       label: 'נושא',    icon: AlertCircle },
+  { href: '/todos#new',        label: 'משימה',   icon: ListTodo },
+  { href: '/rooms?add=1',      label: 'הזמנת חלל', icon: CalendarDays, hide: uiPrefs.hide_rooms },
+  { href: '/links?add=1',      label: 'קישור',   icon: Link2 },
+].filter((i) => !i.hide);
+
+const crumb =
+  [...primary, ...secondary, { href: '/settings', label: 'הגדרות' }].find((i) => i.href !== '/' && isActive(i.href))?.label ??
+  (path === '/' ? 'בית' : null);
+const moduleLabel = module === 'crm' ? 'CRM' : module === 'rooms' ? 'חדרים' : 'EOS';
+
+const initials = (n: string) => n.split(' ').filter(Boolean).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+const displayName = user?.fullName || user?.email || '';
 ---
 <!doctype html>
 <html lang="he" dir="rtl">
@@ -39,101 +71,169 @@ const initials = (n: string) =>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>{title}</title>
   </head>
-  <body class="min-h-screen">
-    <header class="bg-white border-b border-stone-200 sticky top-0 z-20">
-      <div class="max-w-[1400px] mx-auto px-4 md:px-6 h-16 flex items-center gap-1">
-        <!-- Mobile: hamburger -->
-        <div class="md:hidden me-1">
+  <body class={`min-h-screen theme-${module}`}>
+    <!-- ================= Desktop rail ================= -->
+    <aside class="hidden md:flex fixed inset-y-0 start-0 w-[4.75rem] bg-stone-900 flex-col items-center py-3 z-30 border-e border-stone-800">
+      <a href="/" class="w-10 h-10 rounded-xl bg-white grid place-items-center shrink-0 overflow-hidden" title="חב״ד כרמיאל">
+        <img src="/logo.png" alt="" class="h-7 w-auto" />
+      </a>
+
+      <nav class="flex-1 flex flex-col items-stretch gap-0.5 mt-4 w-full px-2 overflow-y-auto">
+        {primary.map(({ href, label, icon: Icon }) => (
+          <a href={href} class={`rail-item ${isActive(href) ? 'rail-active' : ''}`} aria-current={isActive(href) ? 'page' : undefined}>
+            <Icon size={20} />
+            <span>{label}</span>
+          </a>
+        ))}
+
+        <div class="h-px bg-stone-800 mx-2 my-2"></div>
+
+        <button
+          type="button"
+          popovertarget="rail-more"
+          class={`rail-item ${secondaryActive ? 'rail-active' : ''}`}
+          aria-haspopup="menu"
+        >
+          <MoreHorizontal size={20} />
+          <span>עוד</span>
+        </button>
+      </nav>
+
+      <div class="w-full px-2 mt-2">
+        <a href="/settings" class={`rail-item ${isActive('/settings') ? 'rail-active' : ''}`}>
+          <Settings size={20} />
+          <span>הגדרות</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- Rail flyout -->
+    <div id="rail-more" popover class="fixed" style="inset-inline-start: 5.25rem; bottom: 5rem;">
+      <div class="menu" role="menu">
+        <div class="menu-label">עוד</div>
+        {secondary.map(({ href, label, icon: Icon }) => (
+          <a href={href} class={`menu-item ${isActive(href) ? 'bg-accent-soft text-accent-ink' : ''}`} role="menuitem">
+            <Icon size={15} class="text-stone-400" />
+            {label}
+          </a>
+        ))}
+      </div>
+    </div>
+
+    <!-- ================= Utility bar ================= -->
+    <header class="sticky top-0 z-20 h-14 bg-white border-b border-stone-200 md:ms-[4.75rem]">
+      <div class="h-full px-3 md:px-6 flex items-center gap-2">
+        <!-- Mobile: hamburger + brand -->
+        <div class="md:hidden flex items-center gap-1">
           <MobileMenu
             client:load
             teams={teams}
             currentTeamId={currentTeam?.id ?? null}
             currentPath={path}
-            userName={user?.fullName || user?.email || ''}
+            userName={displayName}
             backPath={backPath}
             hideVto={uiPrefs.hide_vto ?? false}
             hideScorecard={uiPrefs.hide_scorecard ?? false}
             hideRooms={uiPrefs.hide_rooms ?? false}
             showOrgChart={uiPrefs.show_org_chart ?? false}
           />
+          <a href="/" class="flex items-center"><img src="/logo.png" alt="חב״ד כרמיאל" class="h-7 w-auto" /></a>
         </div>
 
-        <!-- Logo -->
-        <a href="/" class="flex items-center md:me-6">
-          <img src="/logo.png" alt="צעירי אגודת חב״ד" class="h-8 w-auto" />
-        </a>
-
-        <!-- Desktop nav -->
-        <nav class="hidden md:flex items-center gap-1 flex-1">
-          {nav.map(({ href, label, icon: Icon }) => {
-            const active = path === href || path.startsWith(href + '/');
-            return (
-              <a
-                href={href}
-                title={label}
-                class={`flex items-center gap-1.5 px-2.5 lg:px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
-                  active ? 'bg-violet-50 text-violet-700' : 'text-stone-600 hover:bg-stone-50'
-                }`}
-              >
-                <Icon size={16} class="shrink-0" />
-                <span class="hidden lg:inline">{label}</span>
-              </a>
-            );
-          })}
-        </nav>
-
-        <!-- Spacer on mobile -->
-        <div class="flex-1 md:hidden"></div>
-
-        <!-- Desktop: team selector -->
-        <div class="hidden md:block">
-          {teams.length > 0 ? (
-            <form method="POST" action="/api/team" class="me-3">
-              <input type="hidden" name="back" value={backPath} />
-              <select
-                name="team_id"
-                onchange="this.form.submit()"
-                class="text-sm bg-white border border-stone-300 rounded-lg px-3 py-1.5 pe-8 cursor-pointer hover:border-stone-400"
-              >
-                {teams.map((t) => (
-                  <option value={t.id} selected={t.id === currentTeam?.id}>{t.name}</option>
-                ))}
-              </select>
-            </form>
-          ) : (
-            <span class="text-xs text-stone-400 me-3">אין גישה לצוות</span>
-          )}
+        <!-- Crumb -->
+        <div class="hidden md:flex items-center gap-2 text-sm min-w-0">
+          <span class="pill bg-accent-soft text-accent-ink">{moduleLabel}</span>
+          {crumb && <span class="text-stone-300">/</span>}
+          {crumb && <span class="font-semibold text-stone-900 truncate">{crumb}</span>}
         </div>
 
-        <!-- Desktop: gear menu -->
-        <div class="hidden md:block">
-          <MoreMenu client:load showOrgChart={uiPrefs.show_org_chart ?? false} />
-        </div>
-
-        <!-- Desktop: user name + logout -->
-        {user && (
-          <div class="hidden md:flex items-center gap-2 text-sm text-stone-700 ms-1">
-            <span class="hidden lg:inline">{user.fullName || user.email}</span>
-            <form method="POST" action="/auth/logout">
-              <button class="p-2 rounded hover:bg-stone-100 text-stone-500" title="התנתקות">
-                <LogOut size={16} />
-              </button>
-            </form>
+        <!-- Team switcher (EOS pages are team-scoped) -->
+        {module === 'eos' && (
+          <div class="hidden md:block ms-4">
+            {teams.length > 0 ? (
+              <form method="POST" action="/api/team" class="relative">
+                <input type="hidden" name="back" value={backPath} />
+                <select
+                  name="team_id"
+                  onchange="this.form.submit()"
+                  aria-label="צוות"
+                  class="appearance-none text-sm bg-stone-50 border border-stone-200 rounded-lg ps-3 pe-8 py-1.5 cursor-pointer hover:border-stone-300 focus:outline-none focus:border-accent"
+                >
+                  {teams.map((t) => (
+                    <option value={t.id} selected={t.id === currentTeam?.id}>{t.name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} class="pointer-events-none absolute end-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
+              </form>
+            ) : (
+              <span class="text-xs text-stone-400">אין גישה לצוות</span>
+            )}
           </div>
         )}
 
-        <!-- Mobile: user avatar -->
+        <div class="flex-1"></div>
+
+        <!-- Quick create -->
+        <button type="button" popovertarget="quick-create" class="btn btn-primary !px-2.5 md:!px-3" title="יצירה מהירה" aria-haspopup="menu">
+          <Plus size={16} />
+          <span class="hidden md:inline">חדש</span>
+        </button>
+
+        <!-- User -->
         {user && (
-          <div class="md:hidden w-8 h-8 rounded-full bg-violet-100 text-violet-700 grid place-items-center text-xs font-semibold">
-            {initials(user.fullName || user.email)}
+          <button
+            type="button"
+            popovertarget="user-menu"
+            class="hidden md:grid w-9 h-9 rounded-full bg-stone-900 text-white place-items-center text-xs font-semibold ms-1"
+            title={displayName}
+            aria-haspopup="menu"
+          >
+            {initials(displayName)}
+          </button>
+        )}
+        {user && (
+          <div class="md:hidden w-8 h-8 rounded-full bg-stone-900 text-white grid place-items-center text-xs font-semibold">
+            {initials(displayName)}
           </div>
         )}
       </div>
     </header>
 
-    <main class={`${fullWidth ? 'w-full' : 'max-w-[1400px] mx-auto'} px-4 md:px-6 py-6 md:py-8`}>
+    <div id="quick-create" popover class="fixed" style="top: 3.25rem; inset-inline-end: 4.25rem;">
+      <div class="menu" role="menu">
+        <div class="menu-label">יצירה מהירה</div>
+        {quickCreate.map(({ href, label, icon: Icon }) => (
+          <a href={href} class="menu-item" role="menuitem">
+            <Icon size={15} class="text-stone-400" />
+            {label}
+          </a>
+        ))}
+      </div>
+    </div>
+
+    {user && (
+      <div id="user-menu" popover class="fixed" style="top: 3.25rem; inset-inline-end: 0.75rem;">
+        <div class="menu" role="menu">
+          <div class="px-3 py-2 border-b border-stone-100 mb-1">
+            <div class="text-sm font-semibold text-stone-900 truncate">{user.fullName || user.email}</div>
+            {user.fullName && <div class="text-xs text-stone-500 truncate">{user.email}</div>}
+          </div>
+          <a href="/my-tasks" class="menu-item" role="menuitem"><ListChecks size={15} class="text-stone-400" />המשימות שלי</a>
+          <a href="/settings" class="menu-item" role="menuitem"><Settings size={15} class="text-stone-400" />הגדרות</a>
+          <form method="POST" action="/auth/logout">
+            <button class="menu-item" role="menuitem"><LogOut size={15} class="text-stone-400" />התנתקות</button>
+          </form>
+        </div>
+      </div>
+    )}
+
+    <!-- ================= Page ================= -->
+    <main class={`md:ms-[4.75rem] ${fullWidth ? '' : 'max-w-[1400px] mx-auto'} px-4 md:px-6 py-5 md:py-6`}>
       <slot />
     </main>
   </body>

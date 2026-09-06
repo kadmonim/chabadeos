@@ -1,0 +1,21 @@
+---
+// Link-based segmented tabs (server-rendered, no JS). Pass the current URL's
+// variant as `active`.
+interface Item { href: string; label: string; count?: number | null; key: string }
+interface Props { items: Item[]; active: string; class?: string }
+const { items, active, class: cls = '' } = Astro.props;
+---
+<nav class={`seg overflow-x-auto max-w-full ${cls}`} aria-label="תצוגות">
+  {items.map((i) => (
+    <a
+      href={i.href}
+      class={`seg-item flex items-center gap-1.5 ${i.key === active ? 'seg-active' : ''}`}
+      aria-current={i.key === active ? 'page' : undefined}
+    >
+      {i.label}
+      {i.count != null && (
+        <span class={`text-[11px] tabular-nums ${i.key === active ? 'text-stone-500' : 'text-stone-400'}`}>{i.count}</span>
+      )}
+    </a>
+  ))}
+</nav>

@@ -1,0 +1,62 @@
+---
+// End-side drawer for create/edit forms. State is driven by the URL
+// (?add=1, ?edit=<id>) so it renders server-side and survives reloads; this
+// component only adds the frame, the slide-in and Escape-to-close.
+//
+//   {panelOpen && (
+//     <Drawer title="הוספה" closeHref={back}>
+//       <form ...>…</form>
+//     </Drawer>
+//   )}
+import { X } from 'lucide-svelte';
+
+interface Props {
+  title: string;
+  closeHref: string;
+  size?: 'md' | 'lg';
+}
+const { title, closeHref, size = 'md' } = Astro.props;
+const width = size === 'lg' ? 'max-w-2xl' : 'max-w-md';
+---
+<div class="fixed inset-0 z-40" data-drawer data-close={closeHref}>
+  <a href={closeHref} class="absolute inset-0 bg-stone-900/30 backdrop-blur-[1px] drawer-fade" aria-label="סגירה"></a>
+  <aside
+    class={`absolute end-0 top-0 bottom-0 w-full ${width} bg-white shadow-2xl flex flex-col drawer-slide`}
+    role="dialog"
+    aria-modal="true"
+    aria-label={title}
+  >
+    <header class="flex items-center justify-between gap-3 px-5 h-14 border-b border-stone-200 shrink-0">
+      <h2 class="text-base font-semibold text-stone-900 truncate">{title}</h2>
+      <a href={closeHref} class="btn-icon -me-2" title="סגירה (Esc)"><X size={18} /></a>
+    </header>
+    <div class="flex-1 overflow-y-auto px-5 py-5">
+      <slot />
+    </div>
+    {Astro.slots.has('footer') && (
+      <footer class="px-5 py-3 border-t border-stone-200 bg-stone-50 shrink-0">
+        <slot name="footer" />
+      </footer>
+    )}
+  </aside>
+</div>
+
+<style>
+  .drawer-slide { animation: drawer-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .drawer-fade  { animation: drawer-fade 180ms ease-out; }
+  @keyframes drawer-in   { from { transform: translateX(var(--drawer-from, -100%)); } to { transform: none; } }
+  @keyframes drawer-fade { from { opacity: 0; } to { opacity: 1; } }
+  /* end-0 is the left edge in RTL, so the panel slides in from the left. */
+  :global([dir="rtl"]) .drawer-slide { --drawer-from: -100%; }
+  :global([dir="ltr"]) .drawer-slide { --drawer-from: 100%; }
+  @media (prefers-reduced-motion: reduce) { .drawer-slide, .drawer-fade { animation: none; } }
+</style>
+
+<script is:inline>
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const d = document.querySelector('[data-drawer]');
+    if (d) location.href = d.getAttribute('data-close');
+  }, { once: false });
+  document.body.style.overflow = 'hidden';
+</script>

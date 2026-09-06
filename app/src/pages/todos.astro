@@ -86,7 +86,7 @@ const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.r
     </form>
   </header>
 
-  <form method="POST" action="/api/todos" class="flex gap-2 mb-4">
+  <form id="new" method="POST" action="/api/todos" class="flex gap-2 mb-4">
     <input type="hidden" name="_action" value="create" />
     <input type="hidden" name="team_id" value={team.id} />
     <input type="hidden" name="back" value={back} />
