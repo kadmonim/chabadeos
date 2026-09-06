@@ -9,7 +9,7 @@ const user = Astro.locals.user;
 const canEdit = canEditVto(user?.email);
 const editMode = canEdit && Astro.url.searchParams.get('edit') === '1';
 
-const vtoRows = await sql`select id, vision, traction, swot from vtos limit 1`;
+const vtoRows = await sql`select id, vision, traction, swot from eos_vtos limit 1`;
 const vto = vtoRows[0] ?? null;
 
 const vision = vto?.vision ?? {};

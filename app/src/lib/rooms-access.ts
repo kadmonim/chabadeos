@@ -4,7 +4,7 @@
 // of a Google login it asks for a shared code (see the rooms-access-code
 // migration). Entering it once sets a long-lived signed cookie. The current
 // code is embedded in the cookie and re-checked against the database on every
-// request, so rotating the code in app_settings locks everyone out at once.
+// request, so rotating the code in system_settings locks everyone out at once.
 
 import { SignJWT, jwtVerify } from 'jose';
 import type { AstroCookies } from 'astro';
@@ -16,7 +16,7 @@ const MAX_AGE_DAYS = 180;
 const secret = () => new TextEncoder().encode(import.meta.env.SESSION_SECRET);
 
 export async function currentRoomsCode(): Promise<string | null> {
-  const rows = await sql`select value from app_settings where key = 'rooms_access_code'`;
+  const rows = await sql`select value from system_settings where key = 'rooms_access_code'`;
   return (rows[0] as any)?.value ?? null;
 }
 

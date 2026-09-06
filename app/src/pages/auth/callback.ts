@@ -38,7 +38,7 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
   let employee;
   try {
     const rows = await sql`
-      select id, full_name, email from employees
+      select id, full_name, email from system_employees
       where email ilike ${profile.email}`;
     employee = rows[0] ?? null;
   } catch (e) {

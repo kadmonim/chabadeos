@@ -129,7 +129,7 @@ export const POST: APIRoute = async ({ request }) => {
       const clash = await findClash(room.id, date, startTime, endTime);
       if (clash) return json({ error: clashMessage(clash, room.name), conflict: clash }, 409);
       const rows = await sql`
-        insert into bookings
+        insert into rooms_bookings
           (room_id, event_date, start_time, end_time, title, in_charge_name, purpose, notes)
         values (${room.id}, ${date}, ${startTime}, ${endTime}, ${title}, ${inCharge},
                 ${purpose}, ${notes})
@@ -143,7 +143,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     const weekday = weekdayOf(date);
     const rows = await sql`
-      insert into booking_series
+      insert into rooms_booking_series
         (room_id, title, in_charge_name, purpose, notes, weekday, start_time, end_time, starts_on, ends_on)
       values (${room.id}, ${title}, ${inCharge}, ${purpose}, ${notes}, ${weekday},
               ${startTime}, ${endTime}, ${date}, ${endsOn})
@@ -197,7 +197,7 @@ async function patchOccurrence(id: string, body: any): Promise<Response> {
     select b.id, b.series_id, b.room_id, b.event_date::text as event_date,
            b.start_time::text as start_time, b.end_time::text as end_time,
            b.title, b.in_charge_name, b.purpose, b.notes, b.is_cancelled
-    from bookings b where b.id = ${id}`;
+    from rooms_bookings b where b.id = ${id}`;
   const row = rows[0] as any;
   if (!row) return json({ error: `no booking with id '${id}'` }, 404);
 
@@ -221,7 +221,7 @@ async function patchOccurrence(id: string, body: any): Promise<Response> {
   if (!cancelled) {
     const clash = await findClash(roomId, date, startTime, endTime, id);
     if (clash) {
-      if (!roomName) roomName = ((await sql`select name from rooms where id = ${roomId}`)[0] as any)?.name ?? 'the room';
+      if (!roomName) roomName = ((await sql`select name from rooms_spaces where id = ${roomId}`)[0] as any)?.name ?? 'the room';
       return json({ error: clashMessage(clash, roomName), conflict: clash }, 409);
     }
   }
@@ -242,7 +242,7 @@ async function patchOccurrence(id: string, body: any): Promise<Response> {
   }
 
   await sql`
-    update bookings set
+    update rooms_bookings set
       room_id = ${roomId}, event_date = ${date}, start_time = ${startTime}, end_time = ${endTime},
       title = ${title || null}, in_charge_name = ${inCharge || null},
       purpose = ${purpose}, notes = ${notes},
@@ -259,7 +259,7 @@ async function patchSeries(seriesId: string, body: any): Promise<Response> {
   const rows = await sql`
     select id, room_id, title, in_charge_name, purpose, notes, weekday,
            start_time::text as start_time, end_time::text as end_time, is_active
-    from booking_series where id = ${seriesId}`;
+    from rooms_booking_series where id = ${seriesId}`;
   const s = rows[0] as any;
   if (!s) return json({ error: `no series with id '${seriesId}'` }, 404);
 
@@ -298,20 +298,20 @@ async function patchSeries(seriesId: string, body: any): Promise<Response> {
   if (!isValidDate(effectiveFrom)) return json({ error: 'effective_from must be YYYY-MM-DD' }, 400);
 
   await sql`
-    update booking_series set
+    update rooms_booking_series set
       room_id = ${roomId}, title = ${title}, in_charge_name = ${inCharge},
       purpose = ${purpose}, notes = ${notes},
       weekday = ${weekday}, start_time = ${startTime}, end_time = ${endTime}, is_active = ${isActive}
     where id = ${seriesId}`;
 
   if (!isActive) {
-    await sql`delete from bookings where series_id = ${seriesId} and event_date >= ${today}`;
+    await sql`delete from rooms_bookings where series_id = ${seriesId} and event_date >= ${today}`;
     return json({ series_id: seriesId, is_active: false, note: 'future occurrences removed, history kept' });
   }
 
   // Only untouched slots are rebuilt: hand-edited occurrences stay as they are.
   await sql`
-    delete from bookings
+    delete from rooms_bookings
     where series_id = ${seriesId} and series_date >= ${effectiveFrom} and not is_modified`;
   const skipped = await generateSlots(
     { id: seriesId, room_id: roomId, weekday, start_time: startTime, end_time: endTime },
@@ -343,24 +343,24 @@ export const DELETE: APIRoute = async ({ request }) => {
 
   try {
     if (seriesId) {
-      const exists = await sql`select id from booking_series where id = ${seriesId}`;
+      const exists = await sql`select id from rooms_booking_series where id = ${seriesId}`;
       if (!exists[0]) return json({ error: `no series with id '${seriesId}'` }, 404);
       const today = todayInJerusalem();
-      await sql`update booking_series set is_active = false where id = ${seriesId}`;
-      await sql`delete from bookings where series_id = ${seriesId} and event_date >= ${today}`;
+      await sql`update rooms_booking_series set is_active = false where id = ${seriesId}`;
+      await sql`delete from rooms_bookings where series_id = ${seriesId} and event_date >= ${today}`;
       return json({ series_id: seriesId, stopped: true, note: 'past occurrences kept as history' });
     }
 
-    const rows = await sql`select id, series_id from bookings where id = ${id}`;
+    const rows = await sql`select id, series_id from rooms_bookings where id = ${id}`;
     const row = rows[0] as any;
     if (!row) return json({ error: `no booking with id '${id}'` }, 404);
 
     if (row.series_id) {
       // Kept as a tombstone so the horizon top-up won't regenerate the slot.
-      await sql`update bookings set is_cancelled = true, is_modified = true where id = ${id}`;
+      await sql`update rooms_bookings set is_cancelled = true, is_modified = true where id = ${id}`;
       return json({ id, cancelled: true });
     }
-    await sql`delete from bookings where id = ${id}`;
+    await sql`delete from rooms_bookings where id = ${id}`;
     return json({ id, deleted: true });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);

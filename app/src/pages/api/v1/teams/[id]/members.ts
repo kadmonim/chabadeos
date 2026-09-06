@@ -27,8 +27,8 @@ export const GET: APIRoute = async ({ request, params }) => {
     data = await sql`
       select m.id, m.role, m.role_description, m.display_order,
              e.id as employee_id, e.full_name, e.email
-      from team_memberships m
-      join employees e on e.id = m.employee_id
+      from system_team_memberships m
+      join system_employees e on e.id = m.employee_id
       where m.team_id = ${teamId}
       order by m.display_order asc, e.full_name asc`;
   } catch (e) {
@@ -72,7 +72,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   let id: string;
   try {
     const rows = await sql`
-      insert into team_memberships (team_id, employee_id, role, role_description)
+      insert into system_team_memberships (team_id, employee_id, role, role_description)
       values (${teamId}, ${employeeId}, ${role},
               ${body.role_description ? String(body.role_description) : null})
       on conflict (team_id, employee_id) do update
@@ -106,7 +106,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
   let result: any;
   try {
     result = await pool.query(
-      'delete from team_memberships where team_id = $1 and employee_id = $2',
+      'delete from system_team_memberships where team_id = $1 and employee_id = $2',
       [teamId, employeeId],
     );
   } catch (e) {

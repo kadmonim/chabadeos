@@ -14,8 +14,8 @@ export const GET: APIRoute = async ({ request, url }) => {
   let data: any[];
   try {
     data = email
-      ? await sql`select id, full_name, email, created_at from employees where email ilike ${email} order by full_name asc`
-      : await sql`select id, full_name, email, created_at from employees order by full_name asc`;
+      ? await sql`select id, full_name, email, created_at from system_employees where email ilike ${email} order by full_name asc`
+      : await sql`select id, full_name, email, created_at from system_employees order by full_name asc`;
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
@@ -48,7 +48,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (!fullName) return json({ error: 'full_name is required' }, 400);
   if (!email) return json({ error: 'email is required' }, 400);
 
-  const existing = await sql`select id from employees where email ilike ${email}`;
+  const existing = await sql`select id from system_employees where email ilike ${email}`;
   if (existing[0]) {
     return json({ error: `an employee with email '${email}' already exists`, id: (existing[0] as any).id }, 409);
   }
@@ -67,11 +67,11 @@ export const POST: APIRoute = async ({ request }) => {
   let id: string;
   try {
     const rows = await sql`
-      insert into employees (full_name, email) values (${fullName}, ${email}) returning id`;
+      insert into system_employees (full_name, email) values (${fullName}, ${email}) returning id`;
     id = (rows[0] as any).id;
     if (teamId) {
       await sql`
-        insert into team_memberships (team_id, employee_id, role)
+        insert into system_team_memberships (team_id, employee_id, role)
         values (${teamId}, ${id}, ${role})`;
     }
   } catch (e) {
@@ -95,7 +95,7 @@ export const PATCH: APIRoute = async ({ request }) => {
   let id = body?.id ? String(body.id) : '';
   if (!id) {
     if (!body?.email) return json({ error: 'id or email is required' }, 400);
-    const rows = await sql`select id from employees where email ilike ${String(body.email)}`;
+    const rows = await sql`select id from system_employees where email ilike ${String(body.email)}`;
     if (!rows[0]) return json({ error: `no employee with email '${body.email}'` }, 404);
     id = (rows[0] as any).id;
   }
@@ -123,7 +123,7 @@ export const PATCH: APIRoute = async ({ request }) => {
   let result: any;
   try {
     result = await pool.query(
-      `update employees set ${sets.join(', ')} where id = $${vals.length} returning id`,
+      `update system_employees set ${sets.join(', ')} where id = $${vals.length} returning id`,
       vals,
     );
   } catch (e) {

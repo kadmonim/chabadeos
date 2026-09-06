@@ -7,11 +7,11 @@ import { sql } from './db';
 export async function resolveTeamRef(ref: string | null | undefined): Promise<string | null> {
   if (!ref) return null;
   const rows = await sql`
-    select id from teams where id = ${ref} or name ilike ${ref} limit 1`;
+    select id from system_teams where id = ${ref} or name ilike ${ref} limit 1`;
   return (rows[0] as any)?.id ?? null;
 }
 
 export async function resolveEmployeeByEmail(email: string): Promise<string | null> {
-  const rows = await sql`select id from employees where email ilike ${email}`;
+  const rows = await sql`select id from system_employees where email ilike ${email}`;
   return (rows[0] as any)?.id ?? null;
 }

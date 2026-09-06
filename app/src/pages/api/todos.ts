@@ -3,7 +3,7 @@ import { sql, pool } from '~/lib/db';
 import { canAccessTeam } from '~/lib/team';
 
 async function assertTodoTeamAccess(id: string, locals: App.Locals) {
-  const rows = await sql`select team_id from todos where id = ${id}`;
+  const rows = await sql`select team_id from eos_todos where id = ${id}`;
   const data = rows[0] ?? null;
   return canAccessTeam(locals, data?.team_id);
 }
@@ -29,7 +29,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     if (!canAccessTeam(locals, team_id)) return new Response('Forbidden', { status: 403 });
     try {
       await sql`
-        insert into todos (title, team_id, assignee_employee_id, status, description, due_date, is_urgent)
+        insert into eos_todos (title, team_id, assignee_employee_id, status, description, due_date, is_urgent)
         values (${title}, ${team_id}, ${assignee_employee_id}, ${'open'}, ${description}, ${due_date}, ${is_urgent})`;
     } catch (e) {
       return new Response(`Error: ${(e as Error).message}`, { status: 500 });
@@ -59,7 +59,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     }
     vals.push(id);
     try {
-      await pool.query(`update todos set ${setClause} where id = $${vals.length}`, vals);
+      await pool.query(`update eos_todos set ${setClause} where id = $${vals.length}`, vals);
     } catch (e) {
       return new Response(`Error: ${(e as Error).message}`, { status: 500 });
     }
@@ -71,9 +71,9 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     if (!canAccessTeam(locals, team_id)) return new Response('Forbidden', { status: 403 });
     try {
       if (team_id) {
-        await sql`update todos set status = ${'archived'} where status = ${'done'} and team_id = ${team_id}`;
+        await sql`update eos_todos set status = ${'archived'} where status = ${'done'} and team_id = ${team_id}`;
       } else {
-        await sql`update todos set status = ${'archived'} where status = ${'done'}`;
+        await sql`update eos_todos set status = ${'archived'} where status = ${'done'}`;
       }
     } catch (e) {
       return new Response(`Error: ${(e as Error).message}`, { status: 500 });
@@ -85,7 +85,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     const id = String(form.get('id') ?? '');
     if (!(await assertTodoTeamAccess(id, locals))) return new Response('Forbidden', { status: 403 });
     try {
-      await sql`delete from todos where id = ${id}`;
+      await sql`delete from eos_todos where id = ${id}`;
     } catch (e) {
       return new Response(`Error: ${(e as Error).message}`, { status: 500 });
     }
@@ -114,7 +114,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
   if (sets.length === 0) return new Response('no valid fields', { status: 400 });
   vals.push(id);
   try {
-    await pool.query(`update todos set ${sets.join(', ')} where id = $${vals.length}`, vals);
+    await pool.query(`update eos_todos set ${sets.join(', ')} where id = $${vals.length}`, vals);
   } catch (e) {
     return new Response((e as Error).message, { status: 500 });
   }

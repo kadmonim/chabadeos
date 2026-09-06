@@ -1,6 +1,6 @@
 import { sql } from './db';
 
-// Per-user UI preferences, stored as jsonb on employees.ui_prefs.
+// Per-user UI preferences, stored as jsonb on system_employees.ui_prefs.
 // Missing keys mean "default" (shown).
 export type UiPrefs = {
   hide_vto?: boolean;
@@ -11,10 +11,10 @@ export type UiPrefs = {
 };
 
 export async function getUiPrefs(employeeId: string): Promise<UiPrefs> {
-  const rows = await sql`select ui_prefs from employees where id = ${employeeId}`;
+  const rows = await sql`select ui_prefs from system_employees where id = ${employeeId}`;
   return (rows[0]?.ui_prefs ?? {}) as UiPrefs;
 }
 
 export async function setUiPrefs(employeeId: string, prefs: UiPrefs): Promise<void> {
-  await sql`update employees set ui_prefs = ${JSON.stringify(prefs)}::jsonb where id = ${employeeId}`;
+  await sql`update system_employees set ui_prefs = ${JSON.stringify(prefs)}::jsonb where id = ${employeeId}`;
 }

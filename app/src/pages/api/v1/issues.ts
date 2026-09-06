@@ -56,9 +56,9 @@ export const GET: APIRoute = async ({ request, url }) => {
              else json_build_object('id', t.id, 'name', t.name) end as team,
         case when o.id is null then null
              else json_build_object('id', o.id, 'full_name', o.full_name, 'email', o.email) end as owner
-      from issues i
-      left join teams t on t.id = i.team_id
-      left join employees o on o.id = i.owner_employee_id
+      from eos_issues i
+      left join system_teams t on t.id = i.team_id
+      left join system_employees o on o.id = i.owner_employee_id
       ${wheres.length ? `where ${wheres.join(' and ')}` : ''}
       order by i.priority_order asc`,
       vals,
@@ -144,7 +144,7 @@ export const POST: APIRoute = async ({ request }) => {
   let data: any;
   try {
     const rows = await sql`
-      insert into issues (title, description, owner_employee_id, team_id, term_type, type, priority, status)
+      insert into eos_issues (title, description, owner_employee_id, team_id, term_type, type, priority, status)
       values (${title}, ${body.description ? String(body.description) : null}, ${ownerId}, ${teamId},
               ${termType}, ${type}, ${priority ?? 3}, ${'open'})
       returning id`;
@@ -260,7 +260,7 @@ export const PATCH: APIRoute = async ({ request }) => {
   let result: any;
   try {
     result = await pool.query(
-      `update issues set ${sets.join(', ')} where id = $${vals.length} returning id`,
+      `update eos_issues set ${sets.join(', ')} where id = $${vals.length} returning id`,
       vals,
     );
   } catch (e) {

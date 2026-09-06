@@ -12,7 +12,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!title || !url) return redirect(back);
     try {
       await sql`
-        insert into links (title, url, description, category, is_private)
+        insert into system_links (title, url, description, category, is_private)
         values (
           ${title},
           ${url},
@@ -31,7 +31,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!id) return new Response('id required', { status: 400 });
     try {
       await sql`
-        update links set
+        update system_links set
           title = ${String(form.get('title') ?? '').trim()},
           url = ${String(form.get('url') ?? '').trim()},
           description = ${String(form.get('description') ?? '') || null},
@@ -47,7 +47,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (action === 'delete') {
     const id = String(form.get('id') ?? '');
     try {
-      await sql`delete from links where id = ${id}`;
+      await sql`delete from system_links where id = ${id}`;
     } catch (e) {
       return new Response(`Error: ${(e as Error).message}`, { status: 500 });
     }

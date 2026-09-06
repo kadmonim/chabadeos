@@ -84,9 +84,9 @@ if (editId) {
            coalesce(b.notes, s.notes) as shown_notes,
            coalesce(b.created_by, s.created_by) as created_by,
            r.name as room_name
-    from bookings b
-    join rooms r on r.id = b.room_id
-    left join booking_series s on s.id = b.series_id
+    from rooms_bookings b
+    join rooms_spaces r on r.id = b.room_id
+    left join rooms_booking_series s on s.id = b.series_id
     where b.id = ${editId}`;
   editing = rows[0] ?? null;
 }
@@ -97,7 +97,7 @@ if (seriesId) {
     select id, room_id, title, in_charge_name, purpose, notes, weekday,
            start_time::text as start_time, end_time::text as end_time,
            starts_on::text as starts_on, created_by
-    from booking_series where id = ${seriesId}`;
+    from rooms_booking_series where id = ${seriesId}`;
   editingSeries = rows[0] ?? null;
 }
 

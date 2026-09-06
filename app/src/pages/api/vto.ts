@@ -9,9 +9,9 @@ import { canEditVto } from '~/lib/permissions';
 const SECTIONS = new Set(['vision', 'traction', 'swot']);
 
 async function getVtoId() {
-  const rows = await sql`select id from vtos limit 1`;
+  const rows = await sql`select id from eos_vtos limit 1`;
   if (rows[0]) return rows[0].id;
-  const inserted = await sql`insert into vtos default values returning id`;
+  const inserted = await sql`insert into eos_vtos default values returning id`;
   return inserted[0].id;
 }
 
@@ -37,7 +37,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // Fetch current section, patch it, write it back.
   let current: any;
   try {
-    const rows = await sql`select ${sql.identifier(section)} from vtos where id = ${id}`;
+    const rows = await sql`select ${sql.identifier(section)} from eos_vtos where id = ${id}`;
     current = rows[0];
   } catch (e) {
     return new Response((e as Error).message, { status: 500 });
@@ -47,7 +47,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!path) {
     // Replace the whole section.
     try {
-      await sql`update vtos set ${sql.identifier(section)} = ${JSON.stringify(data ?? {})}::jsonb where id = ${id}`;
+      await sql`update eos_vtos set ${sql.identifier(section)} = ${JSON.stringify(data ?? {})}::jsonb where id = ${id}`;
     } catch (e) {
       return new Response((e as Error).message, { status: 500 });
     }
@@ -56,7 +56,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   setByPath(sectionObj, path, data);
   try {
-    await sql`update vtos set ${sql.identifier(section)} = ${JSON.stringify(sectionObj)}::jsonb where id = ${id}`;
+    await sql`update eos_vtos set ${sql.identifier(section)} = ${JSON.stringify(sectionObj)}::jsonb where id = ${id}`;
   } catch (e) {
     return new Response((e as Error).message, { status: 500 });
   }

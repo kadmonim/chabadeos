@@ -28,7 +28,7 @@ const rooms = await listRooms();
 const slots = (await sql`
   select room_id, event_date::text as event_date,
          start_time::text as start_time, end_time::text as end_time
-  from bookings
+  from rooms_bookings
   where not is_cancelled and event_date >= ${days[0]} and event_date <= ${days[6]}
   order by event_date, start_time`) as unknown as Slot[];
 

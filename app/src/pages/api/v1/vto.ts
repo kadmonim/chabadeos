@@ -8,7 +8,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   let data: any;
   try {
-    const rows = await sql`select id, vision, traction, swot, updated_at from vtos limit 1`;
+    const rows = await sql`select id, vision, traction, swot, updated_at from eos_vtos limit 1`;
     data = rows[0] ?? null;
   } catch (e) {
     return json({ error: (e as Error).message }, 500);

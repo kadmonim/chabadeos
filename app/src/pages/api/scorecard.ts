@@ -8,12 +8,12 @@ export const PUT: APIRoute = async ({ request, locals }) => {
   if (!measurable_id || !date || !frequency) return new Response('bad input', { status: 400 });
 
   // Verify caller has access to the measurable's team.
-  const mRows = await sql`select team_id from measurables where id = ${measurable_id}`;
+  const mRows = await sql`select team_id from eos_measurables where id = ${measurable_id}`;
   const m = mRows[0] ?? null;
   if (!m) return new Response('not found', { status: 404 });
   if (!canAccessTeam(locals, m.team_id)) return new Response('Forbidden', { status: 403 });
 
-  const table = frequency === 'monthly' ? 'monthly_values' : 'weekly_values';
+  const table = frequency === 'monthly' ? 'eos_monthly_values' : 'eos_weekly_values';
   const dateCol = frequency === 'monthly' ? 'month_start_date' : 'week_start_date';
   const parsedValue = value === '' || value == null ? null : Number(value);
   const trimmedNote = typeof note === 'string' ? note.trim() : null;

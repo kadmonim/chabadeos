@@ -126,16 +126,16 @@ const swot = {
 };
 
 // Upsert the singleton V/TO row. If one already exists, update it; otherwise insert.
-const existing = await client.query('select id from vtos limit 1');
+const existing = await client.query('select id from eos_vtos limit 1');
 if (existing.rows[0]) {
   await client.query(
-    `update vtos set vision = $1, traction = $2, swot = $3 where id = $4`,
+    `update eos_vtos set vision = $1, traction = $2, swot = $3 where id = $4`,
     [JSON.stringify(vision), JSON.stringify(traction), JSON.stringify(swot), existing.rows[0].id],
   );
   console.log(`updated V/TO (${existing.rows[0].id})`);
 } else {
   await client.query(
-    `insert into vtos (vision, traction, swot) values ($1, $2, $3)`,
+    `insert into eos_vtos (vision, traction, swot) values ($1, $2, $3)`,
     [JSON.stringify(vision), JSON.stringify(traction), JSON.stringify(swot)],
   );
   console.log('inserted V/TO');

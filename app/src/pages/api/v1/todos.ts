@@ -50,9 +50,9 @@ export const GET: APIRoute = async ({ request, url }) => {
              else json_build_object('id', t.id, 'name', t.name) end as team,
         case when a.id is null then null
              else json_build_object('id', a.id, 'full_name', a.full_name, 'email', a.email) end as assignee
-      from todos td
-      left join teams t on t.id = td.team_id
-      left join employees a on a.id = td.assignee_employee_id
+      from eos_todos td
+      left join system_teams t on t.id = td.team_id
+      left join system_employees a on a.id = td.assignee_employee_id
       ${wheres.length ? `where ${wheres.join(' and ')}` : ''}
       order by td.due_date asc nulls last`,
       vals,
@@ -115,7 +115,7 @@ export const POST: APIRoute = async ({ request }) => {
   let data: any;
   try {
     const rows = await sql`
-      insert into todos (title, description, assignee_employee_id, team_id, due_date, is_urgent, status)
+      insert into eos_todos (title, description, assignee_employee_id, team_id, due_date, is_urgent, status)
       values (${title}, ${body.description ? String(body.description) : null}, ${assigneeId}, ${teamId},
               ${dueDate}, ${body.is_urgent === true}, ${'open'})
       returning id`;
@@ -206,7 +206,7 @@ export const PATCH: APIRoute = async ({ request }) => {
   let result: any;
   try {
     result = await pool.query(
-      `update todos set ${sets.join(', ')} where id = $${vals.length} returning id`,
+      `update eos_todos set ${sets.join(', ')} where id = $${vals.length} returning id`,
       vals,
     );
   } catch (e) {

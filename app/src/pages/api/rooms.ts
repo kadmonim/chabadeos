@@ -35,7 +35,7 @@ const ok = (back: string, message?: string) =>
   });
 
 async function roomName(id: string): Promise<string> {
-  const rows = await sql`select name from rooms where id = ${id}`;
+  const rows = await sql`select name from rooms_spaces where id = ${id}`;
   return (rows[0] as any)?.name ?? 'החלל';
 }
 
@@ -89,7 +89,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
         const clash = await findClash(roomId, date, startTime, endTime);
         if (clash) return bad(back, clashMessage(clash, await roomName(roomId)));
         await sql`
-          insert into bookings
+          insert into rooms_bookings
             (room_id, event_date, start_time, end_time, title, in_charge_name, purpose, notes, created_by)
           values (${roomId}, ${date}, ${startTime}, ${endTime}, ${title}, ${inCharge},
                   ${purposeOf()}, ${notes}, ${user?.employeeId ?? null})`;
@@ -117,7 +117,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       }
 
       const rows = await sql`
-        insert into booking_series
+        insert into rooms_booking_series
           (room_id, title, in_charge_name, purpose, notes, weekday, start_time, end_time, starts_on, created_by)
         values (${roomId}, ${title}, ${inCharge}, ${purposeOf()}, ${notes}, ${weekday},
                 ${startTime}, ${endTime}, ${date}, ${user?.employeeId ?? null})
@@ -141,7 +141,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       const rows = await sql`
         select b.id, b.series_id, b.room_id, b.series_date::text as series_date,
                coalesce(b.created_by, s.created_by) as created_by
-        from bookings b left join booking_series s on s.id = b.series_id
+        from rooms_bookings b left join rooms_booking_series s on s.id = b.series_id
         where b.id = ${id}`;
       const row = rows[0] as any;
       if (!row) return bad(back, 'ההזמנה לא נמצאה.');
@@ -170,7 +170,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
           const from = row.series_date;
           const weekday = weekdayOf(date);
           await sql`
-            update booking_series
+            update rooms_booking_series
             set room_id = ${roomId}, weekday = ${weekday},
                 start_time = ${startTime}, end_time = ${endTime},
                 title = ${title}, in_charge_name = ${inCharge},
@@ -179,7 +179,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
           // This week becomes the new rule, so it gets rebuilt too even if it was
           // hand-edited before. Other hand-edited weeks are still left alone.
           await sql`
-            delete from bookings
+            delete from rooms_bookings
             where series_id = ${seriesId} and series_date >= ${from}
               and (not is_modified or id = ${id})`;
           const skipped = await generateSlots(
@@ -199,7 +199,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
         // Title & co. are stored on the booking itself, overriding the series
         // values for just this week (they win in the coalesce on read).
         await sql`
-          update bookings
+          update rooms_bookings
           set room_id = ${roomId}, event_date = ${date}, start_time = ${startTime},
               end_time = ${endTime}, title = ${title}, in_charge_name = ${inCharge},
               purpose = ${purposeOf()}, notes = ${notes}, is_modified = true
@@ -208,7 +208,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       }
 
       await sql`
-        update bookings
+        update rooms_bookings
         set room_id = ${roomId}, event_date = ${date}, start_time = ${startTime},
             end_time = ${endTime}, title = ${title}, in_charge_name = ${inCharge},
             purpose = ${purposeOf()}, notes = ${notes}, is_modified = true
@@ -222,7 +222,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
         select b.id, b.room_id, b.event_date::text as event_date,
                b.start_time::text as start_time, b.end_time::text as end_time,
                coalesce(b.created_by, s.created_by) as created_by
-        from bookings b left join booking_series s on s.id = b.series_id
+        from rooms_bookings b left join rooms_booking_series s on s.id = b.series_id
         where b.id = ${id}`;
       const row = rows[0] as any;
       if (!row) return bad(back, 'ההזמנה לא נמצאה.');
@@ -230,29 +230,29 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       if (action === 'restore_occurrence') {
         const clash = await findClash(row.room_id, row.event_date, row.start_time, row.end_time, id);
         if (clash) return bad(back, clashMessage(clash, await roomName(row.room_id)));
-        await sql`update bookings set is_cancelled = false where id = ${id}`;
+        await sql`update rooms_bookings set is_cancelled = false where id = ${id}`;
         return ok(back, 'האירוע הוחזר.');
       }
 
       // Cancelling keeps the row as a tombstone: the slot stays claimed, so the
       // horizon top-up won't quietly regenerate it.
-      await sql`update bookings set is_cancelled = true, is_modified = true where id = ${id}`;
+      await sql`update rooms_bookings set is_cancelled = true, is_modified = true where id = ${id}`;
       return ok(back, 'האירוע בוטל.');
     }
 
     if (action === 'delete_occurrence') {
       const id = str('id');
-      const rows = await sql`select series_id, created_by from bookings where id = ${id}`;
+      const rows = await sql`select series_id, created_by from rooms_bookings where id = ${id}`;
       const row = rows[0] as any;
       if (!row) return bad(back, 'ההזמנה לא נמצאה.');
       if (row.series_id) return bad(back, 'אירוע מתוך סדרה מבוטל ולא נמחק.');
-      await sql`delete from bookings where id = ${id}`;
+      await sql`delete from rooms_bookings where id = ${id}`;
       return ok(back, 'ההזמנה נמחקה.');
     }
 
     if (action === 'update_series') {
       const id = str('id');
-      const rows = await sql`select id, created_by from booking_series where id = ${id}`;
+      const rows = await sql`select id, created_by from rooms_booking_series where id = ${id}`;
       const row = rows[0] as any;
       if (!row) return bad(back, 'הסדרה לא נמצאה.');
 
@@ -272,7 +272,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       if (!isValidDate(effectiveFrom)) return bad(back, 'תאריך תחילת התוקף לא תקין.');
 
       await sql`
-        update booking_series
+        update rooms_booking_series
         set room_id = ${roomId}, title = ${title}, in_charge_name = ${inCharge},
             purpose = ${purposeOf()}, notes = ${notes}, weekday = ${weekday},
             start_time = ${startTime}, end_time = ${endTime}
@@ -281,7 +281,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       // Rebuild the untouched future slots. Hand-edited occurrences are left
       // alone — otherwise changing the series time would wipe every exception.
       await sql`
-        delete from bookings
+        delete from rooms_bookings
         where series_id = ${id} and series_date >= ${effectiveFrom} and not is_modified`;
       const skipped = await generateSlots(
         { id, room_id: roomId, weekday, start_time: startTime, end_time: endTime },
@@ -296,14 +296,14 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
 
     if (action === 'delete_series') {
       const id = str('id');
-      const rows = await sql`select id, created_by from booking_series where id = ${id}`;
+      const rows = await sql`select id, created_by from rooms_booking_series where id = ${id}`;
       const row = rows[0] as any;
       if (!row) return bad(back, 'הסדרה לא נמצאה.');
 
       // Stop it rather than erase it: future slots go, past ones stay as history.
       const today = todayInJerusalem();
-      await sql`update booking_series set is_active = false where id = ${id}`;
-      await sql`delete from bookings where series_id = ${id} and event_date >= ${today}`;
+      await sql`update rooms_booking_series set is_active = false where id = ${id}`;
+      await sql`delete from rooms_bookings where series_id = ${id} and event_date >= ${today}`;
       return ok(back, 'הסדרה הופסקה. האירועים שהיו נשארו בהיסטוריה.');
     }
 

@@ -17,7 +17,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!title) return redirect(back);
     try {
       await sql`
-        insert into org_seats (title, parent_id, employee_id, person_name, responsibilities)
+        insert into eos_org_seats (title, parent_id, employee_id, person_name, responsibilities)
         values (
           ${title},
           ${parent_id},
@@ -44,9 +44,9 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       if (newParent === id) return new Response('a seat cannot report to itself', { status: 400 });
       const cycle = await sql`
         with recursive up as (
-          select id, parent_id from org_seats where id = ${newParent}
+          select id, parent_id from eos_org_seats where id = ${newParent}
           union all
-          select s.id, s.parent_id from org_seats s join up on s.id = up.parent_id
+          select s.id, s.parent_id from eos_org_seats s join up on s.id = up.parent_id
         )
         select 1 from up where id = ${id}`;
       if (cycle.length) {
@@ -55,9 +55,9 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     }
 
     try {
-      if (newParent) await sql`update org_seats set parent_id = ${newParent} where id = ${id}`;
+      if (newParent) await sql`update eos_org_seats set parent_id = ${newParent} where id = ${id}`;
       await sql`
-        update org_seats set
+        update eos_org_seats set
           title = ${String(form.get('title') ?? '').trim()},
           employee_id = ${String(form.get('employee_id') ?? '') || null},
           person_name = ${String(form.get('person_name') ?? '') || null},
@@ -72,7 +72,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (action === 'delete') {
     const id = String(form.get('id') ?? '');
     try {
-      await sql`delete from org_seats where id = ${id}`;
+      await sql`delete from eos_org_seats where id = ${id}`;
     } catch (e) {
       return new Response(`Error: ${(e as Error).message}`, { status: 500 });
     }

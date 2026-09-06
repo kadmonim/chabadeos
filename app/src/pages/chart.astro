@@ -15,10 +15,10 @@ const [seats, employees] = await Promise.all([
       case when e.id is null then null
         else json_build_object('id', e.id, 'full_name', e.full_name, 'email', e.email)
       end as employee
-    from org_seats s
-    left join employees e on e.id = s.employee_id
+    from eos_org_seats s
+    left join system_employees e on e.id = s.employee_id
     order by s.display_order asc`,
-  sql`select id, full_name from employees order by full_name asc`,
+  sql`select id, full_name from system_employees order by full_name asc`,
 ]);
 
 type Seat = {

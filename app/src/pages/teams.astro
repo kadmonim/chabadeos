@@ -19,11 +19,11 @@ const teamsSelect = `
           'id', m.id, 'role', m.role, 'role_description', m.role_description, 'display_order', m.display_order,
           'employee', case when e.id is null then null else json_build_object('id', e.id, 'full_name', e.full_name, 'email', e.email) end
         ))
-       from team_memberships m
-       left join employees e on e.id = m.employee_id
+       from system_team_memberships m
+       left join system_employees e on e.id = m.employee_id
        where m.team_id = t.id),
       '[]'::json) as memberships
-  from teams t`;
+  from system_teams t`;
 
 const { rows: teams }: { rows: any[] } = adminView
   ? await pool.query(`${teamsSelect} order by t.name asc`)
@@ -31,7 +31,7 @@ const { rows: teams }: { rows: any[] } = adminView
     ? await pool.query(`${teamsSelect} where t.id = any($1) order by t.name asc`, [allowedIds])
     : { rows: [] as any[] };
 
-const allEmployees: any[] = await sql`select id, full_name, email from employees order by full_name asc`;
+const allEmployees: any[] = await sql`select id, full_name, email from system_employees order by full_name asc`;
 
 const editing = editId ? (teams ?? []).find((t) => t.id === editId) ?? null : null;
 const sortedMembers = editing

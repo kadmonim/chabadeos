@@ -16,7 +16,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     let team;
     try {
       const rows = await sql`
-        insert into teams (name, description) values (${name}, ${description})
+        insert into system_teams (name, description) values (${name}, ${description})
         returning id`;
       team = rows[0];
     } catch (e) {
@@ -25,7 +25,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
 
     if (locals.user) {
       await sql`
-        insert into team_memberships (team_id, employee_id, role)
+        insert into system_team_memberships (team_id, employee_id, role)
         values (${team.id}, ${locals.user.employeeId}, 'admin')`;
     }
     return redirect(`/teams?edit=${team.id}`);
@@ -37,7 +37,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     if (!canAccessTeam(locals, id)) return new Response('Forbidden', { status: 403 });
     try {
       await sql`
-        update teams set
+        update system_teams set
           name = ${String(form.get('name') ?? '').trim()},
           description = ${String(form.get('description') ?? '') || null}
         where id = ${id}`;
@@ -51,7 +51,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     const id = String(form.get('id') ?? '');
     if (!canAccessTeam(locals, id)) return new Response('Forbidden', { status: 403 });
     try {
-      await sql`delete from teams where id = ${id}`;
+      await sql`delete from system_teams where id = ${id}`;
     } catch (e) {
       return new Response(`Error: ${(e as Error).message}`, { status: 500 });
     }

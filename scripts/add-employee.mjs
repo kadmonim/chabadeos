@@ -18,7 +18,7 @@ const client = new pg.Client({ connectionString: url });
 await client.connect();
 
 const { rows: [emp] } = await client.query(
-  `insert into employees (full_name, email) values ($1, $2)
+  `insert into system_employees (full_name, email) values ($1, $2)
    on conflict (email) do update set full_name = excluded.full_name
    returning id, full_name, email`,
   [fullName, email],

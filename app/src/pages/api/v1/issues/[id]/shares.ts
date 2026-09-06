@@ -13,7 +13,7 @@ export const GET: APIRoute = async ({ request, params }) => {
 
   const { id } = params;
 
-  const issueRows = await sql`select id from issues where id = ${id!}`;
+  const issueRows = await sql`select id from eos_issues where id = ${id!}`;
   const issue = issueRows[0] ?? null;
   if (!issue) return json({ error: 'issue not found' }, 404);
 
@@ -22,8 +22,8 @@ export const GET: APIRoute = async ({ request, params }) => {
     data = await sql`
       select case when t.id is null then null
                   else json_build_object('id', t.id, 'name', t.name) end as team
-      from issue_shares s
-      left join teams t on t.id = s.team_id
+      from eos_issue_shares s
+      left join system_teams t on t.id = s.team_id
       where s.issue_id = ${id!}`;
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
@@ -52,13 +52,13 @@ export const POST: APIRoute = async ({ request, params }) => {
   );
   if (!teamId) return json({ error: 'team_id or team_name is required and must match an existing team' }, 400);
 
-  const issueRows = await sql`select id, team_id from issues where id = ${id!}`;
+  const issueRows = await sql`select id, team_id from eos_issues where id = ${id!}`;
   const issue = (issueRows[0] as any) ?? null;
   if (!issue) return json({ error: 'issue not found' }, 404);
   if (issue.team_id === teamId) return json({ error: 'cannot share an issue with its own team' }, 400);
 
   try {
-    await sql`insert into issue_shares (issue_id, team_id) values (${id!}, ${teamId})`;
+    await sql`insert into eos_issue_shares (issue_id, team_id) values (${id!}, ${teamId})`;
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
@@ -86,7 +86,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
   if (!teamId) return json({ error: 'team_id or team_name is required and must match an existing team' }, 400);
 
   try {
-    await sql`delete from issue_shares where issue_id = ${id!} and team_id = ${teamId}`;
+    await sql`delete from eos_issue_shares where issue_id = ${id!} and team_id = ${teamId}`;
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }

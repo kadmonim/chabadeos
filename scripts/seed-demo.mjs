@@ -88,16 +88,16 @@ const swot = {
   threats: ['Material price volatility', 'Skilled labor shortage'],
 };
 
-const existing = await client.query('select id from vtos limit 1');
+const existing = await client.query('select id from eos_vtos limit 1');
 if (existing.rows[0]) {
   await client.query(
-    `update vtos set vision = $1, traction = $2, swot = $3 where id = $4`,
+    `update eos_vtos set vision = $1, traction = $2, swot = $3 where id = $4`,
     [JSON.stringify(vision), JSON.stringify(traction), JSON.stringify(swot), existing.rows[0].id],
   );
   console.log(`updated V/TO (${existing.rows[0].id})`);
 } else {
   await client.query(
-    `insert into vtos (vision, traction, swot) values ($1, $2, $3)`,
+    `insert into eos_vtos (vision, traction, swot) values ($1, $2, $3)`,
     [JSON.stringify(vision), JSON.stringify(traction), JSON.stringify(swot)],
   );
   console.log('inserted V/TO');
@@ -105,7 +105,7 @@ if (existing.rows[0]) {
 
 // -------------------- Rocks --------------------
 const { rows: [emp] } = await client.query(
-  `select id from employees where email = $1 limit 1`,
+  `select id from system_employees where email = $1 limit 1`,
   ['mendye@gmail.com'],
 );
 if (!emp) throw new Error('Mendy employee row not found — run seed-basic.mjs first');
@@ -133,9 +133,9 @@ const rocks = [
 
 for (const r of rocks) {
   const { rowCount } = await client.query(
-    `insert into rocks (title, description, owner_employee_id, due_date, status, priority_order)
+    `insert into eos_rocks (title, description, owner_employee_id, due_date, status, priority_order)
      select $1, $2, $3, $4::date, 'on_track', $5
-     where not exists (select 1 from rocks where title = $1)`,
+     where not exists (select 1 from eos_rocks where title = $1)`,
     [r.title, r.description, emp.id, r.due_date, r.priority_order],
   );
   console.log(rowCount ? `inserted rock: ${r.title}` : `skipped (exists): ${r.title}`);

@@ -191,7 +191,7 @@ export function isValidTime(s: string | null | undefined): s is string {
 
 export async function listRooms(): Promise<Room[]> {
   const rows = await sql`
-    select id, name, sort_order, icon, accent from rooms
+    select id, name, sort_order, icon, accent from rooms_spaces
     where is_active order by sort_order, name`;
   return rows as Room[];
 }
@@ -213,9 +213,9 @@ export async function occurrencesBetween(
       b.is_modified, b.is_cancelled,
       coalesce(b.created_by, s.created_by) as created_by,
       (b.series_id is not null) as weekly
-    from bookings b
-    join rooms r on r.id = b.room_id
-    left join booking_series s on s.id = b.series_id
+    from rooms_bookings b
+    join rooms_spaces r on r.id = b.room_id
+    left join rooms_booking_series s on s.id = b.series_id
     where b.event_date >= ${from} and b.event_date <= ${to}
       and (${opts.includeCancelled ?? false} or not b.is_cancelled)
     order by b.event_date, b.start_time, r.sort_order`;
@@ -237,7 +237,7 @@ export async function ensureHorizon(throughDate?: string): Promise<void> {
   const series = await sql`
     select id, room_id, weekday, start_time::text as start_time, end_time::text as end_time,
            starts_on::text as starts_on, ends_on::text as ends_on
-    from booking_series where is_active`;
+    from rooms_booking_series where is_active`;
   if (!series.length) return;
 
   for (const s of series as any[]) {
@@ -274,7 +274,7 @@ export async function planSlots(series: SeriesShape, from: string, to: string): 
   let existing = new Set<string>();
   if (series.id) {
     const rows = await sql`
-      select series_date::text as d from bookings
+      select series_date::text as d from rooms_bookings
       where series_id = ${series.id} and series_date >= ${from} and series_date <= ${to}`;
     existing = new Set((rows as any[]).map((r) => r.d));
   }
@@ -305,7 +305,7 @@ export async function generateSlots(
   for (const date of plan.free) {
     try {
       await sql`
-        insert into bookings (series_id, series_date, room_id, event_date, start_time, end_time)
+        insert into rooms_bookings (series_id, series_date, room_id, event_date, start_time, end_time)
         values (${series.id}, ${date}, ${series.room_id}, ${date}, ${series.start_time}, ${series.end_time})
         on conflict (series_id, series_date) where series_id is not null do nothing`;
     } catch (e) {
@@ -335,8 +335,8 @@ export async function findClash(
     select coalesce(b.title, s.title) as title,
            coalesce(b.in_charge_name, s.in_charge_name) as in_charge_name,
            b.start_time::text as start_time, b.end_time::text as end_time
-    from bookings b
-    left join booking_series s on s.id = b.series_id
+    from rooms_bookings b
+    left join rooms_booking_series s on s.id = b.series_id
     where b.room_id = ${roomId}
       and b.event_date = ${date}
       and not b.is_cancelled

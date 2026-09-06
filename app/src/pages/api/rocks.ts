@@ -14,7 +14,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!title) return redirect(back);
     try {
       await sql`
-        insert into rocks (title, description, owner_employee_id, due_date, status, priority_order)
+        insert into eos_rocks (title, description, owner_employee_id, due_date, status, priority_order)
         values (
           ${title},
           ${String(form.get('description') ?? '') || null},
@@ -34,7 +34,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!id) return new Response('id required', { status: 400 });
     try {
       await sql`
-        update rocks set
+        update eos_rocks set
           title = ${String(form.get('title') ?? '').trim()},
           description = ${String(form.get('description') ?? '') || null},
           owner_employee_id = ${String(form.get('owner_employee_id') ?? '') || null},
@@ -50,7 +50,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (action === 'delete') {
     const id = String(form.get('id') ?? '');
     try {
-      await sql`delete from rocks where id = ${id}`;
+      await sql`delete from eos_rocks where id = ${id}`;
     } catch (e) {
       return new Response(`Error: ${(e as Error).message}`, { status: 500 });
     }
@@ -77,7 +77,7 @@ export const PATCH: APIRoute = async ({ request }) => {
   if (sets.length === 0) return new Response('no valid fields', { status: 400 });
   vals.push(id);
   try {
-    await pool.query(`update rocks set ${sets.join(', ')} where id = $${vals.length}`, vals);
+    await pool.query(`update eos_rocks set ${sets.join(', ')} where id = $${vals.length}`, vals);
   } catch (e) {
     return new Response((e as Error).message, { status: 500 });
   }

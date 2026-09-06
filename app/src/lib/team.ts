@@ -15,8 +15,8 @@ export async function fetchAllowedTeams(employeeId: string): Promise<Team[]> {
     select case when t.id is null then null
       else json_build_object('id', t.id, 'name', t.name, 'description', t.description)
     end as team
-    from team_memberships m
-    left join teams t on t.id = m.team_id
+    from system_team_memberships m
+    left join system_teams t on t.id = m.team_id
     where m.employee_id = ${employeeId}`;
   const teams = ((data ?? []) as any[])
     .map((r) => r.team)

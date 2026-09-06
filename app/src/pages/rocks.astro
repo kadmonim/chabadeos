@@ -16,8 +16,8 @@ const sortRocks = url.searchParams.get('sort_rocks') ?? 'priority';
 const rockSelect = `
   select r.id, r.title, r.description, r.status, r.due_date::text as due_date, r.priority_order, r.is_archived, r.owner_employee_id,
     case when o.id is null then null else json_build_object('id', o.id, 'full_name', o.full_name) end as owner
-  from rocks r
-  left join employees o on o.id = r.owner_employee_id`;
+  from eos_rocks r
+  left join system_employees o on o.id = r.owner_employee_id`;
 
 const rockOrder =
   sortRocks === 'due_date' ? 'r.due_date asc' :
@@ -26,7 +26,7 @@ const rockOrder =
 
 const [rocks, employees]: [any[], any[]] = await Promise.all([
   pool.query(`${rockSelect} where r.is_archived = false order by ${rockOrder}`).then((r: any) => r.rows),
-  sql`select id, full_name from employees order by full_name asc`,
+  sql`select id, full_name from system_employees order by full_name asc`,
 ]);
 
 // Resolve panel state

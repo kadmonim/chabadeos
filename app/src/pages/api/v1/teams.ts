@@ -6,7 +6,7 @@ const TEAM_ROLES = new Set(['admin', 'member']);
 
 async function resolveTeam(idOrName: string): Promise<{ id: string; name: string } | null> {
   const rows = await sql`
-    select id, name from teams where id = ${idOrName} or name ilike ${idOrName} limit 1`;
+    select id, name from system_teams where id = ${idOrName} or name ilike ${idOrName} limit 1`;
   return (rows[0] as any) ?? null;
 }
 
@@ -25,11 +25,11 @@ export const GET: APIRoute = async ({ request }) => {
             'employee', case when e.id is null then null
                              else json_build_object('id', e.id, 'full_name', e.full_name, 'email', e.email) end
           ))
-          from team_memberships m
-          left join employees e on e.id = m.employee_id
+          from system_team_memberships m
+          left join system_employees e on e.id = m.employee_id
           where m.team_id = t.id
         ), '[]'::json) as memberships
-      from teams t
+      from system_teams t
       order by t.name asc`;
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
@@ -84,7 +84,7 @@ export const POST: APIRoute = async ({ request }) => {
       }
       let employeeId = m?.employee_id ? String(m.employee_id) : null;
       if (!employeeId && m?.email) {
-        const rows = await sql`select id from employees where email ilike ${String(m.email)}`;
+        const rows = await sql`select id from system_employees where email ilike ${String(m.email)}`;
         employeeId = (rows[0] as any)?.id ?? null;
         if (!employeeId) return json({ error: `no employee with email '${m.email}'` }, 400);
       }
@@ -100,13 +100,13 @@ export const POST: APIRoute = async ({ request }) => {
   let id: string;
   try {
     const rows = await sql`
-      insert into teams (name, description)
+      insert into system_teams (name, description)
       values (${name}, ${body.description ? String(body.description) : null})
       returning id`;
     id = (rows[0] as any).id;
     for (const [i, m] of members.entries()) {
       await sql`
-        insert into team_memberships (team_id, employee_id, role, role_description, display_order)
+        insert into system_team_memberships (team_id, employee_id, role, role_description, display_order)
         values (${id}, ${m.employeeId}, ${m.role}, ${m.roleDescription}, ${i})`;
     }
   } catch (e) {
@@ -152,7 +152,7 @@ export const PATCH: APIRoute = async ({ request }) => {
 
   vals.push(team.id);
   try {
-    await pool.query(`update teams set ${sets.join(', ')} where id = $${vals.length}`, vals);
+    await pool.query(`update system_teams set ${sets.join(', ')} where id = $${vals.length}`, vals);
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
@@ -184,7 +184,7 @@ export const DELETE: APIRoute = async ({ request }) => {
   }
 
   try {
-    await sql`delete from teams where id = ${team.id}`;
+    await sql`delete from system_teams where id = ${team.id}`;
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }

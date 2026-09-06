@@ -7,7 +7,7 @@ const url = Astro.url;
 const editId = url.searchParams.get('edit');
 const adding = url.searchParams.get('add') === '1';
 
-const links = await sql`select * from links order by title asc`;
+const links = await sql`select * from system_links order by title asc`;
 
 const grouped = new Map<string, any[]>();
 for (const l of links ?? []) {

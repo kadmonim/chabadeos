@@ -19,8 +19,8 @@ const detailId = url.searchParams.get('detail');
 const baseSelect = `
   select t.id, t.title, t.description, t.status, t.is_urgent, t.due_date::text as due_date, t.created_at, t.team_id, t.assignee_employee_id,
     case when a.id is null then null else json_build_object('id', a.id, 'full_name', a.full_name, 'email', a.email) end as assignee
-  from todos t
-  left join employees a on a.id = t.assignee_employee_id`;
+  from eos_todos t
+  left join system_employees a on a.id = t.assignee_employee_id`;
 
 const where: string[] = ['t.team_id = $1'];
 const vals: unknown[] = [team.id];
@@ -37,8 +37,8 @@ const [todos, employees]: [any[], any[]] = await Promise.all([
   pool.query(`${baseSelect} where ${where.join(' and ')} order by ${orderBy}`, vals).then((r: any) => r.rows),
   sql`
     select case when e.id is null then null else json_build_object('id', e.id, 'full_name', e.full_name) end as employee
-    from team_memberships m
-    left join employees e on e.id = m.employee_id
+    from system_team_memberships m
+    left join system_employees e on e.id = m.employee_id
     where m.team_id = ${team.id}
     order by e.full_name asc`.then((data) => (data ?? []).map((m: any) => m.employee).filter(Boolean)),
 ]);

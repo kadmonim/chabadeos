@@ -4,7 +4,7 @@ import { canAccessTeam } from '~/lib/team';
 import { isSystemAdmin } from '~/lib/permissions';
 
 async function assertMembershipAccess(id: string, locals: App.Locals) {
-  const rows = await sql`select team_id from team_memberships where id = ${id}`;
+  const rows = await sql`select team_id from system_team_memberships where id = ${id}`;
   return canAccessTeam(locals, rows[0]?.team_id);
 }
 
@@ -23,7 +23,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
 
     try {
       await sql`
-        insert into team_memberships (team_id, employee_id, role, role_description)
+        insert into system_team_memberships (team_id, employee_id, role, role_description)
         values (${team_id}, ${employee_id}, ${role}, ${role_description})`;
     } catch (e) {
       return new Response(`Error: ${(e as Error).message}`, { status: 500 });
@@ -44,7 +44,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     if (!sets.length) return redirect(back);
     vals.push(id);
     try {
-      await pool.query(`update team_memberships set ${sets.join(', ')} where id = $${vals.length}`, vals);
+      await pool.query(`update system_team_memberships set ${sets.join(', ')} where id = $${vals.length}`, vals);
     } catch (e) {
       return new Response(`Error: ${(e as Error).message}`, { status: 500 });
     }
@@ -55,7 +55,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     const id = String(form.get('id') ?? '');
     if (!(await assertMembershipAccess(id, locals))) return new Response('Forbidden', { status: 403 });
     try {
-      await sql`delete from team_memberships where id = ${id}`;
+      await sql`delete from system_team_memberships where id = ${id}`;
     } catch (e) {
       return new Response(`Error: ${(e as Error).message}`, { status: 500 });
     }
@@ -75,7 +75,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     let emp;
     try {
       const rows = await sql`
-        insert into employees (full_name, email) values (${full_name}, ${email})
+        insert into system_employees (full_name, email) values (${full_name}, ${email})
         on conflict (email) do update set full_name = excluded.full_name
         returning id`;
       emp = rows[0];
@@ -85,7 +85,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
 
     try {
       await sql`
-        insert into team_memberships (team_id, employee_id, role, role_description)
+        insert into system_team_memberships (team_id, employee_id, role, role_description)
         values (${team_id}, ${emp.id}, ${role}, ${role_description})
         on conflict (team_id, employee_id) do update set
           role = excluded.role, role_description = excluded.role_description`;

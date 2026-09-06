@@ -12,7 +12,7 @@ const client = new pg.Client({ connectionString: url });
 await client.connect();
 
 const { rows: [emp] } = await client.query(
-  `insert into employees (full_name, email) values ($1, $2)
+  `insert into system_employees (full_name, email) values ($1, $2)
    on conflict (email) do update set full_name = excluded.full_name
    returning id`,
   ['מענדי', 'mendye@gmail.com'],
@@ -20,13 +20,13 @@ const { rows: [emp] } = await client.query(
 console.log('employee:', emp.id);
 
 const { rows: [team] } = await client.query(
-  `insert into teams (name, description) values ($1, $2) returning id`,
+  `insert into system_teams (name, description) values ($1, $2) returning id`,
   ['Chabad Renovations', 'Renovations team'],
 );
 console.log('team:', team.id);
 
 await client.query(
-  `insert into team_memberships (team_id, employee_id, role)
+  `insert into system_team_memberships (team_id, employee_id, role)
    values ($1, $2, 'admin')
    on conflict (team_id, employee_id) do nothing`,
   [team.id, emp.id],
@@ -34,14 +34,14 @@ await client.query(
 console.log('membership: linked');
 
 const { rows: [iss] } = await client.query(
-  `insert into issues (title, description, team_id, owner_employee_id, type, term_type, status)
+  `insert into eos_issues (title, description, team_id, owner_employee_id, type, term_type, status)
    values ($1, $2, $3, $4, 'problem', 'short_term', 'open') returning id`,
   ['Sample issue: scope renovation kickoff meeting', 'Replace with a real issue.', team.id, emp.id],
 );
 console.log('issue:', iss.id);
 
 const { rows: [td] } = await client.query(
-  `insert into todos (title, description, team_id, assignee_employee_id, status)
+  `insert into eos_todos (title, description, team_id, assignee_employee_id, status)
    values ($1, $2, $3, $4, 'open') returning id`,
   ['Sample task: walk the site', 'Replace with a real todo.', team.id, emp.id],
 );

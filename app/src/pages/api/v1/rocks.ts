@@ -18,8 +18,8 @@ export const GET: APIRoute = async ({ request, url }) => {
         r.id, r.title, r.description, r.status, r.due_date, r.priority_order, r.is_archived, r.created_at,
         case when o.id is null then null
              else json_build_object('id', o.id, 'full_name', o.full_name, 'email', o.email) end as owner
-      from rocks r
-      left join employees o on o.id = r.owner_employee_id
+      from eos_rocks r
+      left join system_employees o on o.id = r.owner_employee_id
       ${includeArchived ? '' : 'where r.is_archived = false'}
       order by r.priority_order asc`,
     ));
@@ -70,7 +70,7 @@ export const POST: APIRoute = async ({ request }) => {
   let data: any;
   try {
     const rows = await sql`
-      insert into rocks (title, description, owner_employee_id, due_date, status, priority_order)
+      insert into eos_rocks (title, description, owner_employee_id, due_date, status, priority_order)
       values (${title}, ${body.description ? String(body.description) : null}, ${ownerId},
               ${body.due_date ? String(body.due_date) : null}, ${status},
               ${Number.isInteger(body.priority_order) ? body.priority_order : 0})
@@ -151,7 +151,7 @@ export const PATCH: APIRoute = async ({ request }) => {
   let result: any;
   try {
     result = await pool.query(
-      `update rocks set ${sets.join(', ')} where id = $${vals.length} returning id`,
+      `update eos_rocks set ${sets.join(', ')} where id = $${vals.length} returning id`,
       vals,
     );
   } catch (e) {

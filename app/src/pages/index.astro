@@ -12,14 +12,14 @@ const [
   openIssuesRows,
   employeesCountRows,
 ] = await Promise.all([
-  sql`select count(*)::int as count from rocks where is_archived = ${false}`,
+  sql`select count(*)::int as count from eos_rocks where is_archived = ${false}`,
   team
-    ? sql`select count(*)::int as count from todos where status = 'open' and team_id = ${team.id}`
-    : sql`select count(*)::int as count from todos where status = 'open'`,
+    ? sql`select count(*)::int as count from eos_todos where status = 'open' and team_id = ${team.id}`
+    : sql`select count(*)::int as count from eos_todos where status = 'open'`,
   team
-    ? sql`select count(*)::int as count from issues where status = 'open' and team_id = ${team.id}`
-    : sql`select count(*)::int as count from issues where status = 'open'`,
-  sql`select count(*)::int as count from employees`,
+    ? sql`select count(*)::int as count from eos_issues where status = 'open' and team_id = ${team.id}`
+    : sql`select count(*)::int as count from eos_issues where status = 'open'`,
+  sql`select count(*)::int as count from system_employees`,
 ]);
 const rocksCount = rocksCountRows[0]?.count;
 const openTodos = openTodosRows[0]?.count;

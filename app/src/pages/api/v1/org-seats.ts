@@ -19,8 +19,8 @@ async function allSeats(): Promise<SeatRow[]> {
     select s.id, s.parent_id, s.title, s.person_name, s.employee_id,
            e.full_name as employee_full_name, e.email as employee_email,
            s.responsibilities, s.display_order
-    from org_seats s
-    left join employees e on e.id = s.employee_id
+    from eos_org_seats s
+    left join system_employees e on e.id = s.employee_id
     order by s.display_order asc, s.title asc`;
   return rows as SeatRow[];
 }
@@ -42,7 +42,7 @@ function shape(s: SeatRow) {
 // Seats are addressable by id or by exact title, so callers don't need ids.
 async function resolveSeat(idOrTitle: string): Promise<{ id: string; title: string } | null> {
   const rows = await sql`
-    select id, title from org_seats where id = ${idOrTitle} or title ilike ${idOrTitle} limit 1`;
+    select id, title from eos_org_seats where id = ${idOrTitle} or title ilike ${idOrTitle} limit 1`;
   return (rows[0] as any) ?? null;
 }
 
@@ -111,7 +111,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   let employeeId: string | null = null;
   if (body.employee_email) {
-    const rows = await sql`select id from employees where email ilike ${String(body.employee_email)}`;
+    const rows = await sql`select id from system_employees where email ilike ${String(body.employee_email)}`;
     employeeId = (rows[0] as any)?.id ?? null;
     if (!employeeId) return json({ error: `no employee with email '${body.employee_email}'` }, 400);
   }
@@ -124,7 +124,7 @@ export const POST: APIRoute = async ({ request }) => {
   let id: string;
   try {
     const rows = await sql`
-      insert into org_seats (title, parent_id, employee_id, person_name, responsibilities, display_order)
+      insert into eos_org_seats (title, parent_id, employee_id, person_name, responsibilities, display_order)
       values (${title}, ${parentId}, ${employeeId},
               ${body.person_name ? String(body.person_name) : null},
               ${JSON.stringify(responsibilities)}::jsonb,
@@ -199,7 +199,7 @@ export const PATCH: APIRoute = async ({ request }) => {
     if (!body.employee_email) {
       set('employee_id', null);
     } else {
-      const rows = await sql`select id from employees where email ilike ${String(body.employee_email)}`;
+      const rows = await sql`select id from system_employees where email ilike ${String(body.employee_email)}`;
       const employeeId = (rows[0] as any)?.id ?? null;
       if (!employeeId) return json({ error: `no employee with email '${body.employee_email}'` }, 400);
       set('employee_id', employeeId);
@@ -231,7 +231,7 @@ export const PATCH: APIRoute = async ({ request }) => {
 
   vals.push(seat.id);
   try {
-    await pool.query(`update org_seats set ${sets.join(', ')} where id = $${vals.length}`, vals);
+    await pool.query(`update eos_org_seats set ${sets.join(', ')} where id = $${vals.length}`, vals);
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
@@ -279,7 +279,7 @@ export const DELETE: APIRoute = async ({ request }) => {
   }
 
   try {
-    await sql`delete from org_seats where id = ${seat.id}`;
+    await sql`delete from eos_org_seats where id = ${seat.id}`;
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }

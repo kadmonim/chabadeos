@@ -37,8 +37,8 @@ const orderBy =
 const { rows: todos } = await pool.query(
   `select t.id, t.title, t.status, t.is_urgent, t.due_date::text as due_date, t.created_at, t.team_id, t.assignee_employee_id,
      case when tm.id is null then null else json_build_object('id', tm.id, 'name', tm.name) end as team
-   from todos t
-   left join teams tm on tm.id = t.team_id
+   from eos_todos t
+   left join system_teams tm on tm.id = t.team_id
    where ${where.join(' and ')}
    ${orderBy}`,
   vals,
@@ -49,11 +49,11 @@ const fmt = (d: string | null) => fmtDualDate(d, { year: false });
 
 // Fetch open/done counts for the subtitle regardless of active filter
 const openCountRows = await sql`
-  select count(*)::int as count from todos
+  select count(*)::int as count from eos_todos
   where assignee_employee_id = ${user.employeeId} and status = 'open'`;
 const openCount = openCountRows[0]?.count;
 const doneCountRows = await sql`
-  select count(*)::int as count from todos
+  select count(*)::int as count from eos_todos
   where assignee_employee_id = ${user.employeeId} and status = 'done'`;
 const doneCount = doneCountRows[0]?.count;
 ---

@@ -63,15 +63,15 @@ const measurables: any[] = await sql`
   select m.id, m.name, m."group", m.subgroup, m.owner_employee_id,
     case when o.id is null then null else json_build_object('id', o.id, 'full_name', o.full_name) end as owner,
     m.goal::float8 as goal, m.value_type, m.threshold_type, m.frequency, m.show_average, m.display_order
-  from measurables m
-  left join employees o on o.id = m.owner_employee_id
+  from eos_measurables m
+  left join system_employees o on o.id = m.owner_employee_id
   where m.team_id = ${team.id}
     and m.is_archived = false
     and m.frequency = ${frequency}
   order by m.display_order asc`;
 
 const ids = (measurables ?? []).map((m) => m.id);
-const valuesTable = frequency === 'weekly' ? 'weekly_values' : 'monthly_values';
+const valuesTable = frequency === 'weekly' ? 'eos_weekly_values' : 'eos_monthly_values';
 const dateCol = frequency === 'weekly' ? 'week_start_date' : 'month_start_date';
 
 const oldest = periods[periods.length - 1].start;
