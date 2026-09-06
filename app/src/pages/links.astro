@@ -1,0 +1,164 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import { Link2, Plus, Pencil, Trash2, X } from 'lucide-svelte';
+import { sql } from '~/lib/db';
+
+const url = Astro.url;
+const editId = url.searchParams.get('edit');
+const adding = url.searchParams.get('add') === '1';
+
+const links = await sql`select * from links order by title asc`;
+
+const grouped = new Map<string, any[]>();
+for (const l of links ?? []) {
+  const key = l.category || 'Other';
+  if (!grouped.has(key)) grouped.set(key, []);
+  grouped.get(key)!.push(l);
+}
+const categories = Array.from(grouped.keys()).sort();
+
+let editing: any = null;
+if (editId) editing = (links ?? []).find((l) => l.id === editId) ?? null;
+
+function faviconFor(linkUrl: string) {
+  try {
+    const host = new URL(linkUrl).hostname;
+    return `https://www.google.com/s2/favicons?domain=${host}&sz=64`;
+  } catch {
+    return null;
+  }
+}
+
+const back = Astro.url.pathname;
+const backWithEdit = (id: string) => `${Astro.url.pathname}?edit=${id}`;
+---
+<AppLayout title={'קישורים · חב"ד כרמיאל'}>
+  <header class="flex items-start justify-between mb-8">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-rose-100 grid place-items-center">
+        <Link2 class="text-rose-600" size={24} />
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-stone-900">קישורים</h1>
+        <p class="text-stone-500 text-sm">כלים, מסמכים וקיצורי דרך משותפים</p>
+      </div>
+    </div>
+    <a
+      href="/links?add=1"
+      class="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
+    >
+      <Plus size={16} />
+      הוספת קישור
+    </a>
+  </header>
+
+  <div class="space-y-8">
+    {Array.from(grouped.entries()).map(([category, items]) => (
+      <section>
+        <h2 class="text-xs uppercase tracking-wider text-stone-500 font-semibold mb-3">{category}</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {items.map((l: any) => {
+            const icon = faviconFor(l.url);
+            return (
+              <div class="group relative flex items-center gap-3 bg-white border border-stone-200 rounded-xl p-3 hover:border-rose-300 hover:shadow-sm transition">
+                <a href={l.url} target="_blank" rel="noopener" class="flex items-center gap-3 flex-1 min-w-0">
+                  {icon ? (
+                    <img src={icon} alt="" class="w-8 h-8 rounded" />
+                  ) : (
+                    <div class="w-8 h-8 rounded bg-stone-100 grid place-items-center">
+                      <Link2 size={16} class="text-stone-400" />
+                    </div>
+                  )}
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-stone-900 truncate">{l.title}</div>
+                    {l.description && <div class="text-xs text-stone-500 truncate">{l.description}</div>}
+                  </div>
+                </a>
+                <a
+                  href={backWithEdit(l.id)}
+                  class="opacity-0 group-hover:opacity-100 p-1.5 text-stone-400 hover:text-stone-800 hover:bg-stone-100 rounded transition"
+                  title="עריכה"
+                >
+                  <Pencil size={13} />
+                </a>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    ))}
+    {!links?.length && (
+      <div class="bg-white border border-stone-200 rounded-xl px-4 py-12 text-center text-sm text-stone-400">
+        אין קישורים עדיין. לחץ על "הוספת קישור" כדי ליצור אחד.
+      </div>
+    )}
+  </div>
+
+  {(adding || editing) && (
+    <div class="fixed inset-0 z-30">
+      <a href={back} class="absolute inset-0 bg-black/20"></a>
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+        <div class="p-6 space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-stone-900">{editing ? 'עריכת קישור' : 'הוספת קישור'}</h2>
+            <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
+          </div>
+
+          <form method="POST" action="/api/links" class="space-y-4">
+            <input type="hidden" name="_action" value={editing ? 'update' : 'create'} />
+            {editing && <input type="hidden" name="id" value={editing.id} />}
+            <input type="hidden" name="back" value={back} />
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">כותרת</label>
+              <input type="text" name="title" required value={editing?.title ?? ''}
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-400" />
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">כתובת URL</label>
+              <input type="url" name="url" required placeholder="https://..." value={editing?.url ?? ''}
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-400" />
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
+              <textarea name="description" rows="2"
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-400"
+              >{editing?.description ?? ''}</textarea>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">קטגוריה</label>
+              <input type="text" name="category" list="link-categories" placeholder="לדוגמה: כלי, מסמכים, זום" value={editing?.category ?? ''}
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-400" />
+              <datalist id="link-categories">
+                {categories.map((c) => <option value={c}></option>)}
+              </datalist>
+            </div>
+
+            <label class="flex items-center gap-2 text-sm text-stone-700">
+              <input type="checkbox" name="is_private" checked={editing?.is_private} />
+              פרטי (גלוי רק לך)
+            </label>
+
+            <button class="w-full bg-rose-600 hover:bg-rose-700 text-white rounded-lg py-2.5 text-sm font-medium">
+              {editing ? 'שמירת שינויים' : 'יצירת קישור'}
+            </button>
+
+            {editing && (
+              <button
+                type="submit"
+                formaction="/api/links"
+                onclick="this.form._action.value='delete'; if(!confirm('למחוק את הקישור הזה?')) return false;"
+                class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2"
+              >
+                <Trash2 size={14} /> מחיקה
+              </button>
+            )}
+          </form>
+        </div>
+      </aside>
+    </div>
+  )}
+</AppLayout>

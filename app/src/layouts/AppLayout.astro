@@ -1,0 +1,140 @@
+---
+import '~/styles/global.css';
+import { Target, AlertCircle, ListTodo, ChartBar, Eye, CalendarDays, LogOut } from 'lucide-svelte';
+import MoreMenu from '~/components/MoreMenu.svelte';
+import MobileMenu from '~/components/MobileMenu.svelte';
+
+interface Props {
+  title?: string;
+  fullWidth?: boolean;
+}
+const { title = 'חב"ד כרמיאל', fullWidth = false } = Astro.props;
+const user = Astro.locals.user;
+const path = Astro.url.pathname;
+const teams = Astro.locals.allowedTeams;
+const currentTeam = Astro.locals.currentTeam;
+const backPath = Astro.url.pathname + Astro.url.search;
+
+const uiPrefs = Astro.locals.uiPrefs ?? {};
+const nav = [
+  { href: '/vto',       label: 'חזון',        icon: Eye },
+  { href: '/rocks',     label: 'פרוייקטים',       icon: Target },
+  { href: '/issues',    label: 'נושאים',      icon: AlertCircle },
+  { href: '/todos',     label: 'משימות',      icon: ListTodo },
+  { href: '/scorecard', label: 'לוח מדדים',   icon: ChartBar },
+  { href: '/rooms',     label: 'חדרים',       icon: CalendarDays },
+].filter(
+  (i) =>
+    !(i.href === '/vto' && uiPrefs.hide_vto) &&
+    !(i.href === '/scorecard' && uiPrefs.hide_scorecard) &&
+    !(i.href === '/rooms' && uiPrefs.hide_rooms),
+);
+
+const initials = (n: string) =>
+  n.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+---
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>{title}</title>
+  </head>
+  <body class="min-h-screen">
+    <header class="bg-white border-b border-stone-200 sticky top-0 z-20">
+      <div class="max-w-[1400px] mx-auto px-4 md:px-6 h-16 flex items-center gap-1">
+        <!-- Mobile: hamburger -->
+        <div class="md:hidden me-1">
+          <MobileMenu
+            client:load
+            teams={teams}
+            currentTeamId={currentTeam?.id ?? null}
+            currentPath={path}
+            userName={user?.fullName || user?.email || ''}
+            backPath={backPath}
+            hideVto={uiPrefs.hide_vto ?? false}
+            hideScorecard={uiPrefs.hide_scorecard ?? false}
+            hideRooms={uiPrefs.hide_rooms ?? false}
+            showOrgChart={uiPrefs.show_org_chart ?? false}
+          />
+        </div>
+
+        <!-- Logo -->
+        <a href="/" class="flex items-center md:me-6">
+          <img src="/logo.png" alt="צעירי אגודת חב״ד" class="h-8 w-auto" />
+        </a>
+
+        <!-- Desktop nav -->
+        <nav class="hidden md:flex items-center gap-1 flex-1">
+          {nav.map(({ href, label, icon: Icon }) => {
+            const active = path === href || path.startsWith(href + '/');
+            return (
+              <a
+                href={href}
+                title={label}
+                class={`flex items-center gap-1.5 px-2.5 lg:px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
+                  active ? 'bg-violet-50 text-violet-700' : 'text-stone-600 hover:bg-stone-50'
+                }`}
+              >
+                <Icon size={16} class="shrink-0" />
+                <span class="hidden lg:inline">{label}</span>
+              </a>
+            );
+          })}
+        </nav>
+
+        <!-- Spacer on mobile -->
+        <div class="flex-1 md:hidden"></div>
+
+        <!-- Desktop: team selector -->
+        <div class="hidden md:block">
+          {teams.length > 0 ? (
+            <form method="POST" action="/api/team" class="me-3">
+              <input type="hidden" name="back" value={backPath} />
+              <select
+                name="team_id"
+                onchange="this.form.submit()"
+                class="text-sm bg-white border border-stone-300 rounded-lg px-3 py-1.5 pe-8 cursor-pointer hover:border-stone-400"
+              >
+                {teams.map((t) => (
+                  <option value={t.id} selected={t.id === currentTeam?.id}>{t.name}</option>
+                ))}
+              </select>
+            </form>
+          ) : (
+            <span class="text-xs text-stone-400 me-3">אין גישה לצוות</span>
+          )}
+        </div>
+
+        <!-- Desktop: gear menu -->
+        <div class="hidden md:block">
+          <MoreMenu client:load showOrgChart={uiPrefs.show_org_chart ?? false} />
+        </div>
+
+        <!-- Desktop: user name + logout -->
+        {user && (
+          <div class="hidden md:flex items-center gap-2 text-sm text-stone-700 ms-1">
+            <span class="hidden lg:inline">{user.fullName || user.email}</span>
+            <form method="POST" action="/auth/logout">
+              <button class="p-2 rounded hover:bg-stone-100 text-stone-500" title="התנתקות">
+                <LogOut size={16} />
+              </button>
+            </form>
+          </div>
+        )}
+
+        <!-- Mobile: user avatar -->
+        {user && (
+          <div class="md:hidden w-8 h-8 rounded-full bg-violet-100 text-violet-700 grid place-items-center text-xs font-semibold">
+            {initials(user.fullName || user.email)}
+          </div>
+        )}
+      </div>
+    </header>
+
+    <main class={`${fullWidth ? 'w-full' : 'max-w-[1400px] mx-auto'} px-4 md:px-6 py-6 md:py-8`}>
+      <slot />
+    </main>
+  </body>
+</html>

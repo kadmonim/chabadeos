@@ -1,0 +1,518 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import SeatNode from '~/components/SeatNode.astro';
+import { Network, X, Trash2, Download } from 'lucide-svelte';
+import { sql } from '~/lib/db';
+
+const url = Astro.url;
+const editId = url.searchParams.get('edit');
+const addUnderId = url.searchParams.get('add_under');
+
+const [seats, employees] = await Promise.all([
+  sql`
+    select
+      s.id, s.parent_id, s.title, s.person_name, s.employee_id, s.responsibilities, s.display_order,
+      case when e.id is null then null
+        else json_build_object('id', e.id, 'full_name', e.full_name, 'email', e.email)
+      end as employee
+    from org_seats s
+    left join employees e on e.id = s.employee_id
+    order by s.display_order asc`,
+  sql`select id, full_name from employees order by full_name asc`,
+]);
+
+type Seat = {
+  id: string;
+  parent_id: string | null;
+  title: string;
+  person_name: string | null;
+  employee_id: string | null;
+  responsibilities: string[];
+  display_order: number;
+  employee: { id: string; full_name: string; email: string } | null;
+  children: Seat[];
+};
+
+const seatById = new Map<string, Seat>();
+for (const s of (seats ?? []) as any[]) {
+  seatById.set(s.id, {
+    id: s.id,
+    parent_id: s.parent_id,
+    title: s.title,
+    person_name: s.person_name,
+    employee_id: s.employee_id,
+    display_order: s.display_order,
+    responsibilities: (s.responsibilities ?? []) as string[],
+    employee: Array.isArray(s.employee) ? s.employee[0] ?? null : s.employee,
+    children: [],
+  });
+}
+let root: Seat | null = null;
+for (const s of seatById.values()) {
+  if (s.parent_id) {
+    seatById.get(s.parent_id)?.children.push(s);
+  } else if (!root) {
+    root = s;
+  }
+}
+function sortTree(s: Seat) {
+  s.children.sort((a, b) => a.display_order - b.display_order);
+  s.children.forEach(sortTree);
+}
+if (root) sortTree(root);
+
+type SeatExport = {
+  title: string;
+  person: string | null;
+  email: string | null;
+  responsibilities: string[];
+  children: SeatExport[];
+};
+function toExport(s: Seat): SeatExport {
+  return {
+    title: s.title,
+    person: s.employee?.full_name ?? s.person_name ?? null,
+    email: s.employee?.email ?? null,
+    responsibilities: s.responsibilities,
+    children: s.children.map(toExport),
+  };
+}
+const exportTree: SeatExport | null = root ? toExport(root) : null;
+
+const editing = editId ? seatById.get(editId) ?? null : null;
+const addingUnder = addUnderId ? seatById.get(addUnderId) ?? null : null;
+
+// Candidate parents for the seat being edited. It can't be moved under itself or
+// under one of its own reports, and the path is spelled out so two seats with the
+// same title are distinguishable.
+function collectDescendants(s: Seat, acc: Set<string>) {
+  for (const c of s.children) {
+    acc.add(c.id);
+    collectDescendants(c, acc);
+  }
+}
+const parentOptions: { id: string; label: string }[] = [];
+if (root && editing) {
+  const blocked = new Set<string>([editing.id]);
+  collectDescendants(editing, blocked);
+  const walk = (s: Seat, path: string[]) => {
+    if (!blocked.has(s.id)) parentOptions.push({ id: s.id, label: [...path, s.title].join(' › ') });
+    for (const c of s.children) walk(c, [...path, s.title]);
+  };
+  walk(root, []);
+}
+
+const back = '/chart';
+---
+<AppLayout title={'מבנה ארגוני · חב"ד כרמיאל'} fullWidth={true}>
+  <header class="flex items-start justify-between mb-8">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
+        <Network class="text-violet-600" size={24} />
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-stone-900">מבנה ארגוני</h1>
+        <p class="text-stone-500 text-sm">מיפוי התפקידים והאחריות של כל תפקיד בארגון.</p>
+      </div>
+    </div>
+    {exportTree && (
+      <button
+        id="export-chart-md"
+        type="button"
+        class="border border-stone-300 bg-white hover:bg-stone-50 rounded-lg px-3 py-2 text-sm font-medium text-stone-700 flex items-center gap-1.5"
+      >
+        <Download size={14} />
+        ייצוא כ-Markdown
+      </button>
+    )}
+  </header>
+
+  {exportTree && (
+    <script id="chart-export-data" type="application/json" set:html={JSON.stringify(exportTree)} />
+  )}
+
+  {root ? (
+    <div class="overflow-x-auto pb-8">
+      <div class="org-chart">
+        <SeatNode seat={root} />
+      </div>
+    </div>
+  ) : (
+    <div class="bg-white border border-stone-200 rounded-xl px-4 py-12 text-center text-sm text-stone-400">
+      אין תפקידים עדיין.
+    </div>
+  )}
+
+  {(editing || addingUnder) && (
+    <div class="fixed inset-0 z-30">
+      <a href={back} class="absolute inset-0 bg-black/20"></a>
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+        <div class="p-6 space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-stone-900">
+              {editing ? 'עריכת תפקיד' : `הוספת תפקיד תחת "${addingUnder!.title}"`}
+            </h2>
+            <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
+          </div>
+
+          <form method="POST" action="/api/org-seats" class="space-y-4">
+            <input type="hidden" name="_action" value={editing ? 'update' : 'create'} />
+            {editing && <input type="hidden" name="id" value={editing.id} />}
+            {addingUnder && <input type="hidden" name="parent_id" value={addingUnder.id} />}
+            <input type="hidden" name="back" value={back} />
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">כותרת / תפקיד</label>
+              <input type="text" name="title" required value={editing?.title ?? ''}
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+            </div>
+
+            {editing && editing.parent_id && (
+              <div>
+                <label class="text-sm font-medium text-stone-700">כפוף ל</label>
+                <select name="parent_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  {parentOptions.map((o) => (
+                    <option value={o.id} selected={o.id === editing.parent_id}>{o.label}</option>
+                  ))}
+                </select>
+                <p class="text-xs text-stone-500 mt-1">
+                  שינוי כאן מעביר את התפקיד — וכל הכפופים לו — למקום אחר בתרשים.
+                </p>
+              </div>
+            )}
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">עובד</label>
+              <select name="employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                <option value="">— ללא —</option>
+                {employees?.map((e) => (
+                  <option value={e.id} selected={e.id === editing?.employee_id}>{e.full_name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">שם אדם (חלופי)</label>
+              <input type="text" name="person_name" value={editing?.person_name ?? ''}
+                placeholder="בשימוש אם לא נבחר עובד"
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">תחומי אחריות (שורה לכל פריט)</label>
+              <textarea name="responsibilities" rows="8"
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+              >{(editing?.responsibilities ?? []).join('\n')}</textarea>
+            </div>
+
+            <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
+              {editing ? 'שמירת תפקיד' : 'יצירת תפקיד'}
+            </button>
+          </form>
+
+          {editing && editing.parent_id && (
+            <form
+              method="POST"
+              action="/api/org-seats"
+              class="pt-4 border-t border-stone-200"
+              onsubmit="return confirm('למחוק את התפקיד הזה ואת כל הכפופים לו?');"
+            >
+              <input type="hidden" name="_action" value="delete" />
+              <input type="hidden" name="id" value={editing.id} />
+              <input type="hidden" name="back" value={back} />
+              <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
+                <Trash2 size={14} /> מחיקת תפקיד
+              </button>
+            </form>
+          )}
+        </div>
+      </aside>
+    </div>
+  )}
+
+  <script is:inline>
+    (function () {
+      const btn = document.getElementById('export-chart-md');
+      const dataEl = document.getElementById('chart-export-data');
+      if (!btn || !dataEl) return;
+
+      let tree;
+      try { tree = JSON.parse(dataEl.textContent || 'null'); }
+      catch { return; }
+      if (!tree) return;
+
+      function seatMd(seat, depth, parentPath) {
+        // Root at h2, cap headings at h6 for deep trees.
+        const level = Math.min(depth + 2, 6);
+        const hashes = '#'.repeat(level);
+        const lines = [];
+        lines.push(hashes + ' ' + seat.title);
+        if (parentPath.length) {
+          lines.push('_כפוף ל: ' + parentPath.join(' → ') + '_');
+        }
+        if (seat.person) {
+          lines.push('**' + seat.person + '**' + (seat.email ? ' · `' + seat.email + '`' : ''));
+        } else {
+          lines.push('_התפקיד פנוי_');
+        }
+        if (seat.responsibilities && seat.responsibilities.length) {
+          lines.push('');
+          lines.push('תחומי אחריות:');
+          for (const r of seat.responsibilities) lines.push('- ' + r);
+        }
+        lines.push('');
+        const childPath = parentPath.concat([seat.title]);
+        for (const c of seat.children) lines.push(seatMd(c, depth + 1, childPath));
+        return lines.join('\n');
+      }
+
+      btn.addEventListener('click', function () {
+        const today = new Date().toISOString().slice(0, 10);
+        const md =
+          '# מבנה ארגוני\n' +
+          '_חב"ד כרמיאל · יוצא בתאריך ' + today + '_\n\n' +
+          '---\n\n' +
+          seatMd(tree, 0, []);
+
+        const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'accountability-chart-' + today + '.md';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 0);
+      });
+    })();
+  </script>
+</AppLayout>
+
+<style is:global>
+  /* ============================================================
+     Accountability chart
+     Nested flex tree with connecting lines via ::before/::after.
+     ============================================================ */
+  .org-chart {
+    --line: #f5b041;
+    --line-width: 2px;
+    display: flex;
+    justify-content: center;
+    min-width: 100%;
+    /* Horizontal scroll handled by the wrapping .overflow-x-auto div */
+    width: max-content;
+    margin: 0 auto;
+  }
+
+  /* Each seat is a flex column that stacks its card above its children ul,
+     both horizontally centered within the wrapper. */
+  .org-chart .seat-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+
+  /* Children ul renders its <li> seat-wrappers in a centered horizontal row. */
+  .org-chart ul {
+    padding: 24px 0 0 0;
+    margin: 0;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    list-style: none;
+  }
+
+  .org-chart li {
+    text-align: center;
+    position: relative;
+    padding: 24px 12px 0 12px;
+    list-style: none;
+  }
+
+  /* Horizontal bar across siblings + vertical stub down into each li.
+     Written with logical properties (inline-start/end) rather than left/right:
+     the page is RTL, so the first child sits on the physical right, and
+     hard-coded sides put the outer elbows on the wrong ends. */
+  .org-chart li::before,
+  .org-chart li::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    inset-inline-end: 50%;
+    border-top: var(--line-width) solid var(--line);
+    width: 50%;
+    height: 24px;
+  }
+  .org-chart li::after {
+    inset-inline-end: auto;
+    inset-inline-start: 50%;
+    border-inline-start: var(--line-width) solid var(--line);
+  }
+  /* Single-child row: no horizontal bar; the parent's drop line reaches
+     straight into the child card's top. */
+  .org-chart li:only-child::before,
+  .org-chart li:only-child::after { display: none; }
+  .org-chart li:only-child { padding-top: 0; }
+  /* First/last: trim the bar so it ends at the li center */
+  .org-chart li:first-child::before,
+  .org-chart li:last-child::after { border: 0 none; }
+  .org-chart li:last-child::before {
+    border-inline-end: var(--line-width) solid var(--line);
+    border-start-end-radius: 4px;
+  }
+  .org-chart li:first-child::after { border-start-start-radius: 4px; }
+
+  /* Drop line from each non-leaf card to its children row (only when expanded) */
+  .org-chart .seat-wrapper:not(.leaf) > .expand-toggle:checked ~ .seat-card::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -24px;
+    width: 0;
+    height: 24px;
+    border-left: var(--line-width) solid var(--line);
+  }
+
+  /* ---------- collapse / expand ---------- */
+  .org-chart .expand-toggle {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+  }
+  /* Hide children ul unless the toggle is checked */
+  .org-chart .expand-toggle:not(:checked) ~ ul { display: none; }
+
+  /* The + / − button sits at the bottom center of each parent card */
+  .org-chart .expand-button {
+    position: absolute;
+    bottom: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 28px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 9999px;
+    background: white;
+    border: 2px solid var(--line);
+    color: var(--line);
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+    z-index: 2;
+  }
+  .org-chart .expand-button:hover {
+    background: #fff7ed;
+  }
+  .org-chart .expand-button .expand-count {
+    font-size: 11px;
+    color: #a16207;
+    font-weight: 600;
+  }
+  /* Icon swap driven by checkbox state via sibling selector */
+  .org-chart .expand-button .expand-minus { display: none; }
+  .org-chart .expand-toggle:checked ~ .seat-card .expand-button .expand-plus { display: none; }
+  .org-chart .expand-toggle:checked ~ .seat-card .expand-button .expand-minus { display: inline; }
+  .org-chart .expand-toggle:checked ~ .seat-card .expand-button .expand-count { display: none; }
+
+  /* ---------- card styles ---------- */
+  .org-chart .seat-card {
+    width: 260px;
+    min-height: 100px;
+    text-align: left;
+    background: white;
+    border: 1px solid #e7e5e4;
+    border-radius: 12px;
+    padding: 16px;
+    position: relative;
+  }
+  .org-chart .seat-card:hover {
+    border-color: #d6d3d1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  .org-chart .seat-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1c1917;
+    text-align: center;
+  }
+  .org-chart .seat-person {
+    font-size: 12px;
+    color: #78716c;
+    margin-top: 2px;
+    text-align: center;
+  }
+  .org-chart .seat-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 9999px;
+    background: #ede9fe;
+    color: #6d28d9;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    margin: 0 auto 8px auto;
+  }
+
+  /* Responsibilities: plain bulleted list inside the card. We override the
+     org-chart ul/li defaults so it displays as a block list, not a flex row. */
+  .org-chart .seat-responsibilities {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #f5f5f4;
+    font-size: 12px;
+    color: #57534e;
+    line-height: 1.45;
+  }
+  .org-chart .seat-responsibilities ul {
+    display: block !important;
+    list-style: disc !important;
+    padding: 0 0 0 16px !important;
+    margin: 0 !important;
+  }
+  .org-chart .seat-responsibilities li {
+    display: list-item !important;
+    padding: 2px 0 !important;
+    text-align: left !important;
+    position: static !important;
+    list-style: disc !important;
+  }
+  .org-chart .seat-responsibilities li::before,
+  .org-chart .seat-responsibilities li::after {
+    display: none !important;
+    border: 0 !important;
+    content: none !important;
+  }
+
+  /* Hover actions */
+  .org-chart .seat-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .org-chart .seat-card:hover .seat-actions { opacity: 1; }
+  .org-chart .seat-actions a {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    color: #a8a29e;
+  }
+  .org-chart .seat-actions a:hover {
+    background: #f5f5f4;
+    color: #1c1917;
+  }
+</style>

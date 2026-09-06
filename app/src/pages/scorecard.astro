@@ -1,0 +1,278 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import ScorecardCell from '~/components/ScorecardCell.svelte';
+import { ChartBar, Plus, ChevronLeft, ChevronRight, History } from 'lucide-svelte';
+import { sql, pool } from '~/lib/db';
+const team = Astro.locals.currentTeam;
+if (!team) return Astro.redirect('/');
+
+const frequency = (Astro.url.searchParams.get('freq') as 'weekly' | 'monthly') || 'weekly';
+const offset = parseInt(Astro.url.searchParams.get('offset') || '0', 10);
+const COLS = 5;
+
+// ----- date columns -----
+function startOfWeek(d: Date) {
+  const x = new Date(d);
+  const dow = x.getUTCDay(); // 0=Sun
+  x.setUTCDate(x.getUTCDate() - dow);
+  x.setUTCHours(0, 0, 0, 0);
+  return x;
+}
+function startOfMonth(d: Date) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+}
+function addDays(d: Date, n: number) {
+  const x = new Date(d);
+  x.setUTCDate(x.getUTCDate() + n);
+  return x;
+}
+function addMonths(d: Date, n: number) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1));
+}
+function ymd(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+function fmtRange(start: Date, end: Date) {
+  const o: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  return `${start.toLocaleDateString('he-IL', o)} - ${end.toLocaleDateString('he-IL', o)}`;
+}
+function fmtMonth(start: Date) {
+  return start.toLocaleDateString('he-IL', { month: 'short', year: 'numeric' });
+}
+
+const today = new Date();
+const periods: { start: Date; end: Date; label: string }[] = [];
+if (frequency === 'weekly') {
+  const base = addDays(startOfWeek(today), -7);
+  for (let i = 0; i < COLS; i++) {
+    const start = addDays(base, -7 * (i + offset));
+    const end = addDays(start, 6);
+    periods.push({ start, end, label: fmtRange(start, end) });
+  }
+} else {
+  const base = addMonths(startOfMonth(today), -1);
+  for (let i = 0; i < COLS; i++) {
+    const start = addMonths(base, -(i + offset));
+    const end = addDays(addMonths(start, 1), -1);
+    periods.push({ start, end, label: fmtMonth(start) });
+  }
+}
+
+// ----- data -----
+const measurables: any[] = await sql`
+  select m.id, m.name, m."group", m.subgroup, m.owner_employee_id,
+    case when o.id is null then null else json_build_object('id', o.id, 'full_name', o.full_name) end as owner,
+    m.goal::float8 as goal, m.value_type, m.threshold_type, m.frequency, m.show_average, m.display_order
+  from measurables m
+  left join employees o on o.id = m.owner_employee_id
+  where m.team_id = ${team.id}
+    and m.is_archived = false
+    and m.frequency = ${frequency}
+  order by m.display_order asc`;
+
+const ids = (measurables ?? []).map((m) => m.id);
+const valuesTable = frequency === 'weekly' ? 'weekly_values' : 'monthly_values';
+const dateCol = frequency === 'weekly' ? 'week_start_date' : 'month_start_date';
+
+const oldest = periods[periods.length - 1].start;
+const newest = periods[0].start;
+
+const values = ids.length
+  ? (
+      await pool.query(
+        `select measurable_id, ${dateCol}::text as ${dateCol}, value, note
+         from ${valuesTable}
+         where measurable_id = any($1) and ${dateCol} >= $2 and ${dateCol} <= $3`,
+        [ids, ymd(oldest), ymd(newest)],
+      )
+    ).rows
+  : [];
+
+// index: measurable_id → ymd → { value, note }
+type Cell = { value: number | null; note: string | null };
+const cellMap = new Map<string, Map<string, Cell>>();
+for (const v of values ?? []) {
+  const row = v as any;
+  const m = cellMap.get(row.measurable_id) ?? new Map<string, Cell>();
+  m.set(row[dateCol], {
+    value: row.value == null ? null : Number(row.value),
+    note: row.note ?? null,
+  });
+  cellMap.set(row.measurable_id, m);
+}
+
+// group by group → subgroup → measurables
+type Row = (typeof measurables extends (infer U)[] | null ? U : never);
+const grouped = new Map<string, Map<string, Row[]>>();
+for (const m of measurables ?? []) {
+  const g = m.group || 'אחר';
+  const sg = m.subgroup || '';
+  if (!grouped.has(g)) grouped.set(g, new Map());
+  const sgMap = grouped.get(g)!;
+  if (!sgMap.has(sg)) sgMap.set(sg, []);
+  sgMap.get(sg)!.push(m);
+}
+
+function fmtValue(v: number | null | undefined, vt: string) {
+  if (v == null || Number.isNaN(v)) return '-';
+  if (vt === 'currency') return '$' + Math.round(v).toLocaleString();
+  return Math.round(v * 100) / 100 + '';
+}
+function average(measurableId: string) {
+  const m = cellMap.get(measurableId);
+  if (!m) return null;
+  const nums = Array.from(m.values())
+    .map((c) => c.value)
+    .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
+  if (!nums.length) return null;
+  return nums.reduce((a, b) => a + b, 0) / nums.length;
+}
+function initials(name: string) {
+  return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+}
+---
+<AppLayout title="לוח מדדים · חב&quot;ד כרמיאל">
+  <header class="flex items-start justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-stone-900 grid place-items-center">
+        <ChartBar class="text-white" size={24} />
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-stone-900">לוח מדדים</h1>
+        <p class="text-stone-500 text-sm">מדדי הצוות {team.name}</p>
+      </div>
+    </div>
+    <button class="bg-stone-800 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5">
+      <Plus size={16} />
+      הוספת מדד
+    </button>
+  </header>
+
+  <div class="flex items-center justify-between mb-4">
+    <div class="inline-flex bg-stone-100 rounded-lg p-1">
+      <a
+        href="/scorecard?freq=weekly"
+        class={`px-4 py-1.5 rounded-md text-sm font-medium ${frequency === 'weekly' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}
+      >
+        שבועי
+      </a>
+      <a
+        href="/scorecard?freq=monthly"
+        class={`px-4 py-1.5 rounded-md text-sm font-medium ${frequency === 'monthly' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}
+      >
+        חודשי
+      </a>
+    </div>
+    <div class="flex gap-1">
+      <!-- Most recent period is on the LEFT (start side). "Newer" moves back toward offset 0 (disabled there);
+           "Older" moves forward past it (offset +COLS). In RTL, forward points left, back points right. -->
+      <a
+        href={offset > 0 ? `/scorecard?freq=${frequency}&offset=${Math.max(0, offset - COLS)}` : '#'}
+        class={`w-8 h-8 grid place-items-center rounded-lg border border-stone-200 bg-white ${offset > 0 ? 'text-stone-500 hover:text-stone-800' : 'text-stone-300 pointer-events-none'}`}
+        aria-label="חדש יותר"
+      >
+        <ChevronRight size={16} />
+      </a>
+      <a
+        href={`/scorecard?freq=${frequency}&offset=${offset + COLS}`}
+        class="w-8 h-8 grid place-items-center rounded-lg border border-stone-200 bg-white text-stone-500 hover:text-stone-800"
+        aria-label="ישן יותר"
+      >
+        <ChevronLeft size={16} />
+      </a>
+    </div>
+  </div>
+
+  <div class="bg-white border border-stone-200 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-stone-500 text-xs uppercase tracking-wide">
+          <th class="text-start font-medium px-4 py-3 w-64">כותרת</th>
+          <th class="text-center font-medium px-3 py-3 w-24">אחראי</th>
+          <th class="text-center font-medium px-3 py-3 w-24">יעד</th>
+          <th class="text-center font-medium px-3 py-3 w-24">ממוצע</th>
+          {periods.map((p) => (
+            <th class="text-center font-medium px-2 py-3">{p.label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from(grouped.entries()).map(([groupName, subMap]) => (
+          <>
+            <tr>
+              <td colspan={4 + COLS} class="bg-violet-50 text-violet-700 font-semibold text-xs uppercase tracking-wider px-4 py-2">
+                {groupName}
+              </td>
+            </tr>
+            {Array.from(subMap.entries()).map(([sgName, rows]) => (
+              <>
+                {sgName && (
+                  <tr>
+                    <td colspan={4 + COLS} class="bg-stone-50 text-stone-500 font-semibold text-xs uppercase tracking-wider px-4 py-2">
+                      {sgName}
+                    </td>
+                  </tr>
+                )}
+                {rows.map((m: any) => {
+                  const avg = average(m.id);
+                  return (
+                    <tr class="border-t border-stone-100">
+                      <td class="px-4 py-3">
+                        <div class="flex items-center gap-1.5 text-stone-800 font-medium">
+                          {m.name}
+                          <History size={12} class="text-stone-300" />
+                        </div>
+                      </td>
+                      <td class="px-3 py-3 text-center">
+                        {m.owner ? (
+                          <div class="inline-grid place-items-center w-7 h-7 rounded-full bg-violet-100 text-violet-700 text-[10px] font-semibold" title={m.owner.full_name}>
+                            {initials(m.owner.full_name)}
+                          </div>
+                        ) : (
+                          <span class="text-stone-300">-</span>
+                        )}
+                      </td>
+                      <td class="px-3 py-3 text-center">
+                        <div class="text-[10px] text-stone-400 uppercase">{m.threshold_type === 'maximum' ? 'מקס' : 'מינ'}</div>
+                        <div class="font-medium text-stone-800">{fmtValue(m.goal, m.value_type)}</div>
+                      </td>
+                      <td class="px-3 py-3 text-center">
+                        <div class="text-[10px] text-stone-400 uppercase">ממוצע</div>
+                        <div class="font-medium text-stone-800">{fmtValue(avg, m.value_type)}</div>
+                      </td>
+                      {periods.map((p) => {
+                        const cell = cellMap.get(m.id)?.get(ymd(p.start)) ?? null;
+                        return (
+                          <td class="px-2 py-1">
+                            <ScorecardCell
+                              client:load
+                              measurableId={m.id}
+                              date={ymd(p.start)}
+                              initial={cell?.value ?? null}
+                              initialNote={cell?.note ?? null}
+                              frequency={frequency}
+                              valueType={m.value_type}
+                              goal={m.goal}
+                              threshold={m.threshold_type}
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </>
+            ))}
+          </>
+        ))}
+        {!measurables?.length && (
+          <tr>
+            <td colspan={4 + COLS} class="px-4 py-12 text-center text-sm text-stone-400">
+              אין מדדים לצוות זה.
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </div>
+</AppLayout>

@@ -1,0 +1,350 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import { Users, Crown, Plus, Pencil, X, Trash2, UserPlus } from 'lucide-svelte';
+import { sql, pool } from '~/lib/db';
+import { isSystemAdmin } from '~/lib/permissions';
+
+const url = Astro.url;
+const creating = url.searchParams.get('new') === '1';
+const editId = url.searchParams.get('edit');
+const addingNew = url.searchParams.get('addNew') === '1';
+
+const adminView = isSystemAdmin(Astro.locals.user?.email);
+const allowedIds = Astro.locals.allowedTeams.map((t) => t.id);
+
+const teamsSelect = `
+  select t.id, t.name, t.description,
+    coalesce(
+      (select json_agg(json_build_object(
+          'id', m.id, 'role', m.role, 'role_description', m.role_description, 'display_order', m.display_order,
+          'employee', case when e.id is null then null else json_build_object('id', e.id, 'full_name', e.full_name, 'email', e.email) end
+        ))
+       from team_memberships m
+       left join employees e on e.id = m.employee_id
+       where m.team_id = t.id),
+      '[]'::json) as memberships
+  from teams t`;
+
+const { rows: teams }: { rows: any[] } = adminView
+  ? await pool.query(`${teamsSelect} order by t.name asc`)
+  : allowedIds.length
+    ? await pool.query(`${teamsSelect} where t.id = any($1) order by t.name asc`, [allowedIds])
+    : { rows: [] as any[] };
+
+const allEmployees: any[] = await sql`select id, full_name, email from employees order by full_name asc`;
+
+const editing = editId ? (teams ?? []).find((t) => t.id === editId) ?? null : null;
+const sortedMembers = editing
+  ? [...(editing.memberships ?? [])]
+      .filter((m: any) => m.employee)
+      .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+  : [];
+const memberIds = new Set(sortedMembers.map((m: any) => m.employee.id));
+const availableEmployees = (allEmployees ?? []).filter((e) => !memberIds.has(e.id));
+
+const initials = (name: string) =>
+  name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+
+const back = '/teams';
+const editBack = editing ? `/teams?edit=${editing.id}` : back;
+const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
+---
+<AppLayout title={'צוותים · חב"ד כרמיאל'}>
+  <header class="flex items-start justify-between mb-8">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-emerald-100 grid place-items-center">
+        <Users class="text-emerald-600" size={24} />
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-stone-900">צוותים</h1>
+        <p class="text-stone-500 text-sm">{adminView ? 'כל הצוותים (תצוגת מנהל)' : 'כל הצוותים שבהם אתה חבר'}</p>
+      </div>
+    </div>
+    <a
+      href="/teams?new=1"
+      class="bg-stone-800 hover:bg-stone-900 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
+    >
+      <Plus size={16} />
+      צוות חדש
+    </a>
+  </header>
+
+  <div class="grid gap-4">
+    {teams && teams.length > 0 ? teams.map((t: any) => {
+      const members = (t.memberships ?? [])
+        .filter((m: any) => m.employee)
+        .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0));
+      return (
+        <div class="bg-white border border-stone-200 rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="font-semibold text-stone-900 text-lg">{t.name}</h3>
+              {t.description && <p class="text-sm text-stone-500 mt-0.5">{t.description}</p>}
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="text-xs text-stone-400 bg-stone-50 border border-stone-200 rounded-full px-3 py-1">
+                {members.length} {members.length === 1 ? 'חבר' : 'חברים'}
+              </div>
+              <a
+                href={`/teams?edit=${t.id}`}
+                class="border border-stone-300 bg-white hover:bg-stone-50 rounded-lg px-3 py-1.5 text-sm font-medium text-stone-700 flex items-center gap-1.5"
+              >
+                <Pencil size={14} />
+                ניהול
+              </a>
+            </div>
+          </div>
+          {members.length > 0 && (
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {members.map((m: any) => (
+                <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-stone-50">
+                  <div class="w-9 h-9 rounded-full bg-violet-100 text-violet-700 grid place-items-center text-xs font-semibold">
+                    {initials(m.employee.full_name)}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-stone-800 flex items-center gap-1 truncate">
+                      {m.employee.full_name}
+                      {m.role === 'admin' && <Crown size={12} class="text-amber-500 shrink-0" />}
+                    </div>
+                    <div class="text-[11px] text-stone-400 truncate font-mono" title={m.employee.email}>{m.employee.email}</div>
+                    {m.role_description && <div class="text-xs text-stone-500 truncate">{m.role_description}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }) : (
+      <div class="bg-white border border-stone-200 rounded-2xl px-4 py-12 text-center text-sm text-stone-400">
+        אינך חבר באף צוות עדיין.
+      </div>
+    )}
+  </div>
+
+  <!-- =================================================================
+       CREATE TEAM slide-over
+       ================================================================= -->
+  {creating && (
+    <div class="fixed inset-0 z-30">
+      <a href={back} class="absolute inset-0 bg-black/20"></a>
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+        <div class="p-6 space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-stone-900">צוות חדש</h2>
+            <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
+          </div>
+          <form method="POST" action="/api/teams" class="space-y-4">
+            <input type="hidden" name="_action" value="create" />
+            <input type="hidden" name="back" value={back} />
+            <div>
+              <label class="text-sm font-medium text-stone-700">שם</label>
+              <input type="text" name="name" required
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" />
+            </div>
+            <div>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
+              <textarea name="description" rows="3"
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"></textarea>
+            </div>
+            <p class="text-xs text-stone-500">תתווסף אוטומטית כמנהל של הצוות הזה.</p>
+            <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2.5 text-sm font-medium">
+              יצירת צוות
+            </button>
+          </form>
+        </div>
+      </aside>
+    </div>
+  )}
+
+  <!-- =================================================================
+       MANAGE TEAM slide-over
+       ================================================================= -->
+  {editing && (
+    <div class="fixed inset-0 z-30">
+      <a href={back} class="absolute inset-0 bg-black/20"></a>
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+        <div class="p-6 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-stone-900">ניהול צוות</h2>
+            <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
+          </div>
+
+          <!-- Team details -->
+          <form method="POST" action="/api/teams" class="space-y-4">
+            <input type="hidden" name="_action" value="update" />
+            <input type="hidden" name="id" value={editing.id} />
+            <input type="hidden" name="back" value={editBack} />
+            <div>
+              <label class="text-sm font-medium text-stone-700">שם</label>
+              <input type="text" name="name" required value={editing.name}
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" />
+            </div>
+            <div>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
+              <textarea name="description" rows="2"
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
+              >{editing.description ?? ''}</textarea>
+            </div>
+            <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2.5 text-sm font-medium">
+              שמירת צוות
+            </button>
+          </form>
+
+          <!-- Members -->
+          <div class="pt-4 border-t border-stone-200">
+            <h3 class="text-sm font-semibold text-stone-800 mb-3 flex items-center gap-2">
+              <UserPlus size={16} /> חברים ({sortedMembers.length})
+            </h3>
+
+            <div class="space-y-2 mb-4">
+              {sortedMembers.length > 0 ? sortedMembers.map((m: any) => (
+                <form method="POST" action="/api/team-memberships" class="bg-stone-50 border border-stone-200 rounded-lg p-3 space-y-2">
+                  <input type="hidden" name="_action" value="update" />
+                  <input type="hidden" name="id" value={m.id} />
+                  <input type="hidden" name="back" value={editBack} />
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-full bg-violet-100 text-violet-700 grid place-items-center text-xs font-semibold">
+                      {initials(m.employee.full_name)}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-sm font-medium text-stone-800 truncate">{m.employee.full_name}</div>
+                      <div class="text-[11px] text-stone-400 truncate font-mono" title={m.employee.email}>{m.employee.email}</div>
+                    </div>
+                    <select name="role" class="text-xs bg-white border border-stone-300 rounded px-2 py-1">
+                      <option value="member" selected={m.role === 'member'}>חבר</option>
+                      <option value="admin" selected={m.role === 'admin'}>מנהל</option>
+                    </select>
+                  </div>
+                  <div class="flex gap-2">
+                    <input
+                      type="text"
+                      name="role_description"
+                      value={m.role_description ?? ''}
+                      placeholder="תיאור תפקיד (רשות)"
+                      class="flex-1 bg-white border border-stone-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                    <button class="text-xs bg-stone-800 hover:bg-stone-900 text-white rounded px-3 py-1">שמירה</button>
+                    <button
+                      type="submit"
+                      formaction="/api/team-memberships"
+                      onclick="this.form._action.value='delete'; if(!confirm('להסיר את החבר הזה מהצוות?')) return false;"
+                      class="text-xs border border-rose-300 text-rose-700 rounded px-2 py-1"
+                      title="הסרה"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </form>
+              )) : (
+                <p class="text-xs text-stone-400">אין חברים עדיין.</p>
+              )}
+            </div>
+
+            <!-- Add member -->
+            {!addingNew && (
+              <>
+                {availableEmployees.length > 0 ? (
+                  <form method="POST" action="/api/team-memberships" class="bg-white border border-stone-200 rounded-lg p-3 space-y-2">
+                    <input type="hidden" name="_action" value="create" />
+                    <input type="hidden" name="team_id" value={editing.id} />
+                    <input type="hidden" name="back" value={editBack} />
+                    <div class="text-xs font-semibold text-stone-600 flex items-center gap-1">
+                      <UserPlus size={13} /> הוספת חבר
+                    </div>
+                    <div class="flex gap-2">
+                      <select name="employee_id" required class="flex-1 bg-white border border-stone-300 rounded px-2 py-1.5 text-sm">
+                        <option value="">בחר עובד…</option>
+                        {availableEmployees.map((e) => <option value={e.id}>{e.full_name}</option>)}
+                      </select>
+                      <select name="role" class="bg-white border border-stone-300 rounded px-2 py-1.5 text-sm">
+                        <option value="member">חבר</option>
+                        <option value="admin">מנהל</option>
+                      </select>
+                      <button class="bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-1.5 text-sm font-medium">הוספה</button>
+                    </div>
+                    <input
+                      type="text"
+                      name="role_description"
+                      placeholder="תיאור תפקיד (רשות)"
+                      class="w-full bg-white border border-stone-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </form>
+                ) : (
+                  <p class="text-xs text-stone-400 italic">כל העובדים כבר חברים בצוות זה.</p>
+                )}
+                {adminView && (
+                  <a
+                    href={`/teams?edit=${editing.id}&addNew=1`}
+                    class="flex items-center gap-1.5 text-xs text-stone-500 hover:text-emerald-700 mt-1"
+                  >
+                    <UserPlus size={13} /> הוספת אדם חדש
+                  </a>
+                )}
+              </>
+            )}
+
+            <!-- Add NEW person (creates employee + membership) -->
+            {addingNew && adminView && (
+              <form method="POST" action="/api/team-memberships" class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-2">
+                <input type="hidden" name="_action" value="add_new_employee" />
+                <input type="hidden" name="team_id" value={editing.id} />
+                <input type="hidden" name="back" value={editBack} />
+                <div class="flex items-center justify-between">
+                  <div class="text-xs font-semibold text-emerald-800 flex items-center gap-1">
+                    <UserPlus size={13} /> אדם חדש
+                  </div>
+                  <a href={editBack} class="text-xs text-stone-400 hover:text-stone-600">ביטול</a>
+                </div>
+                <input
+                  type="text"
+                  name="full_name"
+                  required
+                  placeholder="שם מלא"
+                  class="w-full bg-white border border-stone-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-emerald-400"
+                />
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  placeholder="אימייל (חייב להתאים לחשבון הגוגל שלהם)"
+                  class="w-full bg-white border border-stone-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-emerald-400"
+                />
+                <div class="flex gap-2">
+                  <select name="role" class="bg-white border border-stone-300 rounded px-2 py-1.5 text-sm">
+                    <option value="member">חבר</option>
+                    <option value="admin">מנהל</option>
+                  </select>
+                  <input
+                    type="text"
+                    name="role_description"
+                    placeholder="תיאור תפקיד (רשות)"
+                    class="flex-1 bg-white border border-stone-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+                <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded py-2 text-sm font-medium">
+                  יצירה והוספה לצוות
+                </button>
+              </form>
+            )}
+          </div>
+
+          <!-- Delete team -->
+          <form
+            method="POST"
+            action="/api/teams"
+            class="pt-4 border-t border-stone-200"
+            onsubmit="return confirm('למחוק את הצוות הזה? כל החברויות יימחקו.');"
+          >
+            <input type="hidden" name="_action" value="delete" />
+            <input type="hidden" name="id" value={editing.id} />
+            <input type="hidden" name="back" value="/teams" />
+            <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
+              <Trash2 size={14} /> מחיקת צוות
+            </button>
+          </form>
+        </div>
+      </aside>
+    </div>
+  )}
+</AppLayout>

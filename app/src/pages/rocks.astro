@@ -1,0 +1,210 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import RichTextEditor from '~/components/RichTextEditor.svelte';
+import { Mountain, Plus, X, Trash2 } from 'lucide-svelte';
+import { sql, pool } from '~/lib/db';
+import { fmtDualDate } from '~/lib/dates';
+
+const url = Astro.url;
+
+const addingRock = url.searchParams.get('add_rock') === '1';
+const editRockId = url.searchParams.get('edit');
+
+const sortRocks = url.searchParams.get('sort_rocks') ?? 'priority';
+
+// Rocks are org-wide.
+const rockSelect = `
+  select r.id, r.title, r.description, r.status, r.due_date::text as due_date, r.priority_order, r.is_archived, r.owner_employee_id,
+    case when o.id is null then null else json_build_object('id', o.id, 'full_name', o.full_name) end as owner
+  from rocks r
+  left join employees o on o.id = r.owner_employee_id`;
+
+const rockOrder =
+  sortRocks === 'due_date' ? 'r.due_date asc' :
+  sortRocks === 'status' ? 'r.status asc' :
+  'r.priority_order asc';
+
+const [rocks, employees]: [any[], any[]] = await Promise.all([
+  pool.query(`${rockSelect} where r.is_archived = false order by ${rockOrder}`).then((r: any) => r.rows),
+  sql`select id, full_name from employees order by full_name asc`,
+]);
+
+// Resolve panel state
+const editingRock = editRockId ? (rocks ?? []).find((r) => r.id === editRockId) ?? null : null;
+
+const fmtDate = (d: string | null) => fmtDualDate(d);
+const initials = (name: string) =>
+  name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+
+const statusStyles = {
+  on_track: 'bg-sky-50 text-sky-700 border-sky-200',
+  off_track: 'bg-rose-50 text-rose-700 border-rose-200',
+  done: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+} as const;
+const statusLabel = { on_track: 'במסלול', off_track: 'לא במסלול', done: 'בוצע' } as const;
+
+const back = '/rocks';
+---
+<AppLayout title="פרוייקטים · חב&quot;ד כרמיאל">
+  <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
+        <Mountain class="text-violet-600" size={24} />
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-stone-900">פרוייקטים</h1>
+        <p class="text-stone-500 text-sm">עדיפויות רבעוניות לארגון</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <a
+        href="/rocks?add_rock=1"
+        class="bg-stone-800 hover:bg-stone-900 text-white rounded-xl px-4 py-2 text-sm font-medium flex items-center gap-1.5"
+      >
+        <Plus size={15} />
+        הוספת פרוייקט
+      </a>
+    </div>
+  </header>
+
+  <!-- ============================================================
+       ROCKS (org-wide)
+       ============================================================ -->
+  <section>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-stone-900">פרוייקטים</h2>
+      <form method="GET" class="flex gap-2">
+        <select name="sort_rocks" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-sm">
+          <option value="priority" selected={sortRocks === 'priority'}>עדיפות</option>
+          <option value="due_date" selected={sortRocks === 'due_date'}>תאריך יעד</option>
+          <option value="status"   selected={sortRocks === 'status'}>סטטוס</option>
+        </select>
+      </form>
+    </div>
+    <div class="grid gap-3">
+      {rocks && rocks.length > 0 ? (
+        rocks.map((r: any) => (
+          <a
+            href={`/rocks?edit=${r.id}`}
+            class="bg-white border border-stone-200 rounded-xl p-5 hover:border-stone-300 hover:shadow-sm transition block"
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${statusStyles[r.status as keyof typeof statusStyles]}`}>
+                    {statusLabel[r.status as keyof typeof statusLabel]}
+                  </span>
+                  {r.due_date && <span class="text-xs text-stone-400">יעד {fmtDate(r.due_date)}</span>}
+                </div>
+                <h3 class="text-base font-semibold text-stone-900">{r.title}</h3>
+                {r.description && (
+                  <div class="prose prose-sm max-w-none text-stone-500 mt-1" set:html={r.description} />
+                )}
+              </div>
+              {r.owner && (
+                <div class="flex items-center gap-2 text-sm shrink-0">
+                  <div class="w-8 h-8 rounded-full bg-violet-100 text-violet-700 grid place-items-center text-xs font-semibold">
+                    {initials(r.owner.full_name)}
+                  </div>
+                  <span class="text-stone-600 hidden md:inline">{r.owner.full_name}</span>
+                </div>
+              )}
+            </div>
+          </a>
+        ))
+      ) : (
+        <div class="bg-white border border-stone-200 rounded-xl px-4 py-12 text-center text-sm text-stone-400">
+          עדיין אין פרוייקטים.
+        </div>
+      )}
+    </div>
+  </section>
+
+  <!-- ============================================================
+       ROCK edit/add slide-over
+       ============================================================ -->
+  {(addingRock || editingRock) && (
+    <div class="fixed inset-0 z-30">
+      <a href={back} class="absolute inset-0 bg-black/20"></a>
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+        <div class="p-6 space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-stone-900">{editingRock ? 'עריכת פרוייקט' : 'הוספת פרוייקט'}</h2>
+            <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
+          </div>
+
+          <form method="POST" action="/api/rocks" class="space-y-4">
+            <input type="hidden" name="_action" value={editingRock ? 'update' : 'create'} />
+            {editingRock && <input type="hidden" name="id" value={editingRock.id} />}
+            <input type="hidden" name="back" value={back} />
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">כותרת</label>
+              <input type="text" name="title" required value={editingRock?.title ?? ''}
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
+              <div class="mt-1">
+                <RichTextEditor
+                  client:only="svelte"
+                  name="description"
+                  initial={editingRock?.description ?? ''}
+                  autosaveUrl={editingRock ? '/api/rocks' : undefined}
+                  autosaveId={editingRock?.id}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">אחראי</label>
+              <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                <option value="">ללא</option>
+                {employees?.map((e) => <option value={e.id} selected={e.id === editingRock?.owner_employee_id}>{e.full_name}</option>)}
+              </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-sm font-medium text-stone-700">תאריך יעד</label>
+                <input type="date" name="due_date" value={editingRock?.due_date ?? ''}
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">סטטוס</label>
+                <select name="status" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  {(['on_track', 'off_track', 'done'] as const).map((s) => (
+                    <option value={s} selected={s === (editingRock?.status ?? 'on_track')}>
+                      {statusLabel[s]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
+              {editingRock ? 'שמירת שינויים' : 'יצירת פרוייקט'}
+            </button>
+          </form>
+
+          {editingRock && (
+            <form
+              method="POST"
+              action="/api/rocks"
+              class="pt-4 border-t border-stone-200"
+              onsubmit="return confirm('למחוק פרוייקט זה?');"
+            >
+              <input type="hidden" name="_action" value="delete" />
+              <input type="hidden" name="id" value={editingRock.id} />
+              <input type="hidden" name="back" value={back} />
+              <button class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
+                <Trash2 size={14} /> מחיקת פרוייקט
+              </button>
+            </form>
+          )}
+        </div>
+      </aside>
+    </div>
+  )}
+</AppLayout>

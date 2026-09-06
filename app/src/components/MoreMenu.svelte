@@ -1,0 +1,76 @@
+<script lang="ts">
+  import { Settings, ListChecks, BookOpen, Users, Link2, Network } from 'lucide-svelte';
+
+  let { showOrgChart = false } = $props<{ showOrgChart?: boolean }>();
+  let open = $state(false);
+  let ref: HTMLDivElement;
+
+  function toggle() { open = !open; }
+  function close() { open = false; }
+
+  function onDocClick(e: MouseEvent) {
+    if (!ref) return;
+    if (!ref.contains(e.target as Node)) open = false;
+  }
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') open = false;
+  }
+
+  $effect(() => {
+    if (open) {
+      document.addEventListener('mousedown', onDocClick);
+      document.addEventListener('keydown', onKey);
+      return () => {
+        document.removeEventListener('mousedown', onDocClick);
+        document.removeEventListener('keydown', onKey);
+      };
+    }
+  });
+
+  const allItems = [
+    { href: '/chart',          label: 'מבנה ארגוני',   icon: Network,     always: false },
+    { href: '/my-tasks',       label: 'המשימות שלי',   icon: ListChecks,  always: true },
+    { href: '/processes',      label: 'תהליכים',       icon: BookOpen,    always: true },
+    { href: '/teams',          label: 'צוותים ואנשים', icon: Users,       always: true },
+    { href: '/links',          label: 'קישורים',       icon: Link2,       always: true },
+    { href: '/settings',       label: 'הגדרות',        icon: Settings,    always: true },
+  ];
+  const items = $derived(
+    allItems.filter(
+      (i) =>
+        i.always ||
+        (i.href === '/chart' && showOrgChart),
+    ),
+  );
+</script>
+
+<div bind:this={ref} class="relative">
+  <button
+    type="button"
+    onclick={toggle}
+    aria-haspopup="menu"
+    aria-expanded={open}
+    class="p-2 rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-800 transition"
+    title="עוד"
+  >
+    <Settings size={18} />
+  </button>
+  {#if open}
+    <div
+      role="menu"
+      class="absolute end-0 top-full mt-1 min-w-[12rem] bg-white border border-stone-200 rounded-xl shadow-lg p-1 z-40"
+    >
+      {#each items as item}
+        <a
+          href={item.href}
+          role="menuitem"
+          onclick={close}
+          class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 rounded-lg"
+        >
+          <item.icon size={15} class="text-stone-400" />
+          {item.label}
+        </a>
+      {/each}
+    </div>
+  {/if}
+</div>

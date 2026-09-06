@@ -1,0 +1,62 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import VtoEditor from '~/components/VtoEditor.svelte';
+import { Eye, Pencil, Check } from 'lucide-svelte';
+import { sql } from '~/lib/db';
+import { canEditVto } from '~/lib/permissions';
+
+const user = Astro.locals.user;
+const canEdit = canEditVto(user?.email);
+const editMode = canEdit && Astro.url.searchParams.get('edit') === '1';
+
+const vtoRows = await sql`select id, vision, traction, swot from vtos limit 1`;
+const vto = vtoRows[0] ?? null;
+
+const vision = vto?.vision ?? {};
+const traction = vto?.traction ?? {};
+const swot = vto?.swot ?? {};
+---
+<AppLayout title={'חזון (V/TO) · חב"ד כרמיאל'}>
+  <header class="flex items-start justify-between mb-8">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
+        <Eye class="text-violet-600" size={24} />
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-stone-900">מארגן חזון/ביצוע</h1>
+        <p class="text-stone-500 text-sm">
+          {editMode
+            ? 'במצב עריכה — שינויים נשמרים אוטומטית.'
+            : 'תוכנית העמוד האחד של חב"ד כרמיאל.'}
+        </p>
+      </div>
+    </div>
+    {canEdit && (
+      editMode ? (
+        <a
+          href="/vto"
+          class="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
+        >
+          <Check size={16} />
+          סיום עריכה
+        </a>
+      ) : (
+        <a
+          href="/vto?edit=1"
+          class="border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-1.5"
+        >
+          <Pencil size={16} />
+          עריכת חזון (V/TO)
+        </a>
+      )
+    )}
+  </header>
+
+  <VtoEditor
+    client:only="svelte"
+    initialVision={vision}
+    initialTraction={traction}
+    initialSwot={swot}
+    readOnly={!editMode}
+  />
+</AppLayout>

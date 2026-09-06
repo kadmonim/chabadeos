@@ -1,0 +1,51 @@
+# env
+.env
+.env.*
+!.env.example
+
+# logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# build / runtime
+node_modules
+dist
+dist-ssr
+.astro
+.netlify
+*.local
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.mcp.json
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- old base44 React app at repo root (kept on disk for reference only) ---
+/src/
+/index.html
+/package.json
+/package-lock.json
+/vite.config.js
+/tailwind.config.js
+/postcss.config.js
+/eslint.config.js
+/jsconfig.json
+/components.json
+/migration.md
+/README.md
+
+# --- CSV exports from base44 (already imported into Supabase) ---
+/data/exports/
+/data/source/

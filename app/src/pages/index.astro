@@ -1,0 +1,65 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import { Target, AlertCircle, ListTodo, Users, ArrowLeft } from 'lucide-svelte';
+import { sql } from '~/lib/db';
+const team = Astro.locals.currentTeam;
+
+const today = new Date().toISOString().slice(0, 10);
+
+const [
+  rocksCountRows,
+  openTodosRows,
+  openIssuesRows,
+  employeesCountRows,
+] = await Promise.all([
+  sql`select count(*)::int as count from rocks where is_archived = ${false}`,
+  team
+    ? sql`select count(*)::int as count from todos where status = 'open' and team_id = ${team.id}`
+    : sql`select count(*)::int as count from todos where status = 'open'`,
+  team
+    ? sql`select count(*)::int as count from issues where status = 'open' and team_id = ${team.id}`
+    : sql`select count(*)::int as count from issues where status = 'open'`,
+  sql`select count(*)::int as count from employees`,
+]);
+const rocksCount = rocksCountRows[0]?.count;
+const openTodos = openTodosRows[0]?.count;
+const openIssues = openIssuesRows[0]?.count;
+const employeesCount = employeesCountRows[0]?.count;
+
+const stats = [
+  { label: 'פרוייקטים פעילים',   value: rocksCount ?? 0,    href: '/rocks',    icon: Target,      color: 'text-violet-600 bg-violet-100' },
+  { label: 'משימות פתוחות', value: openTodos ?? 0,     href: '/todos',    icon: ListTodo,    color: 'text-emerald-600 bg-emerald-100' },
+  { label: 'נושאים פתוחים', value: openIssues ?? 0,    href: '/issues',   icon: AlertCircle, color: 'text-amber-600 bg-amber-100' },
+  { label: 'עובדים',        value: employeesCount ?? 0, href: '/teams',   icon: Users,       color: 'text-sky-600 bg-sky-100' },
+];
+
+const user = Astro.locals.user!;
+const firstName = user.fullName?.split(' ')[0] || '';
+---
+<AppLayout title={'דף הבית · חב"ד כרמיאל'}>
+  <header class="mb-8">
+    <h1 class="text-3xl font-semibold text-stone-900">{firstName ? `שלום, ${firstName}.` : 'שלום.'}</h1>
+    <p class="text-stone-500 mt-1">
+      {team ? <>הצוות המוצג כעת: <span class="font-medium text-stone-700">{team.name}</span>.</> : 'לא נבחר צוות.'}
+    </p>
+  </header>
+
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+    {stats.map((s) => (
+      <a
+        href={s.href}
+        class="group block bg-white rounded-2xl border border-stone-200 p-5 hover:border-stone-300 hover:shadow-sm transition"
+      >
+        <div class={`w-10 h-10 rounded-xl grid place-items-center ${s.color}`}>
+          <s.icon size={20} />
+        </div>
+        <div class="mt-4 text-sm text-stone-500">{s.label}</div>
+        <div class="mt-1 text-3xl font-semibold text-stone-900 flex items-baseline justify-between">
+          {s.value}
+          <ArrowLeft size={16} class="text-stone-300 group-hover:text-stone-500 transition" />
+        </div>
+      </a>
+    ))}
+  </div>
+
+</AppLayout>

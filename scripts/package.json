@@ -1,0 +1,14 @@
+{
+  "name": "chabad-central-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrate": "node migrate.mjs",
+    "import": "node import-csvs.mjs"
+  },
+  "dependencies": {
+    "csv-parse": "^5.5.6",
+    "dotenv": "^16.4.5",
+    "pg": "^8.13.1"
+  }
+}

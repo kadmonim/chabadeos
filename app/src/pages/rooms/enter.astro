@@ -1,0 +1,64 @@
+---
+// The gate in front of /rooms: a shared access code instead of a login.
+// Handles its own POST so the whole flow lives on one URL.
+import RoomsLayout from '~/layouts/RoomsLayout.astro';
+import { KeyRound, CircleAlert } from 'lucide-svelte';
+import { currentRoomsCode, grantRoomsAccess, hasRoomsAccess } from '~/lib/rooms-access';
+
+let err = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const input = String(form.get('code') ?? '').trim();
+  const code = await currentRoomsCode();
+  if (code && input === code) {
+    await grantRoomsAccess(Astro.cookies, code);
+    return Astro.redirect('/rooms');
+  }
+  err = 'הקוד שגוי. אפשר לנסות שוב.';
+} else if (Astro.locals.user || (await hasRoomsAccess(Astro.cookies))) {
+  return Astro.redirect('/rooms');
+}
+---
+<RoomsLayout title={'כניסה · חללים · חב"ד כרמיאל'} subtitle="זמינות חללים" noindex={true}>
+  <div class="max-w-sm mx-auto mt-8">
+    <div class="bg-white border border-stone-200 rounded-2xl p-6 text-center">
+      <div class="w-12 h-12 rounded-2xl bg-teal-100 grid place-items-center mx-auto mb-3">
+        <KeyRound class="text-teal-700" size={22} />
+      </div>
+      <h2 class="text-lg font-semibold text-stone-900">קוד גישה</h2>
+      <p class="text-sm text-stone-500 mt-1 mb-4">
+        הזינו את הקוד כדי לצפות ביומן החללים ולהזמין.
+      </p>
+
+      {err && (
+        <div class="mb-3 bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-2.5 flex items-center justify-center gap-2">
+          <CircleAlert size={15} class="shrink-0" />
+          <span>{err}</span>
+        </div>
+      )}
+
+      <form method="POST" class="space-y-3">
+        <input
+          type="text"
+          name="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="12"
+          required
+          autofocus
+          placeholder="● ● ● ● ● ●"
+          class="w-full bg-white border border-stone-300 rounded-xl px-3 py-3 text-center text-xl tracking-[0.4em] tabular-nums focus:outline-none focus:border-teal-400"
+          dir="ltr"
+        />
+        <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-xl py-2.5 text-sm font-medium">
+          כניסה
+        </button>
+      </form>
+    </div>
+
+    <p class="text-xs text-stone-400 mt-4 text-center">
+      אין לכם קוד? <a href="/rooms/open" class="text-teal-700 hover:underline">צפייה בזמינות בלבד</a>
+    </p>
+  </div>
+</RoomsLayout>

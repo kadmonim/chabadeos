@@ -1,0 +1,131 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import StatusCheckbox from '~/components/StatusCheckbox.svelte';
+import { ListChecks, Search, Flag } from 'lucide-svelte';
+import { sql, pool } from '~/lib/db';
+import { fmtDualDate } from '~/lib/dates';
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect('/login');
+
+const allowedTeams = Astro.locals.allowedTeams;
+const allowedTeamIds = allowedTeams.map((t) => t.id);
+const url = Astro.url;
+const statusFilter = url.searchParams.get('status') ?? 'open';
+const teamFilter = url.searchParams.get('team') ?? 'all';
+const sort = url.searchParams.get('sort') ?? 'due';
+const search = (url.searchParams.get('q') ?? '').trim();
+
+const vals: unknown[] = [user.employeeId];
+const where: string[] = ['t.assignee_employee_id = $1'];
+
+// Team visibility gate (belt + suspenders — todos without a team still show).
+if (allowedTeamIds.length > 0) {
+  vals.push(allowedTeamIds);
+  where.push(`(t.team_id = any($${vals.length}) or t.team_id is null)`);
+}
+
+if (statusFilter === 'active') { vals.push(['open', 'done']); where.push(`t.status = any($${vals.length})`); }
+else if (statusFilter !== 'all') { vals.push(statusFilter); where.push(`t.status = $${vals.length}`); }
+if (teamFilter !== 'all' && allowedTeamIds.includes(teamFilter)) { vals.push(teamFilter); where.push(`t.team_id = $${vals.length}`); }
+if (search) { vals.push(`%${search}%`); where.push(`t.title ilike $${vals.length}`); }
+const orderBy =
+  sort === 'created' ? 'order by t.created_at desc'
+  : sort === 'title' ? 'order by t.title asc'
+  : 'order by t.due_date asc nulls last';
+
+const { rows: todos } = await pool.query(
+  `select t.id, t.title, t.status, t.is_urgent, t.due_date::text as due_date, t.created_at, t.team_id, t.assignee_employee_id,
+     case when tm.id is null then null else json_build_object('id', tm.id, 'name', tm.name) end as team
+   from todos t
+   left join teams tm on tm.id = t.team_id
+   where ${where.join(' and ')}
+   ${orderBy}`,
+  vals,
+);
+const teams = allowedTeams;
+
+const fmt = (d: string | null) => fmtDualDate(d, { year: false });
+
+// Fetch open/done counts for the subtitle regardless of active filter
+const openCountRows = await sql`
+  select count(*)::int as count from todos
+  where assignee_employee_id = ${user.employeeId} and status = 'open'`;
+const openCount = openCountRows[0]?.count;
+const doneCountRows = await sql`
+  select count(*)::int as count from todos
+  where assignee_employee_id = ${user.employeeId} and status = 'done'`;
+const doneCount = doneCountRows[0]?.count;
+---
+<AppLayout title="המשימות שלי · חב&quot;ד כרמיאל">
+  <header class="flex items-start justify-between mb-8">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-emerald-100 grid place-items-center">
+        <ListChecks class="text-emerald-600" size={24} />
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-stone-900">המשימות שלי</h1>
+        <p class="text-stone-500 text-sm">
+          כל מה שהוקצה לך בכל הצוותים —
+          <span class="text-stone-700 font-medium">{openCount ?? 0} פתוחות</span>, {doneCount ?? 0} בוצעו
+        </p>
+      </div>
+    </div>
+  </header>
+
+  <form method="GET" class="flex flex-wrap gap-2 mb-4">
+    <div class="flex-1 min-w-[240px] relative">
+      <Search size={16} class="absolute start-3 top-1/2 -translate-y-1/2 text-stone-400" />
+      <input
+        type="text"
+        name="q"
+        value={search}
+        placeholder="חיפוש במשימות שלי..."
+        class="w-full bg-white border border-stone-200 rounded-xl ps-9 pe-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
+      />
+    </div>
+    <select name="team" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
+      <option value="all" selected={teamFilter === 'all'}>כל הצוותים</option>
+      {teams?.map((t) => <option value={t.id} selected={teamFilter === t.id}>{t.name}</option>)}
+    </select>
+    <select name="status" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
+      <option value="active"   selected={statusFilter === 'active'}>פתוח ובוצע</option>
+      <option value="open"     selected={statusFilter === 'open'}>פתוח בלבד</option>
+      <option value="done"     selected={statusFilter === 'done'}>בוצע בלבד</option>
+      <option value="archived" selected={statusFilter === 'archived'}>בארכיון</option>
+      <option value="all"      selected={statusFilter === 'all'}>הכל</option>
+    </select>
+    <select name="sort" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
+      <option value="due"     selected={sort === 'due'}>תאריך יעד</option>
+      <option value="created" selected={sort === 'created'}>תאריך יצירה</option>
+      <option value="title"   selected={sort === 'title'}>כותרת</option>
+    </select>
+  </form>
+
+  <div class="bg-white border border-stone-200 rounded-xl divide-y divide-stone-100">
+    {todos && todos.length > 0 ? (
+      todos.map((t: any) => {
+        const done = t.status === 'done';
+        return (
+          <div class="flex items-center gap-3 px-4 py-3">
+            <StatusCheckbox client:load id={t.id} status={t.status} endpoint="/api/todos" />
+            <div class={`flex-1 text-sm ${done ? 'text-stone-400 line-through' : 'text-stone-800'}`}>
+              {t.title}
+            </div>
+            {t.is_urgent && <Flag size={14} class="text-rose-500" />}
+            {t.team && (
+              <span class="text-[11px] font-medium text-stone-500 bg-stone-50 border border-stone-200 rounded-full px-2 py-0.5">
+                {t.team.name}
+              </span>
+            )}
+            {t.due_date && <span class="text-xs text-rose-500 w-14 text-end">{fmt(t.due_date)}</span>}
+          </div>
+        );
+      })
+    ) : (
+      <div class="px-4 py-12 text-center text-sm text-stone-400">
+        אין משימות התואמות לסינון.
+      </div>
+    )}
+  </div>
+</AppLayout>

@@ -1,0 +1,71 @@
+---
+interface Seat {
+  id: string;
+  parent_id: string | null;
+  title: string;
+  person_name: string | null;
+  employee_id: string | null;
+  responsibilities: string[];
+  display_order: number;
+  employee: { id: string; full_name: string; email: string } | null;
+  children: Seat[];
+}
+
+interface Props {
+  seat: Seat;
+}
+const { seat } = Astro.props;
+
+const displayPerson = seat.employee?.full_name || seat.person_name || '';
+const initials = displayPerson
+  ? displayPerson.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+  : '?';
+
+const hasChildren = seat.children.length > 0;
+const toggleId = `exp-${seat.id}`;
+---
+<div class:list={['seat-wrapper', !hasChildren && 'leaf']}>
+  {hasChildren && (
+    <input type="checkbox" id={toggleId} class="expand-toggle" aria-label={`הרחבת ${seat.title}`} />
+  )}
+  <div class="seat-card">
+    <div class="seat-actions">
+      <a href={`/chart?add_under=${seat.id}`} title="הוספת תפקיד תחת זה">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      </a>
+      <a href={`/chart?edit=${seat.id}`} title="עריכת תפקיד">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+      </a>
+    </div>
+    <div class="seat-avatar">{initials}</div>
+    <div class="seat-title">{seat.title}</div>
+    {displayPerson && <div class="seat-person">{displayPerson}</div>}
+    {seat.responsibilities.length > 0 && (
+      <div class="seat-responsibilities">
+        <ul>
+          {seat.responsibilities.map((r) => <li>{r}</li>)}
+        </ul>
+      </div>
+    )}
+    {hasChildren && (
+      <label
+        for={toggleId}
+        class="expand-button"
+        title={`הרחבת ${seat.title}`}
+      >
+        <span class="expand-plus">+</span>
+        <span class="expand-minus">−</span>
+        <span class="expand-count">{seat.children.length}</span>
+      </label>
+    )}
+  </div>
+  {hasChildren && (
+    <ul>
+      {seat.children.map((c) => (
+        <li>
+          <Astro.self seat={c} />
+        </li>
+      ))}
+    </ul>
+  )}
+</div>

@@ -1,0 +1,427 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import StatusCheckbox from '~/components/StatusCheckbox.svelte';
+import RichTextEditor from '~/components/RichTextEditor.svelte';
+import { CheckSquare, Plus, Search, Flag, X, Trash2, Archive, Copy } from 'lucide-svelte';
+import { sql, pool } from '~/lib/db';
+import { fmtDualDate } from '~/lib/dates';
+const team = Astro.locals.currentTeam;
+const teams = Astro.locals.allowedTeams;
+if (!team) return Astro.redirect('/');
+
+const url = Astro.url;
+const statusFilter = url.searchParams.get('status') ?? 'active'; // active | open | done | archived | all
+const assigneeFilter = url.searchParams.get('assignee') ?? 'all';
+const sort = url.searchParams.get('sort') ?? 'created';
+const search = (url.searchParams.get('q') ?? '').trim();
+const detailId = url.searchParams.get('detail');
+
+const baseSelect = `
+  select t.id, t.title, t.description, t.status, t.is_urgent, t.due_date::text as due_date, t.created_at, t.team_id, t.assignee_employee_id,
+    case when a.id is null then null else json_build_object('id', a.id, 'full_name', a.full_name, 'email', a.email) end as assignee
+  from todos t
+  left join employees a on a.id = t.assignee_employee_id`;
+
+const where: string[] = ['t.team_id = $1'];
+const vals: unknown[] = [team.id];
+if (statusFilter === 'active') { vals.push(['open', 'done']); where.push(`t.status = any($${vals.length})`); }
+else if (statusFilter !== 'all') { vals.push(statusFilter); where.push(`t.status = $${vals.length}`); }
+if (assigneeFilter !== 'all') { vals.push(assigneeFilter); where.push(`t.assignee_employee_id = $${vals.length}`); }
+if (search) { vals.push(`%${search}%`); where.push(`t.title ilike $${vals.length}`); }
+const orderBy =
+  sort === 'due' ? 't.due_date asc' :
+  sort === 'title' ? 't.title asc' :
+  't.created_at desc';
+
+const [todos, employees]: [any[], any[]] = await Promise.all([
+  pool.query(`${baseSelect} where ${where.join(' and ')} order by ${orderBy}`, vals).then((r: any) => r.rows),
+  sql`
+    select case when e.id is null then null else json_build_object('id', e.id, 'full_name', e.full_name) end as employee
+    from team_memberships m
+    left join employees e on e.id = m.employee_id
+    where m.team_id = ${team.id}
+    order by e.full_name asc`.then((data) => (data ?? []).map((m: any) => m.employee).filter(Boolean)),
+]);
+
+let detail: any = null;
+if (detailId) {
+  const { rows } = await pool.query(`${baseSelect} where t.team_id = $1 and t.id = $2`, [team.id, detailId]);
+  detail = rows[0] ?? null;
+}
+
+const fmt = (d: string | null) => fmtDualDate(d, { year: false });
+const todayYmd = new Date().toISOString().slice(0, 10);
+const isOverdue = (d: string | null) => !!d && d <= todayYmd;
+const initials = (name: string) =>
+  name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+const back = Astro.url.pathname + Astro.url.search;
+const backNoDetail = Astro.url.pathname + (Astro.url.search ? Astro.url.search.replace(/[?&]detail=[^&]*/, '').replace(/^&/, '?') : '');
+---
+<AppLayout title="משימות · חב&quot;ד כרמיאל">
+  <header class="flex items-start justify-between mb-8">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
+        <CheckSquare class="text-violet-600" size={24} />
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-stone-900">משימות</h1>
+        <p class="text-stone-500 text-sm">משימות הצוות {team.name}</p>
+      </div>
+    </div>
+    <form
+      method="POST"
+      action="/api/todos"
+      onsubmit="return confirm('להעביר לארכיון את כל המשימות שהושלמו בצוות זה?');"
+    >
+      <input type="hidden" name="_action" value="archive_done" />
+      <input type="hidden" name="team_id" value={team.id} />
+      <input type="hidden" name="back" value={back} />
+      <button
+        type="submit"
+        class="border border-stone-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 text-stone-700 hover:bg-stone-50"
+      >
+        <Archive size={16} />
+        העברת משימות שהושלמו לארכיון
+      </button>
+    </form>
+  </header>
+
+  <form method="POST" action="/api/todos" class="flex gap-2 mb-4">
+    <input type="hidden" name="_action" value="create" />
+    <input type="hidden" name="team_id" value={team.id} />
+    <input type="hidden" name="back" value={back} />
+    <input
+      type="text"
+      name="title"
+      placeholder="הוספת משימה חדשה..."
+      required
+      class="flex-1 bg-white border border-stone-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-400"
+    />
+    <select name="assignee_employee_id" class="bg-white border border-stone-200 rounded-xl px-3 py-3 text-sm">
+      <option value="">ללא</option>
+      {employees?.map((e) => <option value={e.id}>{e.full_name}</option>)}
+    </select>
+    <button class="bg-stone-800 hover:bg-stone-900 text-white rounded-xl px-5 py-3 text-sm font-medium flex items-center gap-1.5">
+      <Plus size={16} />
+      הוספה
+    </button>
+  </form>
+
+  <form method="GET" class="flex gap-2 mb-4">
+    <div class="flex-1 relative">
+      <Search size={16} class="absolute start-3 top-1/2 -translate-y-1/2 text-stone-400" />
+      <input
+        type="text"
+        name="q"
+        value={search}
+        placeholder="חיפוש משימות..."
+        class="w-full bg-white border border-stone-200 rounded-xl ps-9 pe-4 py-2.5 text-sm focus:outline-none focus:border-violet-400"
+      />
+    </div>
+    <select name="status" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
+      <option value="active"   selected={statusFilter === 'active'}>פתוח ובוצע</option>
+      <option value="open"     selected={statusFilter === 'open'}>פתוח בלבד</option>
+      <option value="done"     selected={statusFilter === 'done'}>בוצע בלבד</option>
+      <option value="archived" selected={statusFilter === 'archived'}>בארכיון</option>
+      <option value="all"      selected={statusFilter === 'all'}>הכל</option>
+    </select>
+    <select name="assignee" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
+      <option value="all" selected={assigneeFilter === 'all'}>כל המשויכים</option>
+      {employees?.map((e) => <option value={e.id} selected={assigneeFilter === e.id}>{e.full_name}</option>)}
+    </select>
+    <select name="sort" onchange="this.form.submit()" class="bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-sm">
+      <option value="created" selected={sort === 'created'}>תאריך יצירה</option>
+      <option value="due"     selected={sort === 'due'}>תאריך יעד</option>
+      <option value="title"   selected={sort === 'title'}>כותרת</option>
+    </select>
+  </form>
+
+  <div class="bg-white border border-stone-200 rounded-xl divide-y divide-stone-100">
+    {todos && todos.length > 0 ? (
+      todos.map((t: any) => {
+        const done = t.status === 'done';
+        const detailHref = `?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), detail: t.id }).toString()}`;
+        return (
+          <div class="flex items-center gap-3 px-4 py-3 group">
+            <StatusCheckbox client:load id={t.id} status={t.status} endpoint="/api/todos" />
+            <a
+              href={detailHref}
+              class={`flex-1 text-sm hover:text-violet-600 ${done ? 'text-stone-400 line-through' : 'text-stone-800'}`}
+            >
+              {t.title}
+            </a>
+            {t.is_urgent && <Flag size={14} class="text-rose-500" />}
+            {t.due_date && <span class={`text-xs font-medium ${isOverdue(t.due_date) ? 'text-rose-500' : 'text-stone-500'}`}>{fmt(t.due_date)}</span>}
+            {t.assignee && (
+              <div class="flex items-center gap-1.5 text-xs text-stone-500">
+                <div class="w-6 h-6 rounded-full bg-violet-100 text-violet-700 grid place-items-center text-[10px] font-semibold">
+                  {initials(t.assignee.full_name)}
+                </div>
+                <span class="text-stone-600 font-medium">{t.assignee.full_name.split(' ')[0]}</span>
+              </div>
+            )}
+            <div class="text-xs text-stone-400 w-12 text-end">{fmt(t.created_at)}</div>
+            <form method="POST" action="/api/todos" class="opacity-0 group-hover:opacity-100 transition">
+              <input type="hidden" name="_action" value="update" />
+              <input type="hidden" name="id" value={t.id} />
+              <input type="hidden" name="title" value={t.title} />
+              <input type="hidden" name="status" value={t.status === 'archived' ? 'open' : 'archived'} />
+              <input type="hidden" name="back" value={back} />
+              <button
+                class="p-1.5 rounded text-stone-400 hover:text-stone-800 hover:bg-stone-100"
+                title={t.status === 'archived' ? 'הסרה מארכיון' : 'העברה לארכיון'}
+              >
+                <Archive size={14} />
+              </button>
+            </form>
+          </div>
+        );
+      })
+    ) : (
+      <div class="px-4 py-12 text-center text-sm text-stone-400">אין משימות התואמות לסינון.</div>
+    )}
+  </div>
+
+  {detail && (
+    <div class="fixed inset-0 z-30">
+      <a href={backNoDetail} class="absolute inset-0 bg-black/20"></a>
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+        <div class="p-6 space-y-5">
+          <div class="flex items-center justify-between">
+            <span class="inline-block text-xs font-medium text-stone-600 bg-stone-100 rounded-full px-2.5 py-1">
+              {team.name}
+            </span>
+            <a href={backNoDetail} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
+          </div>
+          <h2 class="text-xl font-semibold text-stone-900">פרטי משימה</h2>
+
+          <div class="flex gap-2">
+            <form method="POST" action="/api/todos">
+              <input type="hidden" name="_action" value="update" />
+              <input type="hidden" name="id" value={detail.id} />
+              <input type="hidden" name="status" value={detail.status === 'done' ? 'open' : 'done'} />
+              <input type="hidden" name="title" value={detail.title} />
+              <input type="hidden" name="back" value={backNoDetail} />
+              <button class="flex items-center gap-1.5 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+                ✓ {detail.status === 'done' ? 'סימון כפתוח' : 'סימון כבוצע'}
+              </button>
+            </form>
+            <form method="POST" action="/api/todos">
+              <input type="hidden" name="_action" value="update" />
+              <input type="hidden" name="id" value={detail.id} />
+              <input type="hidden" name="status" value="archived" />
+              <input type="hidden" name="title" value={detail.title} />
+              <input type="hidden" name="back" value={backNoDetail} />
+              <button class="flex items-center gap-1.5 border border-stone-300 text-stone-700 bg-white hover:bg-stone-100 hover:border-stone-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+                <Archive size={14} /> העברה לארכיון
+              </button>
+            </form>
+            <form method="POST" action="/api/todos" onsubmit="return confirm('למחוק משימה זו? לא ניתן לשחזר פעולה זו.');">
+              <input type="hidden" name="_action" value="delete" />
+              <input type="hidden" name="id" value={detail.id} />
+              <input type="hidden" name="back" value={backNoDetail} />
+              <button class="flex items-center gap-1.5 border border-rose-300 text-rose-700 bg-white hover:bg-rose-50 hover:border-rose-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+                <Trash2 size={14} /> מחיקה
+              </button>
+            </form>
+          </div>
+
+          <div class="flex gap-2">
+            <button type="button" data-clone-open="todo"
+              class="flex items-center gap-1.5 border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:border-sky-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+              <Copy size={14} /> שכפול כמשימה
+            </button>
+            <button type="button" data-clone-open="issue"
+              class="flex items-center gap-1.5 border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 hover:border-violet-400 transition rounded-lg px-3 py-1.5 text-sm font-medium">
+              <Copy size={14} /> שכפול כנושא
+            </button>
+          </div>
+
+          <form method="POST" action="/api/todos" class="space-y-4">
+            <input type="hidden" name="_action" value="update" />
+            <input type="hidden" name="id" value={detail.id} />
+            <input type="hidden" name="back" value={backNoDetail} />
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">כותרת</label>
+              <input type="text" name="title" value={detail.title}
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">תיאור</label>
+              <div class="mt-1">
+                <RichTextEditor
+                  client:only="svelte"
+                  name="description"
+                  initial={detail.description ?? ''}
+                  autosaveUrl="/api/todos"
+                  autosaveId={detail.id}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">צוות</label>
+              <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">משויך אל</label>
+              <select name="assignee_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                <option value="">ללא</option>
+                {employees?.map((e) => <option value={e.id} selected={e.id === detail.assignee_employee_id}>{e.full_name}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-stone-700">תאריך יעד</label>
+              <input type="date" name="due_date" value={detail.due_date ?? ''}
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+
+            <label class="flex items-center gap-2 text-sm text-stone-700">
+              <input type="checkbox" name="is_urgent" checked={detail.is_urgent} />
+              דחוף
+            </label>
+
+            <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
+              שמירת שינויים
+            </button>
+          </form>
+        </div>
+
+        <div id="clone-todo-modal" class="hidden fixed inset-0 z-40 grid place-items-center p-4">
+          <div class="absolute inset-0 bg-black/40" data-clone-close="todo"></div>
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <form method="POST" action="/api/todos" class="p-6 space-y-4">
+              <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-stone-900">שכפול כמשימה</h3>
+                <button type="button" data-clone-close="todo" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
+              </div>
+              <input type="hidden" name="_action" value="create" />
+              <input type="hidden" name="back" value={backNoDetail} />
+              <div>
+                <label class="text-sm font-medium text-stone-700">כותרת</label>
+                <input type="text" name="title" value={`${detail.title} (copy)`} required
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">תיאור</label>
+                <textarea name="description" rows="4"
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                  set:html={detail.description ?? ''} />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-sm font-medium text-stone-700">צוות</label>
+                  <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                    {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-stone-700">תאריך יעד</label>
+                  <input type="date" name="due_date" value={detail.due_date ?? (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })()}
+                    class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+                </div>
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">משויך אל</label>
+                <select name="assignee_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="">ללא</option>
+                  {employees?.map((e) => <option value={e.id} selected={e.id === detail.assignee_employee_id}>{e.full_name}</option>)}
+                </select>
+              </div>
+              <label class="flex items-center gap-2 text-sm text-stone-700">
+                <input type="checkbox" name="is_urgent" checked={detail.is_urgent} />
+                סימון כדחוף
+              </label>
+              <div class="flex gap-2 pt-2">
+                <button type="button" data-clone-close="todo"
+                  class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">ביטול</button>
+                <button type="submit"
+                  class="flex-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-2.5 text-sm font-medium">יצירת משימה</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div id="clone-issue-modal" class="hidden fixed inset-0 z-40 grid place-items-center p-4">
+          <div class="absolute inset-0 bg-black/40" data-clone-close="issue"></div>
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <form method="POST" action="/api/issues" class="p-6 space-y-4">
+              <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-stone-900">שכפול כנושא</h3>
+                <button type="button" data-clone-close="issue" class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></button>
+              </div>
+              <input type="hidden" name="_action" value="create" />
+              <input type="hidden" name="back" value={backNoDetail} />
+              <div>
+                <label class="text-sm font-medium text-stone-700">כותרת</label>
+                <input type="text" name="title" value={detail.title} required
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">תיאור</label>
+                <textarea name="description" rows="4"
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+                  set:html={detail.description ?? ''} />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-sm font-medium text-stone-700">עדיפות</label>
+                  <select name="priority" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                    {[1, 2, 3, 4, 5].map((p) => <option value={p} selected={p === (detail.is_urgent ? 1 : 3)}>P{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-stone-700">טווח</label>
+                  <select name="term_type" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="short_term" selected>טווח קצר</option>
+                    <option value="long_term">טווח ארוך</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">צוות</label>
+                <select name="team_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  {teams.map((t) => <option value={t.id} selected={t.id === detail.team_id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label class="text-sm font-medium text-stone-700">אחראי</label>
+                <select name="owner_employee_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="">ללא</option>
+                  {employees?.map((e) => <option value={e.id} selected={e.id === detail.assignee_employee_id}>{e.full_name}</option>)}
+                </select>
+              </div>
+              <div class="flex gap-2 pt-2">
+                <button type="button" data-clone-close="issue"
+                  class="flex-1 border border-stone-300 text-stone-700 rounded-lg py-2.5 text-sm font-medium">ביטול</button>
+                <button type="submit"
+                  class="flex-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">יצירת נושא</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </aside>
+    </div>
+  )}
+
+  <script>
+    document.querySelectorAll('[data-clone-open]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const kind = (btn as HTMLElement).dataset.cloneOpen;
+        document.getElementById(`clone-${kind}-modal`)?.classList.remove('hidden');
+      });
+    });
+    document.querySelectorAll('[data-clone-close]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const kind = (el as HTMLElement).dataset.cloneClose;
+        document.getElementById(`clone-${kind}-modal`)?.classList.add('hidden');
+      });
+    });
+  </script>
+</AppLayout>

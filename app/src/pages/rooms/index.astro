@@ -1,0 +1,691 @@
+---
+import RoomsLayout from '~/layouts/RoomsLayout.astro';
+import SpaceIcon from '~/components/SpaceIcon.astro';
+import { Plus, ChevronRight, ChevronLeft, X, Trash2, Repeat, Ban, Pencil, CircleAlert } from 'lucide-svelte';
+import { sql } from '~/lib/db';
+import { fmtDualDate, fmtHebrewDate } from '~/lib/dates';
+import { hasRoomsAccess } from '~/lib/rooms-access';
+import {
+  listRooms, occurrencesBetween, ensureHorizon, statusNow, weekDates, weekStart,
+  addDays, todayInJerusalem, nowTimeInJerusalem, isValidDate, hhmm, WEEKDAY_NAMES,
+  greeting, accentOf, PURPOSES, purposeLabel,
+} from '~/lib/rooms';
+
+const url = Astro.url;
+
+// In with the shared code or with an EOS login — either way, full access.
+const user = Astro.locals.user;
+if (!user && !(await hasRoomsAccess(Astro.cookies))) {
+  return Astro.redirect('/rooms/enter');
+}
+
+const today = todayInJerusalem();
+const nowTime = nowTimeInJerusalem();
+
+const anchorParam = url.searchParams.get('d');
+const anchor = isValidDate(anchorParam) ? anchorParam : today;
+const days = weekDates(anchor);
+const from = days[0];
+const to = days[6];
+
+// Keep the materialised window ahead of whatever week is being viewed.
+await ensureHorizon(to);
+
+const rooms = await listRooms();
+const allOccurrences = await occurrencesBetween(from, to, { includeCancelled: true });
+const todayList = await occurrencesBetween(today, today);
+const statuses = statusNow(rooms, todayList, nowTime);
+
+// ---- filters: which spaces and which purposes the week shows ----
+const spaceParam = url.searchParams.get('space');
+const activeSpace = rooms.find((r) => r.id === spaceParam) ?? null;
+const purposeParam = url.searchParams.get('purpose');
+const activePurpose = PURPOSES.find((p) => p.key === purposeParam)?.key ?? null;
+
+const shownRooms = activeSpace ? [activeSpace] : rooms;
+const occurrences = activePurpose
+  ? allOccurrences.filter((o) => o.purpose === activePurpose)
+  : allOccurrences;
+
+// Filters have to survive every link on the page, or navigating a week resets them.
+const q = (extra: Record<string, string | null> = {}) => {
+  const p = new URLSearchParams({ d: anchor });
+  if (activeSpace) p.set('space', activeSpace.id);
+  if (activePurpose) p.set('purpose', activePurpose);
+  for (const [k, v] of Object.entries(extra)) v === null ? p.delete(k) : p.set(k, v);
+  return `/rooms?${p.toString()}`;
+};
+
+const cellFor = (date: string, roomId: string) =>
+  occurrences.filter((o) => o.event_date === date && o.room_id === roomId);
+
+// ---- panel state, driven entirely by the URL so there's no client JS ----
+const adding = url.searchParams.get('add') === '1';
+const editId = url.searchParams.get('edit');
+const seriesId = url.searchParams.get('series');
+
+// Values echoed back by /api/rooms when a submission was rejected. They win over
+// both the URL prefills and what's in the database, so a clash reopens the form
+// exactly as it was typed.
+const draft = (k: string) => url.searchParams.get(`f_${k}`) || null;
+
+const dateParam = draft('event_date') ?? url.searchParams.get('date');
+const prefillDate = isValidDate(dateParam) ? dateParam : today;
+const prefillRoom = draft('room_id') ?? url.searchParams.get('room') ?? rooms[0]?.id ?? '';
+
+let editing: any = null;
+if (editId) {
+  const rows = await sql`
+    select b.*, b.event_date::text as event_date, b.start_time::text as start_time,
+           b.end_time::text as end_time,
+           coalesce(b.title, s.title) as shown_title,
+           coalesce(b.in_charge_name, s.in_charge_name) as shown_in_charge,
+           coalesce(b.purpose, s.purpose) as shown_purpose,
+           coalesce(b.notes, s.notes) as shown_notes,
+           coalesce(b.created_by, s.created_by) as created_by,
+           r.name as room_name
+    from bookings b
+    join rooms r on r.id = b.room_id
+    left join booking_series s on s.id = b.series_id
+    where b.id = ${editId}`;
+  editing = rows[0] ?? null;
+}
+
+let editingSeries: any = null;
+if (seriesId) {
+  const rows = await sql`
+    select id, room_id, title, in_charge_name, purpose, notes, weekday,
+           start_time::text as start_time, end_time::text as end_time,
+           starts_on::text as starts_on, created_by
+    from booking_series where id = ${seriesId}`;
+  editingSeries = rows[0] ?? null;
+}
+
+const back = q();
+const msg = url.searchParams.get('msg');
+const err = url.searchParams.get('err');
+const panelOpen = adding || !!editing || !!editingSeries;
+---
+<RoomsLayout title={'חללים · חב"ד כרמיאל'} subtitle="זמינות חללים">
+  <a
+    slot="header-action"
+    href={q({ add: '1', date: today })}
+    class="bg-teal-600 hover:bg-teal-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium hidden sm:flex items-center gap-1.5 shrink-0"
+  >
+    <Plus size={16} />
+    הוספה
+  </a>
+
+  {err && !panelOpen && (
+    <div class="mb-4 bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
+      <CircleAlert size={16} class="mt-0.5 shrink-0" />
+      <span>{err}</span>
+    </div>
+  )}
+  {msg && (
+    <div class="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-xl px-4 py-3">
+      {msg}
+    </div>
+  )}
+
+  <!-- The snapshot: is it free right now, and when does it go next -->
+  <div class="mb-4">
+    <p class="text-sm text-teal-700 font-medium">{greeting(nowTime)}</p>
+    <h2 class="text-2xl font-semibold text-stone-900 leading-tight">כל החללים, בלוח אחד.</h2>
+    <p class="text-sm text-stone-500 mt-1">בוחרים חלל וזמן, והמערכת לא תיתן להזמין אותו פעמיים.</p>
+  </div>
+
+  <section class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 mb-5">
+    {statuses.map(({ room, busy, next }) => (
+      <a
+        href={q({ space: room.id })}
+        class={`rounded-2xl border bg-white p-4 flex items-center gap-3 hover:shadow-sm ${busy ? 'border-amber-200' : accentOf(room).card}`}
+      >
+        <SpaceIcon room={room} />
+        <div class="flex-1 min-w-0">
+          <div class="font-medium text-stone-900 truncate">{room.name}</div>
+          <div class="text-sm flex items-center gap-1.5 mt-0.5">
+            <span class={`w-1.5 h-1.5 rounded-full ${busy ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+            <span class={busy ? 'text-amber-800' : 'text-emerald-700'}>
+              {busy ? `תפוס עד ${hhmm(busy.end_time)}` : 'פנוי עכשיו'}
+            </span>
+          </div>
+        </div>
+        <div class="text-end shrink-0 border-s border-stone-100 ps-3">
+          <div class="text-[11px] text-stone-400">האירוע הבא</div>
+          <div class="text-sm text-stone-700 tabular-nums">
+            {next ? hhmm(next.start_time) : busy ? '—' : 'אין היום'}
+          </div>
+        </div>
+      </a>
+    ))}
+  </section>
+
+  <!-- Filters: one space at a time, one purpose at a time -->
+  <div class="flex items-center gap-2 mb-3 overflow-x-auto pb-1">
+    <a
+      href={q({ space: null })}
+      class={`text-xs rounded-full border px-3 py-1.5 whitespace-nowrap ${
+        activeSpace ? 'bg-white border-stone-300 text-stone-600' : 'bg-stone-900 border-stone-900 text-white'
+      }`}
+    >
+      כל החללים
+    </a>
+    {rooms.map((r) => (
+      <a
+        href={q({ space: r.id })}
+        class={`text-xs rounded-full border px-3 py-1.5 whitespace-nowrap flex items-center gap-1.5 ${
+          activeSpace?.id === r.id ? accentOf(r).chip : 'bg-white border-stone-300 text-stone-600'
+        }`}
+      >
+        <span class={`w-1.5 h-1.5 rounded-full ${activeSpace?.id === r.id ? 'bg-white/80' : accentOf(r).dot}`}></span>
+        {r.name}
+      </a>
+    ))}
+    <form method="GET" action="/rooms" class="ms-auto shrink-0">
+      <input type="hidden" name="d" value={anchor} />
+      {activeSpace && <input type="hidden" name="space" value={activeSpace.id} />}
+      <select
+        name="purpose"
+        onchange="this.form.submit()"
+        class="text-xs bg-white border border-stone-300 rounded-full px-3 py-1.5 text-stone-600"
+      >
+        <option value="">כל המטרות</option>
+        {PURPOSES.map((p) => (
+          <option value={p.key} selected={p.key === activePurpose}>{p.label}</option>
+        ))}
+      </select>
+    </form>
+  </div>
+
+  <!-- Week navigation -->
+  <div class="flex items-center justify-between mb-3">
+    <a href={q({ d: addDays(anchor, -7) })} class="p-2 rounded-lg hover:bg-white text-stone-500" title="שבוע קודם">
+      <ChevronRight size={18} />
+    </a>
+    <div class="text-center">
+      <div class="text-sm font-medium text-stone-800">
+        {fmtHebrewDate(from, { year: false })} – {fmtHebrewDate(to)}
+      </div>
+      {weekStart(today) !== weekStart(anchor) && (
+        <a href={q({ d: today })} class="text-xs text-teal-700 hover:underline">חזרה לשבוע הנוכחי</a>
+      )}
+    </div>
+    <a href={q({ d: addDays(anchor, 7) })} class="p-2 rounded-lg hover:bg-white text-stone-500" title="שבוע הבא">
+      <ChevronLeft size={18} />
+    </a>
+  </div>
+
+  <!-- Desktop: days × rooms grid -->
+  <div class="hidden md:block bg-white border border-stone-200 rounded-2xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-stone-200 bg-stone-50">
+          <th class="text-start px-4 py-2.5 font-medium text-stone-500 w-40">יום</th>
+          {shownRooms.map((r) => (
+            <th class="text-start px-4 py-2.5 font-medium text-stone-700">
+              <span class="flex items-center gap-1.5">
+                <span class={`w-1.5 h-1.5 rounded-full ${accentOf(r).dot}`}></span>
+                {r.name}
+              </span>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {days.map((date) => (
+          <tr class={`border-b border-stone-100 last:border-0 ${date === today ? 'bg-teal-50/40' : ''}`}>
+            <td class="px-4 py-3 align-top">
+              <div class={`font-medium ${date === today ? 'text-teal-800' : 'text-stone-800'}`}>
+                {WEEKDAY_NAMES[new Date(`${date}T00:00:00Z`).getUTCDay()]}
+              </div>
+              <div class="text-xs text-stone-500">{fmtDualDate(date, { year: false })}</div>
+            </td>
+            {shownRooms.map((room) => {
+              const items = cellFor(date, room.id);
+              return (
+                <td class="px-3 py-2.5 align-top">
+                  <div class="space-y-1.5">
+                    {items.map((o) => (
+                      <div
+                        class={`rounded-lg px-2.5 py-1.5 border text-xs ${
+                          o.is_cancelled
+                            ? 'bg-stone-50 border-stone-200 text-stone-400 line-through'
+                            : 'bg-teal-50 border-teal-200 text-teal-900'
+                        }`}
+                      >
+                        <div class="flex items-center gap-1.5">
+                          <span class="font-semibold tabular-nums">{hhmm(o.start_time)}–{hhmm(o.end_time)}</span>
+                          {o.weekly && <Repeat size={11} class="opacity-60" />}
+                          <a href={q({ edit: o.id })} class="ms-auto opacity-50 hover:opacity-100" title="עריכה">
+                            <Pencil size={11} />
+                          </a>
+                        </div>
+                        <div class="font-medium truncate">{o.title}</div>
+                        <div class="opacity-70 truncate">
+                          {o.in_charge_name}
+                          {purposeLabel(o.purpose) && ` · ${purposeLabel(o.purpose)}`}
+                        </div>
+                      </div>
+                    ))}
+                    <a
+                      href={q({ add: '1', date, room: room.id })}
+                      class="block text-center text-xs text-stone-300 hover:text-teal-600 hover:bg-teal-50/50 rounded-lg py-1.5 border border-dashed border-transparent hover:border-teal-200"
+                    >
+                      {items.length === 0 ? 'פנוי' : '+'}
+                    </a>
+                  </div>
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Mobile: a card per day, because a 7-column grid is unreadable on a phone -->
+  <div class="md:hidden space-y-3">
+    {days.map((date) => (
+      <section class={`bg-white border rounded-2xl p-4 ${date === today ? 'border-teal-300' : 'border-stone-200'}`}>
+        <div class="flex items-baseline justify-between mb-2">
+          <h2 class={`font-semibold ${date === today ? 'text-teal-800' : 'text-stone-800'}`}>
+            {WEEKDAY_NAMES[new Date(`${date}T00:00:00Z`).getUTCDay()]}
+            {date === today && <span class="text-xs font-normal"> · היום</span>}
+          </h2>
+          <span class="text-xs text-stone-500">{fmtDualDate(date, { year: false })}</span>
+        </div>
+        <div class="space-y-2.5">
+          {shownRooms.map((room) => {
+            const items = cellFor(date, room.id);
+            return (
+              <div>
+                <div class="text-xs text-stone-500 mb-1 flex items-center gap-1.5">
+                  <span class={`w-1.5 h-1.5 rounded-full ${accentOf(room).dot}`}></span>
+                  {room.name}
+                </div>
+                {items.length === 0 ? (
+                  <a
+                    href={q({ add: '1', date, room: room.id })}
+                    class="block text-xs text-stone-400 border border-dashed border-stone-200 rounded-lg py-2 text-center"
+                  >
+                    פנוי
+                  </a>
+                ) : (
+                  <div class="space-y-1.5">
+                    {items.map((o) => (
+                      <div
+                        class={`rounded-lg px-3 py-2 border text-sm flex items-center gap-2 ${
+                          o.is_cancelled
+                            ? 'bg-stone-50 border-stone-200 text-stone-400 line-through'
+                            : 'bg-teal-50 border-teal-200 text-teal-900'
+                        }`}
+                      >
+                        <span class="font-semibold tabular-nums text-xs">{hhmm(o.start_time)}–{hhmm(o.end_time)}</span>
+                        <span class="flex-1 min-w-0">
+                          <span class="block font-medium truncate">{o.title}</span>
+                          <span class="block text-xs opacity-70 truncate">
+                            {o.in_charge_name}
+                            {purposeLabel(o.purpose) && ` · ${purposeLabel(o.purpose)}`}
+                          </span>
+                        </span>
+                        {o.weekly && <Repeat size={12} class="opacity-60 shrink-0" />}
+                        <a href={q({ edit: o.id })} class="p-1 opacity-50 shrink-0"><Pencil size={13} /></a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    ))}
+  </div>
+
+  <p class="text-xs text-stone-400 mt-5 text-center">
+    הגישה כאן משותפת — כל מי שנכנס עם הקוד יכול להוסיף ולערוך.
+  </p>
+
+  <!-- On a phone the header button scrolls away, so the + stays put -->
+  <a
+    href={q({ add: '1', date: today })}
+    class="sm:hidden fixed bottom-5 end-5 z-20 w-14 h-14 rounded-full bg-teal-600 text-white shadow-lg grid place-items-center"
+    title="הוספה"
+  >
+    <Plus size={24} />
+  </a>
+
+  {panelOpen && (
+    <div class="fixed inset-0 z-30">
+      <a href={back} class="absolute inset-0 bg-black/20"></a>
+      <aside class="absolute end-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto">
+        <div class="p-6 space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-stone-900">
+              {editingSeries ? 'עריכת סדרה שבועית' : editing ? 'עריכת אירוע' : 'הוספה'}
+            </h2>
+            <a href={back} class="p-1 text-stone-400 hover:text-stone-700"><X size={18} /></a>
+          </div>
+
+          {err && (
+            <div class="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
+              <CircleAlert size={16} class="mt-0.5 shrink-0" />
+              <div>
+                <p>{err}</p>
+                <p class="text-xs text-rose-600 mt-1">הפרטים נשמרו כאן — אפשר לשנות שעה או חלל ולשמור שוב.</p>
+              </div>
+            </div>
+          )}
+
+          {adding && (
+            <form method="POST" action="/api/rooms" class="space-y-4">
+              <input type="hidden" name="_action" value="create" />
+              <input type="hidden" name="back" value={back} />
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">חלל</label>
+                <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  {rooms.map((r) => <option value={r.id} selected={r.id === prefillRoom}>{r.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">מה זה?</label>
+                <input type="text" name="title" required placeholder="לדוגמה: שיעור תניא" value={draft('title') ?? ''}
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-400" />
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">מטרת השימוש</label>
+                <select name="purpose" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                  {PURPOSES.map((p) => (
+                    <option value={p.key} selected={p.key === (draft('purpose') ?? activePurpose ?? 'class')}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">מי באחריות</label>
+                <input type="text" name="in_charge_name" required placeholder="שם המרצה או האחראי"
+                  value={draft('in_charge_name') ?? ''}
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-400" />
+              </div>
+
+              <div class="flex gap-2">
+                <label class="flex-1 flex items-center gap-2 text-sm border border-stone-300 rounded-lg px-3 py-2 cursor-pointer has-checked:border-teal-500 has-checked:bg-teal-50">
+                  <input type="radio" name="repeat" value="once" checked={draft('repeat') !== 'weekly'} />
+                  חד־פעמי
+                </label>
+                <label class="flex-1 flex items-center gap-2 text-sm border border-stone-300 rounded-lg px-3 py-2 cursor-pointer has-checked:border-teal-500 has-checked:bg-teal-50">
+                  <input type="radio" name="repeat" value="weekly" checked={draft('repeat') === 'weekly'} />
+                  כל שבוע
+                </label>
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">תאריך</label>
+                <input type="date" name="event_date" required value={prefillDate}
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                <p class="text-xs text-stone-500 mt-1">
+                  {fmtDualDate(prefillDate)} · בחירת "כל שבוע" תיצור אירוע בכל אותו יום בשבוע מהתאריך הזה והלאה.
+                </p>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-sm font-medium text-stone-700">משעה</label>
+                  <input type="time" name="start_time" required value={draft('start_time') ?? '19:00'}
+                    class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-stone-700">עד שעה</label>
+                  <input type="time" name="end_time" required value={draft('end_time') ?? '20:30'}
+                    class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-stone-700">הערות</label>
+                <textarea name="notes" rows="2"
+                  class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
+                >{draft('notes') ?? ''}</textarea>
+              </div>
+
+              <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
+                שמירה
+              </button>
+            </form>
+          )}
+
+          {editing && (
+            <div class="space-y-5">
+              {editing.is_cancelled ? (
+                <form method="POST" action="/api/rooms" class="space-y-4">
+                  <input type="hidden" name="_action" value="restore_occurrence" />
+                  <input type="hidden" name="id" value={editing.id} />
+                  <input type="hidden" name="back" value={back} />
+                  <p class="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded-xl p-4">
+                    {editing.shown_title} · {fmtDualDate(editing.event_date, { year: false })} — האירוע הזה בוטל.
+                  </p>
+                  <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
+                    החזרת האירוע
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <form method="POST" action="/api/rooms" class="space-y-4">
+                    <input type="hidden" name="_action" value="update_occurrence" />
+                    <input type="hidden" name="id" value={editing.id} />
+                    <input type="hidden" name="back" value={back} />
+
+                    <p class="text-sm text-stone-500">
+                      {editing.shown_title}
+                      {editing.series_id && <span class="text-teal-700"> · אירוע מתוך סדרה שבועית</span>}
+                    </p>
+
+                    {editing.series_id && (
+                      <div class="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-2">
+                        <p class="text-xs font-medium text-stone-600">השינויים כאן יחולו על:</p>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="radio" name="scope" value="series" checked={draft('scope') !== 'one'} />
+                          כל האירועים מהתאריך הזה והלאה
+                        </label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="radio" name="scope" value="one" checked={draft('scope') === 'one'} />
+                          האירוע הזה בלבד
+                        </label>
+                        <p class="text-xs text-stone-500">
+                          אירועים אחרים שהוזזו או בוטלו ידנית יישארו כמו שהם.
+                        </p>
+                      </div>
+                    )}
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">חלל</label>
+                      <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                        {rooms.map((r) => (
+                          <option value={r.id} selected={r.id === (draft('room_id') ?? editing.room_id)}>{r.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">תאריך</label>
+                      <input type="date" name="event_date" required value={draft('event_date') ?? editing.event_date}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <label class="text-sm font-medium text-stone-700">משעה</label>
+                        <input type="time" name="start_time" required value={draft('start_time') ?? hhmm(editing.start_time)}
+                          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label class="text-sm font-medium text-stone-700">עד שעה</label>
+                        <input type="time" name="end_time" required value={draft('end_time') ?? hhmm(editing.end_time)}
+                          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">מה זה?</label>
+                      <input type="text" name="title" required value={draft('title') ?? editing.shown_title ?? ''}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">מי באחריות</label>
+                      <input type="text" name="in_charge_name" required value={draft('in_charge_name') ?? editing.shown_in_charge ?? ''}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">מטרת השימוש</label>
+                      <select name="purpose" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                        {PURPOSES.map((p) => (
+                          <option value={p.key} selected={p.key === (draft('purpose') ?? editing.shown_purpose ?? 'class')}>{p.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">הערות</label>
+                      <textarea name="notes" rows="2"
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
+                      >{draft('notes') ?? editing.shown_notes ?? ''}</textarea>
+                    </div>
+
+                    <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
+                      שמירה
+                    </button>
+                  </form>
+
+                  {editing.series_id ? (
+                    <div class="space-y-2 pt-2 border-t border-stone-200">
+                      <form method="POST" action="/api/rooms">
+                        <input type="hidden" name="_action" value="cancel_occurrence" />
+                        <input type="hidden" name="id" value={editing.id} />
+                        <input type="hidden" name="back" value={back} />
+                        <button class="w-full border border-amber-300 text-amber-800 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
+                          <Ban size={14} /> ביטול האירוע הזה בלבד
+                        </button>
+                      </form>
+                      <a href={q({ series: editing.series_id })}
+                        class="block text-center border border-stone-300 text-stone-700 rounded-lg py-2 text-sm font-medium">
+                        עריכת כל הסדרה
+                      </a>
+                    </div>
+                  ) : (
+                    <form method="POST" action="/api/rooms" class="pt-2 border-t border-stone-200">
+                      <input type="hidden" name="_action" value="delete_occurrence" />
+                      <input type="hidden" name="id" value={editing.id} />
+                      <input type="hidden" name="back" value={back} />
+                      <button
+                        onclick="if(!confirm('למחוק את ההזמנה?')) return false;"
+                        class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
+                        <Trash2 size={14} /> מחיקה
+                      </button>
+                    </form>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {editingSeries && (
+            <div class="space-y-5">
+                  <form method="POST" action="/api/rooms" class="space-y-4">
+                    <input type="hidden" name="_action" value="update_series" />
+                    <input type="hidden" name="id" value={editingSeries.id} />
+                    <input type="hidden" name="back" value={back} />
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">מה זה?</label>
+                      <input type="text" name="title" required value={draft('title') ?? editingSeries.title}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      <p class="text-xs text-stone-500 mt-1">שינוי השם משנה את כל האירועים, כולל אלה שעברו.</p>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">מי באחריות</label>
+                      <input type="text" name="in_charge_name" required value={draft('in_charge_name') ?? editingSeries.in_charge_name}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">מטרת השימוש</label>
+                      <select name="purpose" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                        {PURPOSES.map((p) => (
+                          <option value={p.key} selected={p.key === (draft('purpose') ?? editingSeries.purpose ?? 'class')}>{p.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">חלל</label>
+                      <select name="room_id" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                        {rooms.map((r) => (
+                          <option value={r.id} selected={r.id === (draft('room_id') ?? editingSeries.room_id)}>{r.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">יום בשבוע</label>
+                      <select name="weekday" class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm">
+                        {WEEKDAY_NAMES.map((n, i) => (
+                          <option value={i} selected={String(i) === (draft('weekday') ?? String(editingSeries.weekday))}>{n}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <label class="text-sm font-medium text-stone-700">משעה</label>
+                        <input type="time" name="start_time" required value={draft('start_time') ?? hhmm(editingSeries.start_time)}
+                          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label class="text-sm font-medium text-stone-700">עד שעה</label>
+                        <input type="time" name="end_time" required value={draft('end_time') ?? hhmm(editingSeries.end_time)}
+                          class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">בתוקף מתאריך</label>
+                      <input type="date" name="effective_from" required value={draft('effective_from') ?? today}
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+                      <p class="text-xs text-stone-500 mt-1">
+                        אירועים שלפני התאריך הזה נשארים כמו שהיו. אירועים שהוזזו או בוטלו ידנית לא ישתנו.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label class="text-sm font-medium text-stone-700">הערות</label>
+                      <textarea name="notes" rows="2"
+                        class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm"
+                      >{draft('notes') ?? editingSeries.notes ?? ''}</textarea>
+                    </div>
+
+                    <button class="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium">
+                      שמירת הסדרה
+                    </button>
+                  </form>
+
+                  <form method="POST" action="/api/rooms" class="pt-2 border-t border-stone-200">
+                    <input type="hidden" name="_action" value="delete_series" />
+                    <input type="hidden" name="id" value={editingSeries.id} />
+                    <input type="hidden" name="back" value={back} />
+                    <button
+                      onclick="if(!confirm('להפסיק את הסדרה? האירועים העתידיים יימחקו, וההיסטוריה תישאר.')) return false;"
+                      class="w-full border border-rose-300 text-rose-700 rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-2">
+                      <Trash2 size={14} /> הפסקת הסדרה
+                    </button>
+                  </form>
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>
+  )}
+</RoomsLayout>
