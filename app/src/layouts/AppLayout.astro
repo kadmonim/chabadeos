@@ -95,6 +95,7 @@ const displayName = user?.fullName || user?.email || '';
 
         <button
           type="button"
+          id="rail-more-btn"
           popovertarget="rail-more"
           class={`rail-item ${secondaryActive ? 'rail-active' : ''}`}
           aria-haspopup="menu"
@@ -113,7 +114,7 @@ const displayName = user?.fullName || user?.email || '';
     </aside>
 
     <!-- Rail flyout -->
-    <div id="rail-more" popover class="fixed" style="inset-inline-start: 5.25rem; bottom: 5rem;">
+    <div id="rail-more" popover class="fixed" data-anchor="rail-more-btn" data-place="side">
       <div class="menu" role="menu">
         <div class="menu-label">עוד</div>
         {secondary.map(({ href, label, icon: Icon }) => (
@@ -179,7 +180,7 @@ const displayName = user?.fullName || user?.email || '';
         <div class="flex-1"></div>
 
         <!-- Quick create -->
-        <button type="button" popovertarget="quick-create" class="btn btn-primary !px-2.5 md:!px-3" title="יצירה מהירה" aria-haspopup="menu">
+        <button type="button" id="quick-create-btn" popovertarget="quick-create" class="btn btn-primary !px-2.5 md:!px-3" title="יצירה מהירה" aria-haspopup="menu">
           <Plus size={16} />
           <span class="hidden md:inline">חדש</span>
         </button>
@@ -188,6 +189,7 @@ const displayName = user?.fullName || user?.email || '';
         {user && (
           <button
             type="button"
+            id="user-menu-btn"
             popovertarget="user-menu"
             class="hidden md:grid w-9 h-9 rounded-full bg-stone-900 text-white place-items-center text-xs font-semibold ms-1"
             title={displayName}
@@ -204,7 +206,7 @@ const displayName = user?.fullName || user?.email || '';
       </div>
     </header>
 
-    <div id="quick-create" popover class="fixed" style="top: 3.25rem; inset-inline-end: 4.25rem;">
+    <div id="quick-create" popover class="fixed" data-anchor="quick-create-btn" data-place="below">
       <div class="menu" role="menu">
         <div class="menu-label">יצירה מהירה</div>
         {quickCreate.map(({ href, label, icon: Icon }) => (
@@ -217,7 +219,7 @@ const displayName = user?.fullName || user?.email || '';
     </div>
 
     {user && (
-      <div id="user-menu" popover class="fixed" style="top: 3.25rem; inset-inline-end: 0.75rem;">
+      <div id="user-menu" popover class="fixed" data-anchor="user-menu-btn" data-place="below">
         <div class="menu" role="menu">
           <div class="px-3 py-2 border-b border-stone-100 mb-1">
             <div class="text-sm font-semibold text-stone-900 truncate">{user.fullName || user.email}</div>
@@ -236,5 +238,35 @@ const displayName = user?.fullName || user?.email || '';
     <main class={`md:ms-[4.75rem] ${fullWidth ? '' : 'max-w-[1400px] mx-auto'} px-4 md:px-6 py-5 md:py-6`}>
       <slot />
     </main>
+
+    <script is:inline>
+      // Place each popover next to its trigger when it opens. Fixed coordinates
+      // don't survive RTL, scrolling or different bar heights; a rect does.
+      document.querySelectorAll('[popover][data-anchor]').forEach((pop) => {
+        pop.addEventListener('toggle', (e) => {
+          if (e.newState !== 'open') return;
+          const btn = document.getElementById(pop.dataset.anchor);
+          if (!btn) return;
+          const rtl = document.documentElement.dir === 'rtl';
+          const r = btn.getBoundingClientRect();
+          const m = pop.getBoundingClientRect();
+          const gap = 6, pad = 8;
+          let top, left;
+          if (pop.dataset.place === 'side') {
+            // Beside the rail, bottom edges aligned.
+            left = rtl ? r.left - m.width - gap : r.right + gap;
+            top = r.bottom - m.height;
+          } else {
+            // Below the button, aligned to its end edge.
+            top = r.bottom + gap;
+            left = rtl ? r.left : r.right - m.width;
+          }
+          top = Math.max(pad, Math.min(top, innerHeight - m.height - pad));
+          left = Math.max(pad, Math.min(left, innerWidth - m.width - pad));
+          pop.style.top = top + 'px';
+          pop.style.left = left + 'px';
+        });
+      });
+    </script>
   </body>
 </html>
