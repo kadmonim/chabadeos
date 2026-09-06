@@ -1,0 +1,111 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import { getViewer, listCrmUsers, listEmployees } from '~/lib/crm/access';
+import { Trash2 } from 'lucide-svelte';
+
+const viewer = getViewer(Astro.locals);
+if (!viewer) return Astro.redirect('/?crm=denied');
+if (viewer.role !== 'admin') return Astro.redirect('/crm');
+
+const back = Astro.url.pathname;
+const err = Astro.url.searchParams.get('err');
+
+const crmUsers = await listCrmUsers();
+const allEmployees = await listEmployees();
+const availableEmployees = allEmployees.filter((e) => !crmUsers.some((u) => u.id === e.id));
+---
+<AppLayout title={'הגדרות CRM · חב״ד כרמיאל'} module="crm">
+  <h1 class="text-xl font-semibold text-stone-900 mb-4">הגדרות CRM</h1>
+
+  {err && (
+    <div class="mb-4 bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3">{err}</div>
+  )}
+
+  <div class="card mb-4">
+    <div class="card-header"><span class="card-title">משתמשי CRM</span></div>
+    <div class="card-body overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-stone-200">
+            <th class="text-start py-2 font-medium text-stone-500">שם</th>
+            <th class="text-start py-2 font-medium text-stone-500">אימייל</th>
+            <th class="text-start py-2 font-medium text-stone-500">תפקיד</th>
+            <th class="text-start py-2 font-medium text-stone-500"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {crmUsers.map((u) => (
+            <tr class="border-b border-stone-100 last:border-0">
+              <td class="py-2 font-medium text-stone-900">{u.full_name}</td>
+              <td class="py-2 text-stone-600">{u.email ?? '—'}</td>
+              <td class="py-2">
+                <form method="POST" action="/api/crm/users">
+                  <input type="hidden" name="_action" value="set_role" />
+                  <input type="hidden" name="employee_id" value={u.id} />
+                  <input type="hidden" name="back" value={back} />
+                  <select name="role" onchange="this.form.submit()" class="input !py-1.5 !w-auto text-sm">
+                    <option value="member" selected={u.role === 'member'}>חבר צוות</option>
+                    <option value="admin" selected={u.role === 'admin'}>מנהל</option>
+                  </select>
+                </form>
+              </td>
+              <td class="py-2 text-end">
+                <form method="POST" action="/api/crm/users">
+                  <input type="hidden" name="_action" value="remove" />
+                  <input type="hidden" name="employee_id" value={u.id} />
+                  <input type="hidden" name="back" value={back} />
+                  <button
+                    class="btn-icon text-rose-600"
+                    title="הסרה"
+                    onclick="if(!confirm('להסיר את המשתמש מה-CRM?')) return false;"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </form>
+              </td>
+            </tr>
+          ))}
+          {crmUsers.length === 0 && (
+            <tr><td colspan="4" class="py-4 text-center text-stone-400">אין עדיין משתמשי CRM</td></tr>
+          )}
+        </tbody>
+      </table>
+
+      {availableEmployees.length > 0 && (
+        <form method="POST" action="/api/crm/users" class="flex items-end gap-2 mt-4 pt-4 border-t border-stone-100">
+          <input type="hidden" name="_action" value="add" />
+          <input type="hidden" name="back" value={back} />
+          <div class="flex-1">
+            <label class="field-label">הוספת משתמש</label>
+            <select name="employee_id" required class="input">
+              {availableEmployees.map((e) => <option value={e.id}>{e.full_name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label class="field-label">תפקיד</label>
+            <select name="role" class="input">
+              <option value="member">חבר צוות</option>
+              <option value="admin">מנהל</option>
+            </select>
+          </div>
+          <button class="btn btn-primary">הוספה</button>
+        </form>
+      )}
+    </div>
+  </div>
+
+  <div class="grid gap-4 sm:grid-cols-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">תגיות</span></div>
+      <div class="card-body">
+        <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">קמפיינים</span></div>
+      <div class="card-body">
+        <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
+      </div>
+    </div>
+  </div>
+</AppLayout>

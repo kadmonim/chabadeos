@@ -1,0 +1,143 @@
+---
+// Shared create/update form for a contact. Used by both the index drawer and
+// the record page drawer. The caller resolves prefill values (getContact on
+// edit, `f_*` echo on a rejected submit winning over everything) and hands
+// them here as a flat `values` object.
+import { GENDERS, STAGES, STAGE_LABELS, VISIBILITIES, type EmployeeRef } from '~/lib/crm/types';
+
+interface Props {
+  employees: EmployeeRef[];
+  values: {
+    first_name?: string | null;
+    last_name?: string | null;
+    hebrew_name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    gender?: string | null;
+    birthdate?: string | null;
+    stage?: string | null;
+    owner_employee_id?: string | null;
+    visibility?: string | null;
+    source?: string | null;
+    notes?: string | null;
+  };
+  action: 'create' | 'update';
+  id?: string;
+  back: string;
+  err?: string | null;
+}
+const GENDER_LABELS: Record<string, string> = { male: 'זכר', female: 'נקבה' };
+const { employees, values, action, id, back, err = null } = Astro.props;
+const v = values ?? {};
+---
+<div class="space-y-5">
+  {err && (
+    <div class="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3">
+      {err}
+    </div>
+  )}
+
+  <form method="POST" action="/api/crm/contacts" class="space-y-4">
+    <input type="hidden" name="_action" value={action} />
+    <input type="hidden" name="back" value={back} />
+    {id && <input type="hidden" name="id" value={id} />}
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="field-label">שם פרטי *</label>
+        <input type="text" name="first_name" required class="input" value={v.first_name ?? ''} />
+      </div>
+      <div>
+        <label class="field-label">שם משפחה</label>
+        <input type="text" name="last_name" class="input" value={v.last_name ?? ''} />
+      </div>
+    </div>
+
+    <div>
+      <label class="field-label">שם עברי</label>
+      <input type="text" name="hebrew_name" class="input" value={v.hebrew_name ?? ''} />
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="field-label">טלפון</label>
+        <input type="tel" name="phone" class="input" value={v.phone ?? ''} placeholder="050-123 4567" />
+      </div>
+      <div>
+        <label class="field-label">אימייל</label>
+        <input type="email" name="email" class="input" value={v.email ?? ''} />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="field-label">מגדר</label>
+        <select name="gender" class="input">
+          <option value="">—</option>
+          {GENDERS.map((g) => <option value={g} selected={g === v.gender}>{GENDER_LABELS[g]}</option>)}
+        </select>
+      </div>
+      <div>
+        <label class="field-label">תאריך לידה</label>
+        <input type="date" name="birthdate" class="input" value={v.birthdate ?? ''} />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="field-label">שלב</label>
+        <select name="stage" class="input">
+          {STAGES.map((s) => <option value={s} selected={s === (v.stage ?? 'new')}>{STAGE_LABELS[s]}</option>)}
+        </select>
+      </div>
+      <div>
+        <label class="field-label">בעלים</label>
+        <select name="owner_employee_id" class="input">
+          <option value="">—</option>
+          {employees.map((e) => <option value={e.id} selected={e.id === v.owner_employee_id}>{e.full_name}</option>)}
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="field-label mb-1.5">שיוך</label>
+      <div class="flex gap-2">
+        {VISIBILITIES.map((vis) => (
+          <label class="flex-1 flex items-center gap-2 text-sm border border-stone-300 rounded-lg px-3 py-2 cursor-pointer has-checked:border-accent has-checked:bg-accent-soft">
+            <input type="radio" name="visibility" value={vis} checked={vis === (v.visibility ?? 'public')} />
+            {vis === 'public' ? 'ציבורי' : 'מוגבל'}
+          </label>
+        ))}
+      </div>
+      <p class="text-xs text-stone-500 mt-1">
+        ציבורי — כל אנשי הצוות רואים. מוגבל — רק הבעלים, מנהלים, ומי ששותף איתו במפורש.
+      </p>
+    </div>
+
+    <div>
+      <label class="field-label">מקור</label>
+      <input type="text" name="source" class="input" value={v.source ?? ''} placeholder="לדוגמה: הפניה, אירוע, אתר" />
+    </div>
+
+    <div>
+      <label class="field-label">הערות</label>
+      <textarea name="notes" rows="3" class="input">{v.notes ?? ''}</textarea>
+    </div>
+
+    <button class="btn btn-primary w-full">שמירה</button>
+  </form>
+
+  {action === 'update' && id && (
+    <form method="POST" action="/api/crm/contacts" class="pt-2 border-t border-stone-200">
+      <input type="hidden" name="_action" value="archive" />
+      <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="back" value={back} />
+      <button
+        class="btn btn-danger w-full"
+        onclick="if(!confirm('להעביר את איש הקשר לארכיון?')) return false;"
+      >
+        העברה לארכיון
+      </button>
+    </form>
+  )}
+</div>

@@ -21,5 +21,7 @@ declare namespace App {
     allowedTeams: TeamRecord[];
     currentTeam: TeamRecord | null;
     uiPrefs: { hide_vto?: boolean; hide_scorecard?: boolean; hide_rooms?: boolean; show_org_chart?: boolean };
+    /** CRM membership (null = no access). Set by middleware from crm_users. */
+    crm: { employeeId: string; role: 'admin' | 'member'; name: string } | null;
   }
 }

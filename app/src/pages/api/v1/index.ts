@@ -32,6 +32,13 @@ export const GET: APIRoute = async ({ request }) => {
       'GET /api/v1/todos':                'List todos. Optional ?assignee=<email>, ?team= (id or name), ?status=open|done|archived|all (default open).',
       'POST /api/v1/todos':               'Create a todo. Body: { title, description?, assignee_email?, team_id? | team_name?, due_date?, is_urgent? }. Returns { id }.',
       'PATCH /api/v1/todos':              'Update a todo. Body: { id, done?, status?, title?, description?, is_urgent?, due_date?, assignee_email?, team_id? | team_name? (moves it) }.',
+      // CRM
+      'GET /api/v1/crm/contacts':         'List CRM contacts. Optional ?q=, ?stage= (comma-separated), ?tag=, ?owner=<email>, ?household=, ?visibility=, ?updated_since=, ?archived=1, ?sort= (name|updated|created|last_activity|stage), ?dir=, ?limit=, ?after=.',
+      'POST /api/v1/crm/contacts':        'Create a CRM contact. Body: ContactInput with owner_email? instead of owner_employee_id, plus force? (bool, or ?force=1) to bypass duplicate detection. Returns { id }, or 409 { error: "duplicate", existing } on a phone/email match.',
+      'GET /api/v1/crm/contacts/:id':     'Get a contact, including computed phone_links { tel, whatsapp }.',
+      'PATCH /api/v1/crm/contacts/:id':   'Update a contact. Body: ContactInput with owner_email?, shares? (emails), archived? (bool).',
+      'DELETE /api/v1/crm/contacts/:id':  'Archive a contact.',
+      'GET /api/v1/crm/search':           'Fuzzy CRM contact search. ?q= (required), ?limit=.',
       'GET /api/v1/rooms':                'List bookable rooms.',
       'GET /api/v1/bookings':             'List room bookings as dated occurrences. ?from=&to= (default this week), ?room= (id or name), ?include_cancelled=1.',
       'POST /api/v1/bookings':            'Book a room. Body: { room (id or name), title, in_charge_name, date, start_time, end_time, notes?, weekly? (bool), ends_on? }. Double bookings are rejected with 409.',

@@ -2,6 +2,7 @@ import { defineMiddleware } from 'astro:middleware';
 import { readSession } from '~/lib/session';
 import { fetchAllowedTeams, resolveCurrentTeam } from '~/lib/team';
 import { getUiPrefs } from '~/lib/prefs';
+import { fetchViewer } from '~/lib/crm/access';
 
 // The /rooms screens are gated by a shared access code (see lib/rooms-access),
 // not by the login: /rooms/open is view-only for everyone, /rooms/enter asks
@@ -17,6 +18,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   context.locals.allowedTeams = [];
   context.locals.currentTeam = null;
   context.locals.uiPrefs = {};
+  context.locals.crm = null;
 
   const path = context.url.pathname;
   const isPublic = PUBLIC_PATHS.has(path) || path.startsWith('/_');
@@ -31,13 +33,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
 
   if (session) {
-    const [allowed, prefs] = await Promise.all([
+    const [allowed, prefs, crm] = await Promise.all([
       fetchAllowedTeams(session.employeeId),
       getUiPrefs(session.employeeId),
+      fetchViewer(session.employeeId),
     ]);
     context.locals.allowedTeams = allowed;
     context.locals.currentTeam = resolveCurrentTeam(context.cookies, allowed);
     context.locals.uiPrefs = prefs;
+    context.locals.crm = crm;
   }
 
   return next();

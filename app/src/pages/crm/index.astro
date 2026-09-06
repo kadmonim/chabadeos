@@ -1,0 +1,278 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import Drawer from '~/components/Drawer.astro';
+import SegmentedTabs from '~/components/SegmentedTabs.astro';
+import ContactForm from '~/components/crm/ContactForm.astro';
+import SearchBox from '~/components/crm/SearchBox.svelte';
+import { initials } from '~/lib/crm/format';
+import { whatsappUrl, telUrl } from '~/lib/crm/phone';
+import { fmtDualDate } from '~/lib/dates';
+import { STAGES, STAGE_LABELS, STAGE_STYLES, type ContactFilter, type ContactSort, type Stage } from '~/lib/crm/types';
+import { getViewer, listEmployees } from '~/lib/crm/access';
+import { listContacts, getContact } from '~/lib/crm/contacts';
+import { Plus, CircleAlert, Phone, MessageCircle, X } from 'lucide-svelte';
+
+const viewer = getViewer(Astro.locals);
+if (!viewer) return Astro.redirect('/?crm=denied');
+
+const url = Astro.url;
+const q = url.searchParams.get('q') ?? '';
+const stageParams = url.searchParams.getAll('stage').filter((s): s is Stage => (STAGES as readonly string[]).includes(s));
+const owner = url.searchParams.get('owner') ?? '';
+const visibility = url.searchParams.get('visibility') ?? '';
+const sort = (url.searchParams.get('sort') ?? 'name') as ContactSort;
+const dir = (url.searchParams.get('dir') ?? 'asc') as 'asc' | 'desc';
+const after = url.searchParams.get('after');
+
+const filter: ContactFilter = {};
+if (q) filter.q = q;
+if (stageParams.length === 1) filter.stage = stageParams[0];
+else if (stageParams.length > 1) filter.stage = stageParams;
+if (owner) filter.owner = owner;
+if (visibility === 'public' || visibility === 'restricted') filter.visibility = visibility;
+
+const employees = await listEmployees();
+let page;
+let listError: string | null = null;
+try {
+  page = await listContacts(viewer, filter, { sort, dir, limit: 50, after });
+} catch (e) {
+  // A stale or hand-edited ?after= cursor should not take the page down.
+  listError = (e as Error).message;
+  page = await listContacts(viewer, filter, { sort, dir, limit: 50 });
+}
+
+const adding = url.searchParams.get('add') === '1';
+const editId = url.searchParams.get('edit');
+const editing = editId ? await getContact(viewer, editId) : null;
+const panelOpen = adding || !!editing;
+const err = url.searchParams.get('err') ?? listError;
+
+// Rebuild the current query string, keeping filters/sort but dropping paging
+// and panel state — every filter link and the "clear" link go through this.
+const qs = (overrides: Record<string, string | string[] | null> = {}, { keepAfter = false } = {}) => {
+  const p = new URLSearchParams();
+  if (q) p.set('q', q);
+  for (const s of stageParams) p.append('stage', s);
+  if (owner) p.set('owner', owner);
+  if (visibility) p.set('visibility', visibility);
+  if (sort !== 'name') p.set('sort', sort);
+  if (dir !== 'asc') p.set('dir', dir);
+  if (keepAfter && after) p.set('after', after);
+  for (const [k, v] of Object.entries(overrides)) {
+    p.delete(k);
+    if (v === null) continue;
+    if (Array.isArray(v)) v.forEach((x) => p.append(k, x));
+    else p.set(k, v);
+  }
+  const s = p.toString();
+  return `/crm${s ? `?${s}` : ''}`;
+};
+
+const back = qs({}, { keepAfter: true });
+const draft = (k: string) => url.searchParams.get(`f_${k}`) || null;
+const formValues = editing
+  ? {
+      first_name: draft('first_name') ?? editing.first_name,
+      last_name: draft('last_name') ?? editing.last_name,
+      hebrew_name: draft('hebrew_name') ?? editing.hebrew_name,
+      phone: draft('phone') ?? editing.phone_display,
+      email: draft('email') ?? editing.email,
+      gender: draft('gender') ?? editing.gender,
+      birthdate: draft('birthdate') ?? editing.birthdate,
+      stage: draft('stage') ?? editing.stage,
+      owner_employee_id: draft('owner_employee_id') ?? editing.owner?.id ?? null,
+      visibility: draft('visibility') ?? editing.visibility,
+      source: draft('source') ?? editing.source,
+      notes: draft('notes') ?? editing.notes,
+    }
+  : {
+      first_name: draft('first_name'),
+      last_name: draft('last_name'),
+      hebrew_name: draft('hebrew_name'),
+      phone: draft('phone'),
+      email: draft('email'),
+      gender: draft('gender'),
+      birthdate: draft('birthdate'),
+      stage: draft('stage') ?? 'new',
+      owner_employee_id: draft('owner_employee_id'),
+      visibility: draft('visibility') ?? 'public',
+      source: draft('source'),
+      notes: draft('notes'),
+    };
+
+const stageTabs = [
+  { key: 'all', label: 'הכל', href: qs({ stage: null }), count: null },
+  ...STAGES.map((s) => ({ key: s, label: STAGE_LABELS[s], href: qs({ stage: [s] }), count: null })),
+];
+const activeStageTab = stageParams.length === 1 ? stageParams[0] : 'all';
+
+const hasFilters = !!q || stageParams.length > 0 || !!owner || !!visibility;
+
+const sortLink = (col: ContactSort) => {
+  const newDir = sort === col && dir === 'asc' ? 'desc' : 'asc';
+  return qs({ sort: col === 'name' ? null : col, dir: newDir === 'asc' ? null : newDir });
+};
+const sortIndicator = (col: ContactSort) => (sort === col ? (dir === 'asc' ? '▲' : '▼') : '');
+---
+<AppLayout title={'אנשי קשר · חב״ד כרמיאל'} module="crm">
+  <div class="flex items-center gap-3 mb-4 flex-wrap">
+    <h1 class="text-xl font-semibold text-stone-900">אנשי קשר <span class="text-stone-400 font-normal text-base">({page.total})</span></h1>
+    <div class="flex-1"></div>
+    <SearchBox client:load placeholder="חיפוש לפי שם, טלפון או אימייל" />
+    <a href={qs({ add: '1' })} class="btn btn-primary hidden sm:inline-flex">
+      <Plus size={16} />
+      הוספה
+    </a>
+  </div>
+
+  {err && !panelOpen && (
+    <div class="mb-4 bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
+      <CircleAlert size={16} class="mt-0.5 shrink-0" />
+      <span>{err}</span>
+    </div>
+  )}
+
+  <div class="mb-3">
+    <SegmentedTabs items={stageTabs} active={activeStageTab} />
+  </div>
+
+  <div class="flex items-center gap-2 mb-4 flex-wrap">
+    <form method="GET" action="/crm" class="flex items-center gap-2 flex-wrap">
+      {q && <input type="hidden" name="q" value={q} />}
+      {stageParams.map((s) => <input type="hidden" name="stage" value={s} />)}
+      <select name="owner" onchange="this.form.submit()" class="text-xs bg-white border border-stone-300 rounded-full px-3 py-1.5 text-stone-600">
+        <option value="">כל הבעלים</option>
+        {employees.map((e) => <option value={e.id} selected={e.id === owner}>{e.full_name}</option>)}
+      </select>
+      <select name="visibility" onchange="this.form.submit()" class="text-xs bg-white border border-stone-300 rounded-full px-3 py-1.5 text-stone-600">
+        <option value="">כל השיוכים</option>
+        <option value="public" selected={visibility === 'public'}>ציבורי</option>
+        <option value="restricted" selected={visibility === 'restricted'}>מוגבל</option>
+      </select>
+    </form>
+    {hasFilters && (
+      <a href="/crm" class="text-xs text-stone-500 hover:text-stone-900 flex items-center gap-1">
+        <X size={12} /> נקה
+      </a>
+    )}
+  </div>
+
+  {page.items.length === 0 ? (
+    <div class="card card-body text-center py-10">
+      <p class="text-sm text-stone-500 mb-3">לא נמצאו אנשי קשר{hasFilters ? ' התואמים את הסינון' : ''}.</p>
+      <a href={qs({ add: '1' })} class="btn btn-primary inline-flex">
+        <Plus size={16} /> הוספת איש קשר
+      </a>
+    </div>
+  ) : (
+    <>
+      <!-- Desktop table -->
+      <div class="hidden md:block card overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="sticky top-0 z-10">
+            <tr class="border-b border-stone-200 bg-stone-50">
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">
+                <a href={sortLink('name')} class="hover:text-stone-900">שם {sortIndicator('name')}</a>
+              </th>
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">טלפון</th>
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">אימייל</th>
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">
+                <a href={sortLink('stage')} class="hover:text-stone-900">שלב {sortIndicator('stage')}</a>
+              </th>
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">בעלים</th>
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">משק בית</th>
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">תגיות</th>
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">
+                <a href={sortLink('updated')} class="hover:text-stone-900">עדכון {sortIndicator('updated')}</a>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {page.items.map((c) => (
+              <tr class="border-b border-stone-100 last:border-0 hover:bg-stone-50">
+                <td class="px-4 py-2.5">
+                  <a href={`/crm/contacts/${c.id}`} class="font-medium text-stone-900 hover:text-accent">{c.first_name} {c.last_name}</a>
+                  {c.hebrew_name && <div class="text-xs text-stone-400">{c.hebrew_name}</div>}
+                </td>
+                <td class="px-4 py-2.5">
+                  {c.phone ? (
+                    <div class="flex items-center gap-2">
+                      <a href={telUrl(c.phone)} class="text-stone-700 hover:text-accent" dir="ltr">{c.phone_display}</a>
+                      <a href={whatsappUrl(c.phone)} target="_blank" rel="noopener" class="text-emerald-600 hover:text-emerald-700" title="וואטסאפ">
+                        <MessageCircle size={14} />
+                      </a>
+                    </div>
+                  ) : <span class="text-stone-300">—</span>}
+                </td>
+                <td class="px-4 py-2.5 text-stone-600">
+                  {c.email ? <a href={`mailto:${c.email}`} class="hover:text-accent">{c.email}</a> : <span class="text-stone-300">—</span>}
+                </td>
+                <td class="px-4 py-2.5"><span class={`pill ${STAGE_STYLES[c.stage]}`}>{STAGE_LABELS[c.stage]}</span></td>
+                <td class="px-4 py-2.5 text-stone-600">{c.owner?.full_name ?? <span class="text-stone-300">—</span>}</td>
+                <td class="px-4 py-2.5 text-stone-600">
+                  {c.household ? <a href={`/crm/households/${c.household.id}`} class="hover:text-accent">{c.household.name}</a> : <span class="text-stone-300">—</span>}
+                </td>
+                <td class="px-4 py-2.5">
+                  <div class="flex flex-wrap gap-1">
+                    {c.tags.map((t) => <span class="chip">{t.name}</span>)}
+                  </div>
+                </td>
+                <td class="px-4 py-2.5 text-stone-500 whitespace-nowrap">{fmtDualDate(c.updated_at, { year: false })}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile cards -->
+      <div class="md:hidden space-y-2.5">
+        {page.items.map((c) => (
+          <div class="card card-body flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-accent-soft text-accent-ink grid place-items-center text-sm font-semibold shrink-0">
+              {initials(c.first_name, c.last_name)}
+            </div>
+            <a href={`/crm/contacts/${c.id}`} class="flex-1 min-w-0">
+              <div class="font-medium text-stone-900 truncate">{c.first_name} {c.last_name}</div>
+              <div class="text-xs text-stone-500 truncate" dir="ltr">{c.phone_display ?? ''}</div>
+            </a>
+            <span class={`pill ${STAGE_STYLES[c.stage]}`}>{STAGE_LABELS[c.stage]}</span>
+            {c.phone && (
+              <>
+                <a href={telUrl(c.phone)} class="btn-icon" title="חיוג"><Phone size={16} /></a>
+                <a href={whatsappUrl(c.phone)} target="_blank" rel="noopener" class="btn-icon text-emerald-600" title="וואטסאפ"><MessageCircle size={16} /></a>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
+  )}
+
+  {page.next && (
+    <div class="mt-4 text-center">
+      <a href={qs({ after: page.next })} class="btn btn-outline btn-sm">הבא</a>
+    </div>
+  )}
+
+  <a
+    href={qs({ add: '1' })}
+    class="sm:hidden fixed bottom-5 end-5 z-20 rounded-full bg-accent text-white w-14 h-14 shadow-lg grid place-items-center"
+    title="הוספה"
+  >
+    <Plus size={24} />
+  </a>
+
+  {panelOpen && (
+    <Drawer title={editing ? 'עריכת איש קשר' : 'הוספת איש קשר'} closeHref={back}>
+      <ContactForm
+        employees={employees}
+        values={formValues}
+        action={editing ? 'update' : 'create'}
+        id={editing?.id}
+        back={back}
+        err={err}
+      />
+    </Drawer>
+  )}
+</AppLayout>

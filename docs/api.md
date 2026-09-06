@@ -42,6 +42,12 @@ Valid keys come from the `CHABADEOS_API_KEYS` environment variable on the server
 | GET | `/api/v1/todos` | Optional `?assignee=<email>`, `?team=` (id **or** name), `?status=open\|done\|archived\|all` (default `open`). |
 | POST | `/api/v1/todos` | Create a todo. |
 | PATCH | `/api/v1/todos` | Update a todo — including moving it to another team. |
+| GET | `/api/v1/crm/contacts` | List CRM contacts. Filters, sorting and cursor pagination — see [CRM](#crm). |
+| POST | `/api/v1/crm/contacts` | Create a CRM contact. Rejects phone/email duplicates unless `force`. |
+| GET | `/api/v1/crm/contacts/:id` | Get a contact, with computed `phone_links`. |
+| PATCH | `/api/v1/crm/contacts/:id` | Update a contact — fields, owner, shares, archived. |
+| DELETE | `/api/v1/crm/contacts/:id` | Archive a contact. |
+| GET | `/api/v1/crm/search` | Fuzzy contact search by name, phone or email. |
 | GET | `/api/v1/rooms` | List bookable rooms. |
 | GET | `/api/v1/bookings` | Room bookings as dated occurrences. `?from=&to=` (default this week), `?room=` (id **or** name), `?purpose=`, `?include_cancelled=1`. |
 | POST | `/api/v1/bookings` | Book a room, once or weekly. Double bookings are rejected with `409`. |
@@ -332,6 +338,120 @@ Editing a single occurrence marks it as an exception, so later series-wide edits
 ```
 
 For a series occurrence this cancels that one week (the slot stays reserved as a tombstone so it isn't regenerated); a one-off is deleted outright. `{ "series_id": "…" }` stops the whole series — future occurrences go, past ones remain as history.
+
+## CRM
+
+The CRM tracks contacts (people the shul knows — members, donors, regulars).
+API keys act as a trusted **admin service account** by default. Send
+
+```
+X-On-Behalf-Of: alice@example.com
+```
+
+to narrow visibility to that CRM user (they only see contacts they own,
+that are public, or that are shared with them) and to attribute writes
+(owner defaults, activity log) to them instead of the service account. The
+email must belong to an existing CRM user, or the request fails with `400`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/crm/contacts` | List contacts. |
+| POST | `/api/v1/crm/contacts` | Create a contact. |
+| GET | `/api/v1/crm/contacts/:id` | Get one contact. |
+| PATCH | `/api/v1/crm/contacts/:id` | Update a contact. |
+| DELETE | `/api/v1/crm/contacts/:id` | Archive a contact. |
+| GET | `/api/v1/crm/search` | Fuzzy search. |
+
+### Stages
+
+`new` (חדש), `acquaintance` (מכר), `regular` (קבוע), `member` (חבר קהילה),
+`donor` (תורם), `inactive` (לא פעיל).
+
+### `GET /api/v1/crm/contacts`
+
+Query params: `q` (fuzzy name/phone/email), `stage` (comma-separated, e.g.
+`donor,member`), `tag` (id or name), `owner` (email — resolved to an
+employee; an unknown email returns an empty result rather than an error),
+`household` (id), `visibility` (`public` | `restricted`), `updated_since`
+(ISO timestamp), `archived=1` (include archived contacts, default excluded),
+`sort` (`name` | `updated` | `created` | `last_activity` | `stage`, default
+`name`), `dir` (`asc` | `desc`), `limit` (default 50), `after` (cursor from
+the previous page's `next`).
+
+```json
+{
+  "contacts": [ { "id": "…", "first_name": "…", "last_name": "…", "stage": "donor", "…": "…" } ],
+  "count": 50,
+  "total": 214,
+  "next": "eyJ…"
+}
+```
+
+Pass `next` back as `after` to fetch the following page; `next` is `null` on
+the last page.
+
+**`POST /api/v1/crm/contacts`**
+
+```json
+{
+  "first_name": "Alice",
+  "last_name": "Cohen",
+  "hebrew_name": "אליס",
+  "phone": "050-123 4567",
+  "email": "alice@example.com",
+  "stage": "new",
+  "owner_email": "gabbai@example.com",
+  "visibility": "public",
+  "force": false
+}
+```
+
+`owner_email` replaces `owner_employee_id` on the wire (resolved server-side;
+an unknown email is `400`). Phone is normalised (Israeli by default) and
+checked against existing contacts by phone/email; a match returns:
+
+```json
+{ "error": "duplicate", "existing": { "id": "…" } }
+```
+
+with status `409`. Pass `"force": true` (or `?force=1`) to create anyway.
+Validation failures (e.g. missing name) return `400 { "error": "<message>" }`.
+On success: `201 { "id": "…" }`.
+
+**`GET /api/v1/crm/contacts/:id`**
+
+Returns `404 { "error": "not found" }` if missing or not visible to the
+caller. Otherwise `{ "contact": { …ContactDetail, "phone_links": { "tel": "tel:+972501234567", "whatsapp": "https://wa.me/972501234567" } } }` — `phone_links` is `{ "tel": null, "whatsapp": null }` when there's no phone.
+
+**`PATCH /api/v1/crm/contacts/:id`**
+
+```json
+{
+  "stage": "donor",
+  "owner_email": "gabbai@example.com",
+  "visibility": "restricted",
+  "shares": ["alice@example.com", "bob@example.com"],
+  "archived": false
+}
+```
+
+Every field is optional; `owner_email` and `shares` resolve emails to
+employees server-side (unknown email → `400`). `shares` replaces the full
+share list for restricted contacts. `archived` toggles the archive flag.
+Returns `204` on success, `404` if the contact doesn't exist or isn't
+visible to the caller, or `403 { "error": "<Hebrew message>" }` if the
+caller lacks permission to manage the contact (only the owner or an admin
+may change owner, visibility, shares or archive status).
+
+**`DELETE /api/v1/crm/contacts/:id`** — archives the contact (soft delete).
+`204` on success, `404` if not found/visible.
+
+**`GET /api/v1/crm/search`** — `?q=` (required) and `?limit=` (default 20).
+Fuzzy-matches name/Hebrew name, and exact-matches digits of phone/email.
+
+```json
+{ "contacts": [ { "id": "…", "first_name": "…", "last_name": "…", "…": "…" } ] }
+```
 
 ## Examples
 

@@ -5,7 +5,7 @@
 import '~/styles/global.css';
 import {
   Home, Target, AlertCircle, ListTodo, ChartBar, Eye, CalendarDays, LogOut, Settings,
-  ListChecks, BookOpen, Users, Link2, Network, MoreHorizontal, Plus, ChevronDown,
+  ListChecks, BookOpen, Users, Link2, Network, MoreHorizontal, Plus, ChevronDown, ContactRound,
 } from 'lucide-svelte';
 import MobileMenu from '~/components/MobileMenu.svelte';
 
@@ -24,6 +24,7 @@ const teams = Astro.locals.allowedTeams;
 const currentTeam = Astro.locals.currentTeam;
 const backPath = Astro.url.pathname + Astro.url.search;
 const uiPrefs = Astro.locals.uiPrefs ?? {};
+const crm = Astro.locals.crm ?? null;
 
 const isActive = (href: string) => (href === '/' ? path === '/' : path === href || path.startsWith(href + '/'));
 
@@ -36,6 +37,7 @@ const primary = [
   { href: '/todos',     label: 'משימות',    icon: ListTodo },
   { href: '/scorecard', label: 'מדדים',     icon: ChartBar,     hide: uiPrefs.hide_scorecard },
   { href: '/rooms',     label: 'חדרים',     icon: CalendarDays, hide: uiPrefs.hide_rooms },
+  { href: '/crm',       label: 'CRM',       icon: ContactRound, hide: !crm },
 ].filter((i) => !i.hide);
 
 // Flyout behind the "more" rail item.
@@ -50,6 +52,7 @@ const secondaryActive = secondary.some((i) => isActive(i.href));
 
 // Quick create: one place to start any record.
 const quickCreate = [
+  { href: '/crm?add=1',        label: 'איש קשר', icon: ContactRound, hide: !crm },
   { href: '/rocks?add_rock=1', label: 'פרוייקט', icon: Target },
   { href: '/issues#new',       label: 'נושא',    icon: AlertCircle },
   { href: '/todos#new',        label: 'משימה',   icon: ListTodo },
@@ -143,6 +146,7 @@ const displayName = user?.fullName || user?.email || '';
             hideScorecard={uiPrefs.hide_scorecard ?? false}
             hideRooms={uiPrefs.hide_rooms ?? false}
             showOrgChart={uiPrefs.show_org_chart ?? false}
+            showCrm={!!crm}
           />
           <a href="/" class="flex items-center"><img src="/logo.png" alt="חב״ד כרמיאל" class="h-7 w-auto" /></a>
         </div>

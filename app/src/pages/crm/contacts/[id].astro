@@ -1,0 +1,353 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import Drawer from '~/components/Drawer.astro';
+import SegmentedTabs from '~/components/SegmentedTabs.astro';
+import ContactForm from '~/components/crm/ContactForm.astro';
+import { initials, fmtMoney } from '~/lib/crm/format';
+import { whatsappUrl, telUrl } from '~/lib/crm/phone';
+import { fmtDualDate } from '~/lib/dates';
+import {
+  STAGES, STAGE_LABELS, STAGE_STYLES, HOUSEHOLD_ROLE_LABELS, LINK_LABELS,
+} from '~/lib/crm/types';
+import { getViewer, listEmployees, listCrmUsers, canManage } from '~/lib/crm/access';
+import { getContact } from '~/lib/crm/contacts';
+import {
+  StickyNote, ListTodo, Phone, MessageCircle, Pencil, Copy, Users, Link2,
+  Gift, ListChecks, Plus,
+} from 'lucide-svelte';
+
+const viewer = getViewer(Astro.locals);
+if (!viewer) return Astro.redirect('/?crm=denied');
+
+const { id } = Astro.params;
+const contact = id ? await getContact(viewer, id) : null;
+
+const url = Astro.url;
+const back = url.pathname + url.search;
+const editing = url.searchParams.get('edit') === '1';
+const err = url.searchParams.get('err');
+const tab = url.searchParams.get('tab') ?? 'timeline';
+
+const tabQs = (t: string) => {
+  const p = new URLSearchParams(url.search);
+  p.delete('edit');
+  p.delete('err');
+  Array.from(p.keys()).filter((k) => k.startsWith('f_')).forEach((k) => p.delete(k));
+  p.set('tab', t);
+  return `${url.pathname}?${p}`;
+};
+
+const employees = contact ? await listEmployees() : [];
+const canManageContact = contact ? canManage(viewer, { owner_employee_id: contact.owner?.id ?? null }) : false;
+const crmUsers = contact && contact.visibility === 'restricted' && canManageContact ? await listCrmUsers() : [];
+
+const draft = (k: string) => url.searchParams.get(`f_${k}`) || null;
+const formValues = contact
+  ? {
+      first_name: draft('first_name') ?? contact.first_name,
+      last_name: draft('last_name') ?? contact.last_name,
+      hebrew_name: draft('hebrew_name') ?? contact.hebrew_name,
+      phone: draft('phone') ?? contact.phone_display,
+      email: draft('email') ?? contact.email,
+      gender: draft('gender') ?? contact.gender,
+      birthdate: draft('birthdate') ?? contact.birthdate,
+      stage: draft('stage') ?? contact.stage,
+      owner_employee_id: draft('owner_employee_id') ?? contact.owner?.id ?? null,
+      visibility: draft('visibility') ?? contact.visibility,
+      source: draft('source') ?? contact.source,
+      notes: draft('notes') ?? contact.notes,
+    }
+  : {};
+
+const tabs = [
+  { key: 'timeline', label: 'ציר זמן', href: tabQs('timeline') },
+  { key: 'tasks', label: 'משימות', href: tabQs('tasks') },
+  { key: 'gifts', label: 'תרומות', href: tabQs('gifts') },
+];
+
+// Group links by type for the "קשרים" card (done here, not inline in the
+// template, since a generic type argument on .reduce() inside JSX confuses
+// the Astro/esbuild parser).
+type ContactLink = NonNullable<typeof contact>['links'][number];
+const linksByType: [string, ContactLink[]][] = [];
+if (contact) {
+  const byType = new Map<string, ContactLink[]>();
+  for (const l of contact.links) {
+    const list = byType.get(l.type) ?? [];
+    list.push(l);
+    byType.set(l.type, list);
+  }
+  linksByType.push(...byType.entries());
+}
+---
+<AppLayout title={contact ? `${contact.first_name} ${contact.last_name} · חב״ד כרמיאל` : 'לא נמצא · חב״ד כרמיאל'} module="crm">
+  {!contact ? (
+    <div class="card card-body text-center py-10">
+      <p class="text-sm text-stone-500">לא נמצא</p>
+      <a href="/crm" class="btn btn-outline mt-3 inline-flex">חזרה לרשימת אנשי הקשר</a>
+    </div>
+  ) : (
+    <div class="grid gap-4 lg:grid-cols-[320px_1fr_320px] items-start">
+      <!-- ===================== Left: identity + details + sharing ===================== -->
+      <div class="space-y-4">
+        <div class="card card-body">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-12 h-12 rounded-full bg-accent-soft text-accent-ink grid place-items-center text-base font-semibold shrink-0">
+              {initials(contact.first_name, contact.last_name)}
+            </div>
+            <div class="min-w-0">
+              <div class="font-semibold text-stone-900 truncate">{contact.first_name} {contact.last_name}</div>
+              {contact.hebrew_name && <div class="text-xs text-stone-500 truncate">{contact.hebrew_name}</div>}
+            </div>
+          </div>
+          <span class={`pill ${STAGE_STYLES[contact.stage]} mb-3`}>{STAGE_LABELS[contact.stage]}</span>
+          <div class="grid grid-cols-5 gap-1 border-t border-stone-100 pt-3">
+            <a href={tabQs('timeline') + '#note'} class="flex flex-col items-center gap-1 py-1 rounded-lg hover:bg-stone-50 text-stone-600">
+              <StickyNote size={16} /><span class="text-[10px]">הערה</span>
+            </a>
+            <a href={tabQs('tasks')} class="flex flex-col items-center gap-1 py-1 rounded-lg hover:bg-stone-50 text-stone-600">
+              <ListTodo size={16} /><span class="text-[10px]">משימה</span>
+            </a>
+            {contact.phone ? (
+              <a href={telUrl(contact.phone)} class="flex flex-col items-center gap-1 py-1 rounded-lg hover:bg-stone-50 text-stone-600">
+                <Phone size={16} /><span class="text-[10px]">שיחה</span>
+              </a>
+            ) : <div></div>}
+            {contact.phone ? (
+              <a href={whatsappUrl(contact.phone)} target="_blank" rel="noopener" class="flex flex-col items-center gap-1 py-1 rounded-lg hover:bg-stone-50 text-emerald-600">
+                <MessageCircle size={16} /><span class="text-[10px]">וואטסאפ</span>
+              </a>
+            ) : <div></div>}
+            <a href={`${url.pathname}?edit=1`} class="flex flex-col items-center gap-1 py-1 rounded-lg hover:bg-stone-50 text-stone-600">
+              <Pencil size={16} /><span class="text-[10px]">עריכה</span>
+            </a>
+          </div>
+        </div>
+
+        <details class="card" open>
+          <summary class="card-header cursor-pointer select-none"><span class="card-title">פרטים</span></summary>
+          <div class="card-body space-y-3">
+            <div>
+              <div class="field-label">טלפון</div>
+              {contact.phone ? (
+                <div class="flex items-center gap-2">
+                  <a href={telUrl(contact.phone)} class="field-value hover:text-accent" dir="ltr">{contact.phone_display}</a>
+                  <button type="button" class="btn-icon !w-7 !h-7" data-copy={contact.phone_display} title="העתקה"><Copy size={13} /></button>
+                </div>
+              ) : <div class="field-value text-stone-300">—</div>}
+            </div>
+            <div>
+              <div class="field-label">אימייל</div>
+              {contact.email ? <a href={`mailto:${contact.email}`} class="field-value hover:text-accent">{contact.email}</a> : <div class="field-value text-stone-300">—</div>}
+            </div>
+            <div>
+              <div class="field-label">מגדר</div>
+              <div class="field-value">{contact.gender === 'male' ? 'זכר' : contact.gender === 'female' ? 'נקבה' : '—'}</div>
+            </div>
+            <div>
+              <div class="field-label">תאריך לידה</div>
+              <div class="field-value">{contact.birthdate ? fmtDualDate(contact.birthdate) : '—'}</div>
+            </div>
+            <div>
+              <div class="field-label">משק בית</div>
+              <div class="field-value">
+                {contact.household ? <a href={`/crm/households/${contact.household.id}`} class="hover:text-accent">{contact.household.name}</a> : '—'}
+                {contact.household_role && <span class="text-stone-400"> · {HOUSEHOLD_ROLE_LABELS[contact.household_role]}</span>}
+              </div>
+            </div>
+            <div>
+              <div class="field-label">בעלים</div>
+              <form method="POST" action="/api/crm/contacts">
+                <input type="hidden" name="_action" value="set_owner" />
+                <input type="hidden" name="id" value={contact.id} />
+                <input type="hidden" name="back" value={back} />
+                <select name="value" onchange="this.form.submit()" class="input !py-1.5 text-sm">
+                  <option value="">—</option>
+                  {employees.map((e) => <option value={e.id} selected={e.id === contact.owner?.id}>{e.full_name}</option>)}
+                </select>
+              </form>
+            </div>
+            <div>
+              <div class="field-label">שלב</div>
+              <form method="POST" action="/api/crm/contacts">
+                <input type="hidden" name="_action" value="set_stage" />
+                <input type="hidden" name="id" value={contact.id} />
+                <input type="hidden" name="back" value={back} />
+                <select name="value" onchange="this.form.submit()" class="input !py-1.5 text-sm">
+                  {STAGES.map((s) => <option value={s} selected={s === contact.stage}>{STAGE_LABELS[s]}</option>)}
+                </select>
+              </form>
+            </div>
+            <div>
+              <div class="field-label">מקור</div>
+              <div class="field-value">{contact.source ?? '—'}</div>
+            </div>
+            <div class="divider"></div>
+            <div class="text-xs text-stone-400">
+              נוצר על ידי {contact.created_by?.full_name ?? '—'} · {fmtDualDate(contact.created_at, { year: false })}
+            </div>
+          </div>
+        </details>
+
+        <details class="card">
+          <summary class="card-header cursor-pointer select-none"><span class="card-title">שיתוף</span></summary>
+          <div class="card-body space-y-3">
+            {canManageContact ? (
+              <form method="POST" action="/api/crm/contacts" class="flex gap-2">
+                <input type="hidden" name="_action" value="set_visibility" />
+                <input type="hidden" name="id" value={contact.id} />
+                <input type="hidden" name="back" value={back} />
+                <label class="flex-1 flex items-center gap-2 text-sm border border-stone-300 rounded-lg px-3 py-2 cursor-pointer has-checked:border-accent has-checked:bg-accent-soft">
+                  <input type="radio" name="value" value="public" checked={contact.visibility === 'public'} onchange="this.form.submit()" />
+                  ציבורי
+                </label>
+                <label class="flex-1 flex items-center gap-2 text-sm border border-stone-300 rounded-lg px-3 py-2 cursor-pointer has-checked:border-accent has-checked:bg-accent-soft">
+                  <input type="radio" name="value" value="restricted" checked={contact.visibility === 'restricted'} onchange="this.form.submit()" />
+                  מוגבל
+                </label>
+              </form>
+            ) : (
+              <div class="field-value">{contact.visibility === 'public' ? 'ציבורי' : 'מוגבל'}</div>
+            )}
+
+            {contact.visibility === 'restricted' && (
+              canManageContact ? (
+                <form method="POST" action="/api/crm/contacts" class="space-y-2">
+                  <input type="hidden" name="_action" value="set_shares" />
+                  <input type="hidden" name="id" value={contact.id} />
+                  <input type="hidden" name="back" value={back} />
+                  <label class="field-label">שיתוף עם</label>
+                  <select name="employee_ids[]" multiple class="input h-28">
+                    {crmUsers.map((u) => (
+                      <option value={u.id} selected={contact.shares.some((s) => s.id === u.id)}>{u.full_name}</option>
+                    ))}
+                  </select>
+                  <button class="btn btn-outline btn-sm w-full">עדכון שיתוף</button>
+                </form>
+              ) : (
+                <div>
+                  <div class="field-label">משותף עם</div>
+                  <div class="flex flex-wrap gap-1">
+                    {contact.shares.length > 0
+                      ? contact.shares.map((s) => <span class="chip">{s.full_name}</span>)
+                      : <span class="field-value text-stone-300">—</span>}
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        </details>
+      </div>
+
+      <!-- ===================== Center: timeline / tasks / gifts ===================== -->
+      <div class="space-y-3 min-w-0">
+        <SegmentedTabs items={tabs} active={tab} />
+        {tab === 'timeline' && (
+          <div class="card card-body" id="note">
+            {contact.notes ? (
+              <p class="text-sm text-stone-700 whitespace-pre-wrap">{contact.notes}</p>
+            ) : (
+              <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
+            )}
+          </div>
+        )}
+        {tab === 'tasks' && (
+          <div class="card card-body">
+            <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
+          </div>
+        )}
+        {tab === 'gifts' && (
+          <div class="card card-body">
+            <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
+          </div>
+        )}
+      </div>
+
+      <!-- ===================== Right: associations ===================== -->
+      <div class="space-y-4">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title flex items-center gap-1.5"><Users size={14} class="text-stone-400" /> משק בית ({contact.household_members.length})</span>
+            <button type="button" class="btn btn-ghost btn-sm" disabled title="בקרוב"><Plus size={13} /> הוספה</button>
+          </div>
+          <div class="card-body space-y-1.5">
+            {contact.household_members.length === 0 ? (
+              <p class="text-xs text-stone-400">אין בני משק בית נוספים</p>
+            ) : contact.household_members.map((m) => (
+              <a href={`/crm/contacts/${m.id}`} class="flex items-center justify-between text-sm hover:text-accent">
+                <span>{m.first_name} {m.last_name}</span>
+                {m.household_role && <span class="text-xs text-stone-400">{HOUSEHOLD_ROLE_LABELS[m.household_role]}</span>}
+              </a>
+            ))}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title flex items-center gap-1.5"><Link2 size={14} class="text-stone-400" /> קשרים ({contact.links.length})</span>
+            <button type="button" class="btn btn-ghost btn-sm" disabled title="בקרוב"><Plus size={13} /> הוספה</button>
+          </div>
+          <div class="card-body space-y-2">
+            {contact.links.length === 0 ? (
+              <p class="text-xs text-stone-400">אין קשרים רשומים</p>
+            ) : linksByType.map(([type, links]) => (
+                <div>
+                  <div class="text-xs text-stone-400 mb-1">{LINK_LABELS[type as keyof typeof LINK_LABELS]}</div>
+                  <div class="space-y-1">
+                    {links.map((l) => (
+                      <a href={`/crm/contacts/${l.contact.id}`} class="block text-sm hover:text-accent">
+                        {l.contact.first_name} {l.contact.last_name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title flex items-center gap-1.5"><Gift size={14} class="text-stone-400" /> תרומות ({contact.gift_count})</span>
+            <button type="button" class="btn btn-ghost btn-sm" disabled title="בקרוב"><Plus size={13} /> הוספה</button>
+          </div>
+          <div class="card-body">
+            <div class="text-lg font-semibold text-stone-900">{fmtMoney(contact.gift_total)}</div>
+            <div class="text-xs text-stone-400">{contact.gift_count} תרומות</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title flex items-center gap-1.5"><ListChecks size={14} class="text-stone-400" /> משימות פתוחות ({contact.open_tasks})</span>
+            <button type="button" class="btn btn-ghost btn-sm" disabled title="בקרוב"><Plus size={13} /> הוספה</button>
+          </div>
+          <div class="card-body">
+            <p class="text-xs text-stone-400">{contact.open_tasks === 0 ? 'אין משימות פתוחות' : `${contact.open_tasks} משימות פתוחות`}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {contact && editing && (
+    <Drawer title="עריכת איש קשר" closeHref={url.pathname} size="md">
+      <ContactForm
+        employees={employees}
+        values={formValues}
+        action="update"
+        id={contact.id}
+        back={url.pathname}
+        err={err}
+      />
+    </Drawer>
+  )}
+
+  <script is:inline>
+    document.querySelectorAll('[data-copy]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const v = btn.getAttribute('data-copy');
+        if (v) navigator.clipboard?.writeText(v).catch(() => {});
+      });
+    });
+  </script>
+</AppLayout>

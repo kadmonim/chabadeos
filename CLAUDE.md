@@ -12,3 +12,9 @@ Production: https://eos.karmiel.co.il — Netlify site `chabadeos` (account Mend
 - Production DB: `netlify database status --branch production` shows applied migrations; add `--show-credentials` for the connection string (Team Owner only; a 401 means re-run `netlify login`). The Netlify plan is Pro (30-day backups, sleep-on-inactivity can be disabled).
 - Ad-hoc SQL: `netlify database connect --query "select ..."` (local dev DB; it prints the local connection URL, useful for running `scripts/seed-*.mjs` via `NETLIFY_DB_URL=<url> node scripts/seed-basic.mjs`).
 - Local dev: `netlify dev` from `app/` (proxies Astro on http://localhost:8888 and starts the local database). Plain `astro dev` has no DB.
+
+## CRM module (`/crm`, tables `crm_*`)
+- Plan: `~/.claude/plans/eager-puzzling-sunbeam.md`. Service contract: `app/src/lib/crm/README.md`. All CRM SQL lives in `app/src/lib/crm/*.ts`; pages, `/api/crm/*` (session) and `/api/v1/crm/*` (bearer key) are thin callers.
+- Access is standalone (`crm_users`, roles admin/member), not EOS teams. Middleware puts the viewer on `Astro.locals.crm` (null = no access). Contacts are `public` or `restricted` (owner + `crm_contact_shares` + admins). Every query goes through `visibilityClause()`.
+- Machine API keys act as an admin service account; `X-On-Behalf-Of: <email>` narrows to that CRM user.
+- Design language: HubSpot-style workbench (rail + utility bar shell in `AppLayout`, drawers for create/edit via URL state, cards with header actions, orange accent via `module="crm"`).

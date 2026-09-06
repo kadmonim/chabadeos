@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     Menu, X, Home, Target, AlertCircle, ListTodo, ChartBar, Eye, Settings, CalendarDays,
-    ListChecks, BookOpen, Users, Link2, Network, LogOut,
+    ListChecks, BookOpen, Users, Link2, Network, LogOut, ContactRound,
   } from 'lucide-svelte';
 
   type Team = { id: string; name: string };
@@ -15,6 +15,7 @@
     hideScorecard = false,
     hideRooms = false,
     showOrgChart = false,
+    showCrm = false,
   } = $props<{
     teams: Team[];
     currentTeamId: string | null;
@@ -25,6 +26,7 @@
     hideScorecard?: boolean;
     hideRooms?: boolean;
     showOrgChart?: boolean;
+    showCrm?: boolean;
   }>();
 
   let open = $state(false);
@@ -52,8 +54,10 @@
     { href: '/todos',     label: 'משימות',      icon: ListTodo,    match: (p: string) => p.startsWith('/todos') },
     { href: '/scorecard', label: 'לוח מדדים',   icon: ChartBar,    match: (p: string) => p.startsWith('/scorecard') },
     { href: '/rooms',     label: 'חדרים',       icon: CalendarDays, match: (p: string) => p.startsWith('/rooms') },
+    { href: '/crm',       label: 'CRM',         icon: ContactRound, match: (p: string) => p.startsWith('/crm') },
   ].filter(
     (i) =>
+      !(i.href === '/crm' && !showCrm) &&
       !(i.href === '/vto' && hideVto) &&
       !(i.href === '/scorecard' && hideScorecard) &&
       !(i.href === '/rooms' && hideRooms),
