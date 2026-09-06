@@ -2,15 +2,19 @@
 // Link-based segmented tabs (server-rendered, no JS). Pass the current URL's
 // variant as `active`.
 interface Item { href: string; label: string; count?: number | null; key: string }
-interface Props { items: Item[]; active: string; class?: string }
-const { items, active, class: cls = '' } = Astro.props;
+// `group`: when set, tabs switch client-side without a reload. Render every
+// panel with data-tab-panel="<group>:<key>" (hidden except the active one);
+// the script toggles them and keeps ?<param>= in the URL in sync.
+interface Props { items: Item[]; active: string; class?: string; group?: string; param?: string }
+const { items, active, class: cls = '', group, param = 'tab' } = Astro.props;
 ---
-<nav class={`seg overflow-x-auto max-w-full ${cls}`} aria-label="תצוגות">
+<nav class={`seg overflow-x-auto max-w-full ${cls}`} aria-label="תצוגות" data-tab-group={group} data-tab-param={param}>
   {items.map((i) => (
     <a
       href={i.href}
       class={`seg-item flex items-center gap-1.5 ${i.key === active ? 'seg-active' : ''}`}
       aria-current={i.key === active ? 'page' : undefined}
+      data-tab-key={group ? i.key : undefined}
     >
       {i.label}
       {i.count != null && (
@@ -19,3 +23,31 @@ const { items, active, class: cls = '' } = Astro.props;
     </a>
   ))}
 </nav>
+
+{group && (
+  <script is:inline>
+    document.querySelectorAll('nav[data-tab-group]').forEach((nav) => {
+      if (nav.dataset.bound) return;
+      nav.dataset.bound = '1';
+      const group = nav.dataset.tabGroup;
+      const param = nav.dataset.tabParam || 'tab';
+      nav.addEventListener('click', (e) => {
+        const a = e.target.closest('a[data-tab-key]');
+        if (!a) return;
+        e.preventDefault();
+        const key = a.dataset.tabKey;
+        nav.querySelectorAll('a[data-tab-key]').forEach((x) => {
+          const on = x === a;
+          x.classList.toggle('seg-active', on);
+          if (on) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current');
+        });
+        document.querySelectorAll(`[data-tab-panel^="${group}:"]`).forEach((p) => {
+          p.hidden = p.dataset.tabPanel !== `${group}:${key}`;
+        });
+        const url = new URL(location.href);
+        url.searchParams.set(param, key);
+        history.replaceState(null, '', url);
+      });
+    });
+  </script>
+)}

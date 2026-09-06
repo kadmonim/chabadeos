@@ -239,26 +239,20 @@ if (contact) {
 
       <!-- ===================== Center: timeline / tasks / gifts ===================== -->
       <div class="space-y-3 min-w-0">
-        <SegmentedTabs items={tabs} active={tab} />
-        {tab === 'timeline' && (
-          <div class="card card-body" id="note">
-            {contact.notes ? (
-              <p class="text-sm text-stone-700 whitespace-pre-wrap">{contact.notes}</p>
-            ) : (
-              <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
-            )}
-          </div>
-        )}
-        {tab === 'tasks' && (
-          <div class="card card-body">
+        <SegmentedTabs items={tabs} active={tab} group="center" />
+        <div class="card card-body" id="note" data-tab-panel="center:timeline" hidden={tab !== 'timeline'}>
+          {contact.notes ? (
+            <p class="text-sm text-stone-700 whitespace-pre-wrap">{contact.notes}</p>
+          ) : (
             <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
-          </div>
-        )}
-        {tab === 'gifts' && (
-          <div class="card card-body">
-            <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
-          </div>
-        )}
+          )}
+        </div>
+        <div class="card card-body" data-tab-panel="center:tasks" hidden={tab !== 'tasks'}>
+          <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
+        </div>
+        <div class="card card-body" data-tab-panel="center:gifts" hidden={tab !== 'gifts'}>
+          <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
+        </div>
       </div>
 
       <!-- ===================== Right: associations ===================== -->
