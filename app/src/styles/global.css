@@ -179,7 +179,7 @@ html, body {
   .menu-label  { @apply px-3 pt-2 pb-1 text-[10px] font-semibold tracking-wide text-stone-400 uppercase; }
 
   /* Sidebar rail items */
-  .rail-item   { @apply relative flex flex-col items-center justify-center gap-1 w-full rounded-lg py-2 text-[10px] font-medium leading-none text-rose-100/70 hover:text-white hover:bg-white/10 transition; }
+  .rail-item   { @apply relative flex flex-col items-center justify-center gap-0.5 w-full rounded-lg py-1.5 text-[10px] font-medium leading-none text-rose-100/70 hover:text-white hover:bg-white/10 transition; }
   .rail-active { @apply text-white bg-white/15; }
   .rail-active::before {
     content: "";
@@ -191,4 +191,8 @@ html, body {
     background: var(--color-flame);
   }
   [dir="rtl"] .rail-active::before { border-radius: 3px 0 0 3px; }
+
+  /* The rail may scroll on short windows, but never shows a scrollbar. */
+  .rail-scroll { scrollbar-width: none; }
+  .rail-scroll::-webkit-scrollbar { display: none; }
 }
