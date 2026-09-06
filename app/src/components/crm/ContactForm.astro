@@ -37,7 +37,7 @@ const v = values ?? {};
     </div>
   )}
 
-  <form method="POST" action="/api/crm/contacts" class="space-y-4">
+  <form method="POST" action="/api/crm/contacts" class="space-y-4" data-once>
     <input type="hidden" name="_action" value={action} />
     <input type="hidden" name="back" value={back} />
     {id && <input type="hidden" name="id" value={id} />}
@@ -124,8 +124,21 @@ const v = values ?? {};
       <textarea name="notes" rows="3" class="input">{v.notes ?? ''}</textarea>
     </div>
 
-    <button class="btn btn-primary w-full">שמירה</button>
+    <button class="btn btn-primary w-full" data-submit>שמירה</button>
   </form>
+
+  <script is:inline>
+    // Saving can take a moment on a cold database; a second tap must not create
+    // a second contact. Disable the button and ignore repeat submits.
+    document.querySelectorAll('form[data-once]').forEach((f) => {
+      f.addEventListener('submit', (e) => {
+        if (f.dataset.submitted) { e.preventDefault(); return; }
+        f.dataset.submitted = '1';
+        const b = f.querySelector('[data-submit]');
+        if (b) { b.disabled = true; b.textContent = 'שומר…'; }
+      });
+    });
+  </script>
 
   {action === 'update' && id && (
     <form method="POST" action="/api/crm/contacts" class="pt-2 border-t border-stone-200">

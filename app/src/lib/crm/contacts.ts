@@ -323,6 +323,19 @@ export async function createContact(
     if (duplicate) return { duplicate };
   }
 
+  // Idempotency for double submits: the same person creating an identical
+  // contact within two minutes gets the existing row back instead of a twin.
+  const recent = await pool.query(
+    `select id from crm_contacts
+     where created_by is not distinct from $1
+       and first_name = $2 and last_name = $3
+       and phone is not distinct from $4 and email is not distinct from $5::citext
+       and created_at > now() - interval '2 minutes'
+     order by created_at desc limit 1`,
+    [viewer.employeeId || null, input.first_name.trim(), (input.last_name ?? '').trim(), e164, email],
+  );
+  if (recent.rows[0]) return { id: recent.rows[0].id as string };
+
   const ownerId = input.owner_employee_id !== undefined ? input.owner_employee_id : viewer.employeeId || null;
   const createdBy = viewer.employeeId || null;
 
