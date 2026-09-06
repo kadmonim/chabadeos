@@ -142,14 +142,14 @@
     <button
       type="button"
       onclick={() => (tab = 'vision')}
-      class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition {tab === 'vision' ? 'border-violet-600 text-violet-700' : 'border-transparent text-stone-500 hover:text-stone-800'}"
+      class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition {tab === 'vision' ? 'border-accent text-accent-ink' : 'border-transparent text-stone-500 hover:text-stone-800'}"
     >
       חזון
     </button>
     <button
       type="button"
       onclick={() => (tab = 'traction')}
-      class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition {tab === 'traction' ? 'border-violet-600 text-violet-700' : 'border-transparent text-stone-500 hover:text-stone-800'}"
+      class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition {tab === 'traction' ? 'border-accent text-accent-ink' : 'border-transparent text-stone-500 hover:text-stone-800'}"
     >
       ביצוע
     </button>
@@ -206,7 +206,7 @@
     <!-- 3 Year Goal -->
     <section class="bg-white border border-stone-200 rounded-2xl p-5">
       <h2 class="flex items-center gap-2 text-base font-semibold text-stone-900 mb-4">
-        <TrendingUp size={16} class="text-violet-500" /> מטרת 3 שנים
+        <TrendingUp size={16} class="text-accent" /> מטרת 3 שנים
       </h2>
       <div class="space-y-3">
         <div class="grid grid-cols-[100px_1fr] items-center gap-3">
@@ -215,7 +215,7 @@
             type="date"
             bind:value={vision.three_year.future_date}
             oninput={() => scheduleSave('vision')}
-            class="text-sm bg-transparent border-b border-stone-200 focus:border-violet-400 focus:outline-none py-1"
+            class="text-sm bg-transparent border-b border-stone-200 focus:border-accent focus:outline-none py-1"
           />
         </div>
         <div class="grid grid-cols-[100px_1fr] items-center gap-3">
@@ -228,7 +228,7 @@
               bind:value={vision.three_year.revenue.budget}
               oninput={() => scheduleSave('vision')}
               placeholder="$"
-              class="text-sm bg-transparent border-b border-stone-200 focus:border-violet-400 focus:outline-none py-1"
+              class="text-sm bg-transparent border-b border-stone-200 focus:border-accent focus:outline-none py-1"
             />
           {/if}
         </div>
@@ -241,7 +241,7 @@
               type="text"
               bind:value={vision.three_year.revenue.profit}
               oninput={() => scheduleSave('vision')}
-              class="text-sm bg-transparent border-b border-stone-200 focus:border-violet-400 focus:outline-none py-1"
+              class="text-sm bg-transparent border-b border-stone-200 focus:border-accent focus:outline-none py-1"
             />
           {/if}
         </div>
@@ -262,7 +262,7 @@
               bind:value={m.value}
               oninput={() => scheduleSave('vision')}
               placeholder="ערך"
-              class="text-sm text-end font-medium bg-transparent border-b border-stone-200 focus:border-violet-400 focus:outline-none py-1"
+              class="text-sm text-end font-medium bg-transparent border-b border-stone-200 focus:border-accent focus:outline-none py-1"
             />
             <button
               type="button"
@@ -315,7 +315,7 @@
     <!-- Core Focus -->
     <section class="bg-white border border-stone-200 rounded-2xl p-5">
       <h2 class="flex items-center gap-2 text-base font-semibold text-stone-900 mb-4">
-        <Target size={16} class="text-violet-500" /> מיקוד
+        <Target size={16} class="text-accent" /> מיקוד
       </h2>
       <div class="space-y-4">
         <div>
@@ -324,7 +324,7 @@
             bind:value={vision.core_focus.purpose}
             oninput={() => scheduleSave('vision')}
             rows="3"
-            class="mt-1 w-full text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400"
+            class="mt-1 w-full text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
           ></textarea>
         </div>
         <div>
@@ -333,7 +333,7 @@
             bind:value={vision.core_focus.niche}
             oninput={() => scheduleSave('vision')}
             rows="2"
-            class="mt-1 w-full text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400"
+            class="mt-1 w-full text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
           ></textarea>
         </div>
       </div>
@@ -385,7 +385,7 @@
             bind:value={vision.marketing.target_market}
             oninput={() => scheduleSave('vision')}
             rows="2"
-            class="mt-1 w-full text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400"
+            class="mt-1 w-full text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
           ></textarea>
         </div>
         <div>
@@ -394,7 +394,7 @@
             bind:value={vision.marketing.proven_process}
             oninput={() => scheduleSave('vision')}
             rows="2"
-            class="mt-1 w-full text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400"
+            class="mt-1 w-full text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
           ></textarea>
         </div>
         <div class="md:col-span-2">
@@ -440,7 +440,7 @@
             bind:value={vision.marketing.system_promise}
             oninput={() => scheduleSave('vision')}
             rows="2"
-            class="mt-1 w-full text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400"
+            class="mt-1 w-full text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
           ></textarea>
         </div>
       </div>

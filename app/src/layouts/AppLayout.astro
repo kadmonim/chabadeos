@@ -78,7 +78,7 @@ const displayName = user?.fullName || user?.email || '';
   </head>
   <body class={`min-h-screen theme-${module}`}>
     <!-- ================= Desktop rail ================= -->
-    <aside class="hidden md:flex fixed inset-y-0 start-0 w-[4.75rem] bg-stone-900 flex-col items-center py-3 z-30 border-e border-stone-800">
+    <aside class="hidden md:flex fixed inset-y-0 start-0 w-[4.75rem] bg-brand flex-col items-center py-3 z-30 border-e border-brand-strong">
       <a href="/" class="w-10 h-10 rounded-xl bg-white grid place-items-center shrink-0 overflow-hidden" title="חב״ד כרמיאל">
         <img src="/logo.png" alt="" class="h-7 w-auto" />
       </a>
@@ -91,7 +91,7 @@ const displayName = user?.fullName || user?.email || '';
           </a>
         ))}
 
-        <div class="h-px bg-stone-800 mx-2 my-2"></div>
+        <div class="h-px bg-white/15 mx-2 my-2"></div>
 
         <button
           type="button"
@@ -191,7 +191,7 @@ const displayName = user?.fullName || user?.email || '';
             type="button"
             id="user-menu-btn"
             popovertarget="user-menu"
-            class="hidden md:grid w-9 h-9 rounded-full bg-stone-900 text-white place-items-center text-xs font-semibold ms-1"
+            class="hidden md:grid w-9 h-9 rounded-full bg-brand text-white place-items-center text-xs font-semibold ms-1"
             title={displayName}
             aria-haspopup="menu"
           >
@@ -199,7 +199,7 @@ const displayName = user?.fullName || user?.email || '';
           </button>
         )}
         {user && (
-          <div class="md:hidden w-8 h-8 rounded-full bg-stone-900 text-white grid place-items-center text-xs font-semibold">
+          <div class="md:hidden w-8 h-8 rounded-full bg-brand text-white grid place-items-center text-xs font-semibold">
             {initials(displayName)}
           </div>
         )}

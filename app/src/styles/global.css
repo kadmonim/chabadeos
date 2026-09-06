@@ -9,6 +9,16 @@
    ------------------------------------------------------------------ */
 @theme {
   --font-sans: "Assistant", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Brand colours sampled from public/logo.png */
+  --color-brand:        #680c22;  /* burgundy frame */
+  --color-brand-strong: #4d0818;
+  --color-brand-soft:   #f7ecee;
+  --color-brand-ink:    #680c22;
+  --color-flame:        #f28727;  /* the orange gershayim */
+  --color-flame-strong: #d8731c;
+  --color-flame-soft:   #fdf1e6;
+  --color-flame-ink:    #9a4f0e;
 }
 
 @theme inline {
@@ -19,10 +29,10 @@
 }
 
 :root, .theme-eos {
-  --accent:        var(--color-violet-600);
-  --accent-strong: var(--color-violet-700);
-  --accent-soft:   var(--color-violet-50);
-  --accent-ink:    var(--color-violet-700);
+  --accent:        var(--color-brand);
+  --accent-strong: var(--color-brand-strong);
+  --accent-soft:   var(--color-brand-soft);
+  --accent-ink:    var(--color-brand-ink);
 }
 .theme-rooms {
   --accent:        var(--color-teal-600);
@@ -31,10 +41,10 @@
   --accent-ink:    var(--color-teal-700);
 }
 .theme-crm {
-  --accent:        var(--color-orange-500);
-  --accent-strong: var(--color-orange-600);
-  --accent-soft:   var(--color-orange-50);
-  --accent-ink:    var(--color-orange-700);
+  --accent:        var(--color-flame);
+  --accent-strong: var(--color-flame-strong);
+  --accent-soft:   var(--color-flame-soft);
+  --accent-ink:    var(--color-flame-ink);
 }
 
 html, body {
@@ -99,8 +109,8 @@ html, body {
   .menu-label  { @apply px-3 pt-2 pb-1 text-[10px] font-semibold tracking-wide text-stone-400 uppercase; }
 
   /* Sidebar rail items */
-  .rail-item   { @apply relative flex flex-col items-center justify-center gap-1 w-full rounded-lg py-2 text-[10px] font-medium leading-none text-stone-400 hover:text-white hover:bg-white/5 transition; }
-  .rail-active { @apply text-white bg-white/10; }
+  .rail-item   { @apply relative flex flex-col items-center justify-center gap-1 w-full rounded-lg py-2 text-[10px] font-medium leading-none text-rose-100/70 hover:text-white hover:bg-white/10 transition; }
+  .rail-active { @apply text-white bg-white/15; }
   .rail-active::before {
     content: "";
     position: absolute;
@@ -108,7 +118,7 @@ html, body {
     top: 0.6rem; bottom: 0.6rem;
     width: 3px;
     border-radius: 0 3px 3px 0;
-    background: var(--accent);
+    background: var(--color-flame);
   }
   [dir="rtl"] .rail-active::before { border-radius: 3px 0 0 3px; }
 }

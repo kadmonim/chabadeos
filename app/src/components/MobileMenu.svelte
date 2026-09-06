@@ -97,18 +97,18 @@
     ></button>
 
     <aside class="absolute start-0 top-0 bottom-0 w-[85%] max-w-xs bg-white shadow-2xl flex flex-col overflow-y-auto">
-      <header class="flex items-center justify-between p-4 bg-stone-900 text-white">
+      <header class="flex items-center justify-between p-4 bg-brand text-white">
         <div>
           <div class="font-semibold">חב"ד כרמיאל</div>
           {#if userName}
-            <div class="text-xs text-stone-400 mt-0.5 truncate max-w-[200px]">{userName}</div>
+            <div class="text-xs text-rose-100/70 mt-0.5 truncate max-w-[200px]">{userName}</div>
           {/if}
         </div>
         <button
           type="button"
           onclick={close}
           aria-label="סגירה"
-          class="p-1 text-stone-400 hover:text-white"
+          class="p-1 text-rose-100/70 hover:text-white"
         >
           <X size={20} />
         </button>

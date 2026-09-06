@@ -48,8 +48,8 @@ const back = '/rocks';
 <AppLayout title="פרוייקטים · חב&quot;ד כרמיאל">
   <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
     <div class="flex items-center gap-3">
-      <div class="w-12 h-12 rounded-xl bg-violet-100 grid place-items-center">
-        <Mountain class="text-violet-600" size={24} />
+      <div class="w-12 h-12 rounded-xl bg-accent-soft grid place-items-center">
+        <Mountain class="text-accent" size={24} />
       </div>
       <div>
         <h1 class="text-2xl font-semibold text-stone-900">פרוייקטים</h1>
@@ -103,7 +103,7 @@ const back = '/rocks';
               </div>
               {r.owner && (
                 <div class="flex items-center gap-2 text-sm shrink-0">
-                  <div class="w-8 h-8 rounded-full bg-violet-100 text-violet-700 grid place-items-center text-xs font-semibold">
+                  <div class="w-8 h-8 rounded-full bg-accent-soft text-accent-ink grid place-items-center text-xs font-semibold">
                     {initials(r.owner.full_name)}
                   </div>
                   <span class="text-stone-600 hidden md:inline">{r.owner.full_name}</span>
@@ -141,7 +141,7 @@ const back = '/rocks';
             <div>
               <label class="text-sm font-medium text-stone-700">כותרת</label>
               <input type="text" name="title" required value={editingRock?.title ?? ''}
-                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+                class="mt-1 w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent" />
             </div>
 
             <div>
@@ -183,7 +183,7 @@ const back = '/rocks';
               </div>
             </div>
 
-            <button class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-2.5 text-sm font-medium">
+            <button class="w-full bg-accent hover:bg-accent-strong text-white rounded-lg py-2.5 text-sm font-medium">
               {editingRock ? 'שמירת שינויים' : 'יצירת פרוייקט'}
             </button>
           </form>

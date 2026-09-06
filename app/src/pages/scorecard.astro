@@ -200,7 +200,7 @@ function initials(name: string) {
         {Array.from(grouped.entries()).map(([groupName, subMap]) => (
           <>
             <tr>
-              <td colspan={4 + COLS} class="bg-violet-50 text-violet-700 font-semibold text-xs uppercase tracking-wider px-4 py-2">
+              <td colspan={4 + COLS} class="bg-accent-soft text-accent-ink font-semibold text-xs uppercase tracking-wider px-4 py-2">
                 {groupName}
               </td>
             </tr>
@@ -225,7 +225,7 @@ function initials(name: string) {
                       </td>
                       <td class="px-3 py-3 text-center">
                         {m.owner ? (
-                          <div class="inline-grid place-items-center w-7 h-7 rounded-full bg-violet-100 text-violet-700 text-[10px] font-semibold" title={m.owner.full_name}>
+                          <div class="inline-grid place-items-center w-7 h-7 rounded-full bg-accent-soft text-accent-ink text-[10px] font-semibold" title={m.owner.full_name}>
                             {initials(m.owner.full_name)}
                           </div>
                         ) : (

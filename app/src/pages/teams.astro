@@ -98,7 +98,7 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {members.map((m: any) => (
                 <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-stone-50">
-                  <div class="w-9 h-9 rounded-full bg-violet-100 text-violet-700 grid place-items-center text-xs font-semibold">
+                  <div class="w-9 h-9 rounded-full bg-accent-soft text-accent-ink grid place-items-center text-xs font-semibold">
                     {initials(m.employee.full_name)}
                   </div>
                   <div class="flex-1 min-w-0">
@@ -204,7 +204,7 @@ const addNewBack = editing ? `/teams?edit=${editing.id}&addNew=1` : back;
                   <input type="hidden" name="id" value={m.id} />
                   <input type="hidden" name="back" value={editBack} />
                   <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 rounded-full bg-violet-100 text-violet-700 grid place-items-center text-xs font-semibold">
+                    <div class="w-8 h-8 rounded-full bg-accent-soft text-accent-ink grid place-items-center text-xs font-semibold">
                       {initials(m.employee.full_name)}
                     </div>
                     <div class="flex-1 min-w-0">

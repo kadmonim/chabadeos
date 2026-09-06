@@ -118,7 +118,7 @@
         onkeydown={handleKey}
         disabled={pending}
         placeholder="ערך"
-        class="w-full text-sm font-medium leading-5 px-2 py-1.5 bg-white border border-stone-300 rounded focus:outline-none focus:border-violet-400"
+        class="w-full text-sm font-medium leading-5 px-2 py-1.5 bg-white border border-stone-300 rounded focus:outline-none focus:border-accent"
       />
       <textarea
         bind:value={draftNote}
@@ -126,7 +126,7 @@
         disabled={pending}
         placeholder="הערה (לא חובה)"
         rows="2"
-        class="w-full text-xs leading-snug px-2 py-1.5 bg-white border border-stone-200 rounded focus:outline-none focus:border-violet-400 resize-none"
+        class="w-full text-xs leading-snug px-2 py-1.5 bg-white border border-stone-200 rounded focus:outline-none focus:border-accent resize-none"
       ></textarea>
       <div class="flex items-center justify-between text-[10px] text-stone-400">
         <span>Enter לשמירה · Esc לביטול</span>
