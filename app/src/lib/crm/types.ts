@@ -112,7 +112,6 @@ export type ContactSummary = {
   id: string;
   first_name: string;
   last_name: string;
-  hebrew_name: string | null;
   email: string | null;
   phone: string | null;          // E.164
   phone_display: string | null;
@@ -150,7 +149,6 @@ export type ContactDetail = ContactSummary & {
 export type ContactInput = {
   first_name?: string;
   last_name?: string;
-  hebrew_name?: string | null;
   gender?: Gender | null;
   birthdate?: string | null;
   email?: string | null;
@@ -165,7 +163,7 @@ export type ContactInput = {
 };
 
 export type ContactFilter = {
-  q?: string;                    // fuzzy: name, hebrew name, phone, email
+  q?: string;                    // fuzzy: name, phone, email
   stage?: Stage | Stage[];
   tag?: string;                  // tag id or name
   owner?: string;                // employee id

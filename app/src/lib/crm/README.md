@@ -41,7 +41,7 @@ listContacts(viewer, filter: ContactFilter, opts?: {
   sort?: ContactSort; dir?: 'asc' | 'desc'; limit?: number; after?: string | null;
 }): Promise<Page<ContactSummary>>            // keyset pagination, default sort 'name' asc, limit 50
 searchContacts(viewer, q: string, limit?: number): Promise<ContactSummary[]>
-  // pg_trgm similarity on name/hebrew_name + ilike on phone/email digits; best first; limit 20
+  // pg_trgm similarity on name + ilike on phone/email digits; best first; limit 20
 getContact(viewer, id: string): Promise<ContactDetail | null>   // null when missing or not visible
 findDuplicate(phoneE164: string | null, email: string | null): Promise<ContactSummary | null>
 createContact(viewer, input: ContactInput, opts?: { force?: boolean }):

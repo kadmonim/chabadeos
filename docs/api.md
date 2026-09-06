@@ -396,7 +396,6 @@ the last page.
 {
   "first_name": "Alice",
   "last_name": "Cohen",
-  "hebrew_name": "אליס",
   "phone": "050-123 4567",
   "email": "alice@example.com",
   "stage": "new",

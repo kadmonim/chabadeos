@@ -10,7 +10,6 @@ interface Props {
   values: {
     first_name?: string | null;
     last_name?: string | null;
-    hebrew_name?: string | null;
     phone?: string | null;
     email?: string | null;
     gender?: string | null;
@@ -51,11 +50,6 @@ const v = values ?? {};
         <label class="field-label">שם משפחה</label>
         <input type="text" name="last_name" class="input" value={v.last_name ?? ''} />
       </div>
-    </div>
-
-    <div>
-      <label class="field-label">שם עברי</label>
-      <input type="text" name="hebrew_name" class="input" value={v.hebrew_name ?? ''} />
     </div>
 
     <div class="grid grid-cols-2 gap-3">

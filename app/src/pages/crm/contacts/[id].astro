@@ -46,7 +46,6 @@ const formValues = contact
   ? {
       first_name: draft('first_name') ?? contact.first_name,
       last_name: draft('last_name') ?? contact.last_name,
-      hebrew_name: draft('hebrew_name') ?? contact.hebrew_name,
       phone: draft('phone') ?? contact.phone_display,
       email: draft('email') ?? contact.email,
       gender: draft('gender') ?? contact.gender,
@@ -97,7 +96,6 @@ if (contact) {
             </div>
             <div class="min-w-0">
               <div class="font-semibold text-stone-900 truncate">{contact.first_name} {contact.last_name}</div>
-              {contact.hebrew_name && <div class="text-xs text-stone-500 truncate">{contact.hebrew_name}</div>}
             </div>
           </div>
           <span class={`pill ${STAGE_STYLES[contact.stage]} mb-3`}>{STAGE_LABELS[contact.stage]}</span>

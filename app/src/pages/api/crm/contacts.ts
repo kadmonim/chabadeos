@@ -7,7 +7,7 @@ import { STAGES, VISIBILITIES } from '~/lib/crm/types';
 // Fields worth echoing back as f_* when a create/update is rejected, so the
 // drawer reopens with exactly what the user typed.
 const KEEP = [
-  'first_name', 'last_name', 'hebrew_name', 'phone', 'email', 'gender', 'birthdate',
+  'first_name', 'last_name', 'phone', 'email', 'gender', 'birthdate',
   'stage', 'owner_employee_id', 'visibility', 'source', 'notes',
 ];
 
@@ -29,7 +29,6 @@ function inputFromForm(form: FormData): ContactInput {
   return {
     first_name: String(form.get('first_name') ?? '').trim(),
     last_name: str('last_name') ?? '',
-    hebrew_name: str('hebrew_name'),
     phone: str('phone'),
     email: str('email'),
     gender: str('gender') as ContactInput['gender'],

@@ -13,7 +13,7 @@ import type {
 // it after `select` with `from crm_contacts c ${contactSummaryJoins()}`.
 function contactSummarySelect(): string {
   return `
-    c.id, c.first_name, c.last_name, c.hebrew_name, c.email, c.phone, c.phone_display,
+    c.id, c.first_name, c.last_name, c.email, c.phone, c.phone_display,
     c.stage, c.visibility,
     case when o.id is null then null else json_build_object('id', o.id, 'full_name', o.full_name, 'email', o.email) end as owner,
     case when h.id is null then null else json_build_object('id', h.id, 'name', h.name) end as household,
@@ -63,8 +63,7 @@ function buildContactWhere(viewer: Viewer, filter: ContactFilter, params: unknow
     const q = filter.q.trim();
     const qDigits = q.replace(/\D/g, '');
     const nameIdx = params.push(`%${q}%`);
-    const hebrewIdx = params.push(`%${q}%`);
-    let clause = `((c.first_name || ' ' || c.last_name) ilike $${nameIdx} or c.hebrew_name ilike $${hebrewIdx}`;
+    let clause = `((c.first_name || ' ' || c.last_name) ilike $${nameIdx}`;
     if (qDigits) {
       const phoneIdx = params.push(`%${qDigits}%`);
       clause += ` or c.phone like $${phoneIdx}`;
@@ -168,7 +167,7 @@ export async function searchContacts(viewer: Viewer, q: string, limit = 20): Pro
   const visIdx = visibilityClause(viewer, 'c', params);
   const qIdx = params.push(query);
   const prefixIdx = params.push(`${query}%`);
-  const hebrewIdx = params.push(`%${query}%`);
+  const containsIdx = params.push(`%${query}%`);
   const emailIdx = params.push(`%${query}%`);
   let phoneClause = '';
   let phoneMatch = 'false';
@@ -187,13 +186,13 @@ export async function searchContacts(viewer: Viewer, q: string, limit = 20): Pro
          and (
            similarity(c.first_name || ' ' || c.last_name, $${qIdx}) > 0.2
            or (c.first_name || ' ' || c.last_name) ilike $${prefixIdx}
-           or coalesce(c.hebrew_name, '') ilike $${hebrewIdx}
+           or (c.first_name || ' ' || c.last_name) ilike $${containsIdx}
            or c.email ilike $${emailIdx}
            ${phoneClause}
          )
        order by
          (case when ${phoneMatch} then 1 else 0 end) desc,
-         greatest(similarity(c.first_name || ' ' || c.last_name, $${qIdx}), similarity(coalesce(c.hebrew_name, ''), $${qIdx})) desc,
+         similarity(c.first_name || ' ' || c.last_name, $${qIdx}) desc,
          lower(c.last_name), lower(c.first_name)
        limit $${limitIdx}`,
       params,
@@ -341,14 +340,13 @@ export async function createContact(
 
   const rows = await pool.query(
     `insert into crm_contacts
-       (first_name, last_name, hebrew_name, gender, birthdate, email, phone, phone_display,
+       (first_name, last_name, gender, birthdate, email, phone, phone_display,
         household_id, household_role, stage, owner_employee_id, visibility, source, notes, created_by)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
      returning id`,
     [
       input.first_name.trim(),
       input.last_name?.trim() ?? '',
-      input.hebrew_name ?? null,
       input.gender ?? null,
       input.birthdate ?? null,
       email,
@@ -372,7 +370,7 @@ export async function createContact(
 // Columns that map 1:1 from ContactInput to crm_contacts, excluding phone
 // (normalised separately) and visibility/owner (permission-checked separately).
 const SIMPLE_INPUT_FIELDS = [
-  'first_name', 'last_name', 'hebrew_name', 'gender', 'birthdate', 'email',
+  'first_name', 'last_name', 'gender', 'birthdate', 'email',
   'household_id', 'household_role', 'stage', 'source', 'notes',
 ] as const;
 

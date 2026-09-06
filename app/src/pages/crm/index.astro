@@ -75,7 +75,6 @@ const formValues = editing
   ? {
       first_name: draft('first_name') ?? editing.first_name,
       last_name: draft('last_name') ?? editing.last_name,
-      hebrew_name: draft('hebrew_name') ?? editing.hebrew_name,
       phone: draft('phone') ?? editing.phone_display,
       email: draft('email') ?? editing.email,
       gender: draft('gender') ?? editing.gender,
@@ -89,7 +88,6 @@ const formValues = editing
   : {
       first_name: draft('first_name'),
       last_name: draft('last_name'),
-      hebrew_name: draft('hebrew_name'),
       phone: draft('phone'),
       email: draft('email'),
       gender: draft('gender'),
@@ -193,7 +191,6 @@ const sortIndicator = (col: ContactSort) => (sort === col ? (dir === 'asc' ? 'â–
               <tr class="border-b border-stone-100 last:border-0 hover:bg-stone-50">
                 <td class="px-4 py-2.5">
                   <a href={`/crm/contacts/${c.id}`} class="font-medium text-stone-900 hover:text-accent">{c.first_name} {c.last_name}</a>
-                  {c.hebrew_name && <div class="text-xs text-stone-400">{c.hebrew_name}</div>}
                 </td>
                 <td class="px-4 py-2.5">
                   {c.phone ? (
