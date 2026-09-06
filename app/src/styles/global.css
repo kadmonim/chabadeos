@@ -192,6 +192,9 @@ html, body {
   }
   [dir="rtl"] .rail-active::before { border-radius: 3px 0 0 3px; }
 
+  /* Desktop page region: keeps its scrollbar gutter so content never shifts. */
+  @media (min-width: 48rem) { .page-scroll { scrollbar-gutter: stable; } }
+
   /* The rail may scroll on short windows, but never shows a scrollbar. */
   .rail-scroll { scrollbar-width: none; }
   .rail-scroll::-webkit-scrollbar { display: none; }

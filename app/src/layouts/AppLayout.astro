@@ -76,7 +76,7 @@ const displayName = user?.fullName || user?.email || '';
     <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>{title}</title>
   </head>
-  <body class={`min-h-screen theme-${module}`}>
+  <body class={`min-h-screen md:h-screen md:overflow-hidden theme-${module}`}>
     <!-- ================= Desktop rail ================= -->
     <aside class="hidden md:flex fixed inset-y-0 start-0 w-[4.75rem] bg-brand flex-col items-center py-3 z-30 border-e border-brand-strong">
       <a href="/" class="w-10 h-10 rounded-xl bg-white grid place-items-center shrink-0 overflow-hidden" title="חב״ד כרמיאל">
@@ -126,8 +126,9 @@ const displayName = user?.fullName || user?.email || '';
       </div>
     </div>
 
-    <!-- ================= Utility bar ================= -->
-    <header class="sticky top-0 z-20 h-14 bg-white border-b border-stone-200 md:ms-[4.75rem]">
+    <!-- ================= Frame: fixed bar, scrolling page (desktop) ================= -->
+    <div class="md:ms-[4.75rem] md:h-screen md:flex md:flex-col">
+    <header class="sticky top-0 z-20 h-14 bg-white border-b border-stone-200 shrink-0 md:static">
       <div class="h-full px-3 md:px-6 flex items-center gap-2">
         <!-- Mobile: hamburger + brand -->
         <div class="md:hidden flex items-center gap-1">
@@ -235,9 +236,12 @@ const displayName = user?.fullName || user?.email || '';
     )}
 
     <!-- ================= Page ================= -->
-    <main class={`md:ms-[4.75rem] ${fullWidth ? '' : 'max-w-[1400px] mx-auto'} px-4 md:px-6 py-5 md:py-6`}>
-      <slot />
+    <main class="md:flex-1 md:min-h-0 md:overflow-y-auto page-scroll">
+      <div class={`${fullWidth ? '' : 'max-w-[1400px] mx-auto'} px-4 md:px-6 py-5 md:py-6`}>
+        <slot />
+      </div>
     </main>
+    </div>
 
     <script is:inline>
       // Place each popover next to its trigger when it opens. Fixed coordinates
