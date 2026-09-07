@@ -48,6 +48,21 @@ Valid keys come from the `CHABADEOS_API_KEYS` environment variable on the server
 | PATCH | `/api/v1/crm/contacts/:id` | Update a contact — fields, owner, shares, archived. |
 | DELETE | `/api/v1/crm/contacts/:id` | Archive a contact. |
 | GET | `/api/v1/crm/search` | Fuzzy contact search by name, phone or email. |
+| GET | `/api/v1/crm/contacts/:id/activities` | List a contact's timeline. |
+| POST | `/api/v1/crm/contacts/:id/activities` | Log an activity. |
+| PATCH | `/api/v1/crm/activities/:id` | Update an activity. |
+| DELETE | `/api/v1/crm/activities/:id` | Delete an activity. |
+| GET | `/api/v1/crm/contacts/:id/tasks` | List a contact's tasks. |
+| POST | `/api/v1/crm/contacts/:id/tasks` | Create a task on a contact. |
+| GET | `/api/v1/crm/tasks` | List tasks across contacts, by assignee. |
+| PATCH | `/api/v1/crm/tasks/:id` | Update a task — including marking it done. |
+| DELETE | `/api/v1/crm/tasks/:id` | Delete a task. |
+| GET | `/api/v1/crm/contacts/:id/dates` | List a contact's dates (birthdays, yahrzeits, …). |
+| POST | `/api/v1/crm/contacts/:id/dates` | Add a date, from a Gregorian or Hebrew date. |
+| PATCH | `/api/v1/crm/dates/:id` | Update a date. |
+| DELETE | `/api/v1/crm/dates/:id` | Delete a date. |
+| GET | `/api/v1/crm/upcoming` | Upcoming dates across visible contacts. |
+| GET | `/api/v1/crm/hebrew-date` | Convert between Gregorian and Hebrew dates. |
 | GET | `/api/v1/rooms` | List bookable rooms. |
 | GET | `/api/v1/bookings` | Room bookings as dated occurrences. `?from=&to=` (default this week), `?room=` (id **or** name), `?purpose=`, `?include_cancelled=1`. |
 | POST | `/api/v1/bookings` | Book a room, once or weekly. Double bookings are rejected with `409`. |
@@ -375,6 +390,21 @@ email must belong to an existing CRM user, or the request fails with `400`.
 | DELETE | `/api/v1/crm/contacts/:id/tags` | Remove a tag from a contact. |
 | GET | `/api/v1/crm/tags` | List tags. |
 | POST | `/api/v1/crm/tags` | Create a tag (admin only). |
+| GET | `/api/v1/crm/contacts/:id/activities` | List a contact's timeline. |
+| POST | `/api/v1/crm/contacts/:id/activities` | Log an activity. |
+| PATCH | `/api/v1/crm/activities/:id` | Update an activity. |
+| DELETE | `/api/v1/crm/activities/:id` | Delete an activity. |
+| GET | `/api/v1/crm/contacts/:id/tasks` | List a contact's tasks. |
+| POST | `/api/v1/crm/contacts/:id/tasks` | Create a task on a contact. |
+| GET | `/api/v1/crm/tasks` | List tasks across contacts. |
+| PATCH | `/api/v1/crm/tasks/:id` | Update a task. |
+| DELETE | `/api/v1/crm/tasks/:id` | Delete a task. |
+| GET | `/api/v1/crm/contacts/:id/dates` | List a contact's dates. |
+| POST | `/api/v1/crm/contacts/:id/dates` | Add a date. |
+| PATCH | `/api/v1/crm/dates/:id` | Update a date. |
+| DELETE | `/api/v1/crm/dates/:id` | Delete a date. |
+| GET | `/api/v1/crm/upcoming` | Upcoming dates across visible contacts. |
+| GET | `/api/v1/crm/hebrew-date` | Convert between Gregorian and Hebrew dates. |
 
 ### Stages
 
@@ -589,6 +619,171 @@ table above. `name` must be unique (case-insensitive) or the call fails with
 **`POST /api/v1/crm/contacts/:id/tags`** — body: `{ "tag": "תורם קבוע" }` (id or name). Adds one tag without disturbing the rest. `204` on success.
 
 **`DELETE /api/v1/crm/contacts/:id/tags`** — body: `{ "tag": "תורם קבוע" }` (id or name). Removes one tag. `204` on success.
+
+### Timeline
+
+Activities are a chronological log on a contact — notes, calls, visits,
+messages, meetings, plus system-generated entries (`kind: "system"`, e.g.
+contact created, stage changed, task completed) that the API never lets you
+create, edit or delete directly.
+
+**`GET /api/v1/crm/contacts/:id/activities`** — `?limit=` (default 30),
+`?before=` (an `occurred_at` cursor from a previous page's `next`). Newest
+first.
+
+```json
+{
+  "activities": [
+    { "id": "…", "contact_id": "…", "kind": "call", "body": "…", "occurred_at": "…",
+      "created_by": { "id": "…", "full_name": "…", "email": "…" }, "meta": {}, "created_at": "…" }
+  ],
+  "next": "2026-08-01T12:00:00.000Z"
+}
+```
+
+`next` is `null` on the last page.
+
+**`POST /api/v1/crm/contacts/:id/activities`**
+
+```json
+{ "kind": "call", "body": "Called about the raffle, will call back Sunday", "occurred_at": "2026-09-01T10:00:00Z" }
+```
+
+`kind` is one of `note` | `call` | `visit` | `message` | `meeting` (never
+`system`). `body` is required. `occurred_at` defaults to now. Returns
+`201 { "id": "…" }`.
+
+**`PATCH /api/v1/crm/activities/:id`** — body: `{ "body"?, "kind"?, "occurred_at"? }`.
+Only the author or an admin may edit, and `system` entries can never be
+edited. `204` on success, `404` if not found.
+
+**`DELETE /api/v1/crm/activities/:id`** — same permission rule as `PATCH`.
+`204` on success, `404` if not found.
+
+### Tasks
+
+**`GET /api/v1/crm/contacts/:id/tasks`** — `?include_done=1` (default: open
+only). `{ "tasks": [ …Task ] }`, open first ordered by due date (nulls
+last), then done tasks most-recently-done first.
+
+**`POST /api/v1/crm/contacts/:id/tasks`**
+
+```json
+{ "title": "Follow up about the pledge", "due_date": "2026-09-14", "assignee_email": "gabbai@example.com" }
+```
+
+`title` is required; `assignee_email` resolves to an employee (unknown
+email → `400`) and defaults to the caller (or, for the service account with
+no `X-On-Behalf-Of`, the task is unassigned). Returns `201 { "id": "…" }`.
+
+**`GET /api/v1/crm/tasks`** — tasks across contacts. `?assignee=<email>`
+(resolved server-side; unknown email → `400`) or `?assignee=all` for every
+visible contact's tasks; default is the caller (`X-On-Behalf-Of` user), or
+`all` for the bare service account. `?include_done=1`, `?limit=`.
+
+```json
+{ "tasks": [ { "id": "…", "contact": { "id": "…", "first_name": "…", "last_name": "…" }, "title": "…", "due_date": "…", "done_at": null, "assignee": { "…": "…" }, "created_by": { "…": "…" }, "created_at": "…" } ] }
+```
+
+**`PATCH /api/v1/crm/tasks/:id`** — body: `{ "title"?, "due_date"?, "assignee_email"?, "done"? }`.
+`assignee_email: null` clears the assignee. `done: true` completes the task
+(sets `done_at`, logs a timeline entry on the contact); `done: false`
+reopens it. `204` on success, `404` if not found.
+
+**`DELETE /api/v1/crm/tasks/:id`** — `204` on success, `404` if not found.
+
+### Dates & Hebrew calendar
+
+Each contact can carry several dates — birthday, anniversary, yahrzeit, bar/bat
+mitzvah, other — stored as a Gregorian date but always returned with the
+matching Hebrew date and the next occurrence.
+
+`kind: "anniversary"` (and `birthday`, `bar_mitzvah`, `other`) recur on the
+Hebrew *anniversary* of the date (same Hebrew day/month each Hebrew year).
+`kind: "yahrzeit"` uses the distinct halachic yahrzeit rules (e.g. a date in
+a leap year's Adar II observed in a non-leap year falls in the single Adar) —
+use `yahrzeit` specifically for a date of passing, not `anniversary`.
+
+**`GET /api/v1/crm/contacts/:id/dates`** — `{ "dates": [ …ContactDate ] }`.
+Includes a synthetic entry (id `"birthdate"`) for the contact's
+`birthdate` field, kind `birthday`, when set.
+
+```json
+{
+  "dates": [
+    { "id": "…", "contact_id": "…", "kind": "yahrzeit", "date": "2015-03-20",
+      "label": "אבא", "hebrew": "כ״ט אדר תשע״ה", "next": "2027-03-27" }
+  ]
+}
+```
+
+**`POST /api/v1/crm/contacts/:id/dates`**
+
+```json
+{ "kind": "yahrzeit", "date": "2015-03-20", "label": "אבא" }
+```
+
+or, giving a Hebrew date instead of a Gregorian one:
+
+```json
+{ "kind": "birthday", "hebrew": { "day": 14, "month": 3, "year": 5745 }, "label": null }
+```
+
+Exactly one of `date` (ISO `YYYY-MM-DD`) or `hebrew` (`{ day, month, year }`,
+see the month table below) is required; when `hebrew` is given it's converted
+to a Gregorian date server-side. An invalid Hebrew date (e.g. day 30 in a
+month that has 29) returns `400`. Returns `201 { "id": "…", "date": "…" }`
+(the resolved Gregorian date).
+
+**`PATCH /api/v1/crm/dates/:id`** — body: `{ "kind"?, "date"?, "label"? }`
+(Gregorian only — to move a date by its Hebrew equivalent, convert with
+`GET /api/v1/crm/hebrew-date` first). `204` on success, `404` if not found.
+
+**`DELETE /api/v1/crm/dates/:id`** — `204` on success, `404` if not found.
+
+**`GET /api/v1/crm/upcoming`** — dates due within a window, across every
+contact visible to the caller. `?days=` (default 30), `?limit=`. Ordered by
+next occurrence.
+
+```json
+{
+  "dates": [
+    { "id": "…", "contact_id": "…", "kind": "birthday", "date": "…", "label": null,
+      "hebrew": "…", "next": "2026-09-20",
+      "contact": { "id": "…", "first_name": "…", "last_name": "…" } }
+  ]
+}
+```
+
+**`GET /api/v1/crm/hebrew-date`** — pure conversion utility (no CRM data
+involved; still requires the API key). Either:
+
+- `?date=YYYY-MM-DD[&after_sunset=1]` — Gregorian → Hebrew.
+  `after_sunset=1` rolls to the next Hebrew day (for a time after halachic
+  sunset).
+- `?day=&month=&year=` — Hebrew → Gregorian, using the month numbers below.
+
+```json
+{ "date": "2026-09-07", "hebrew": { "day": 25, "month": 6, "year": 5786, "formatted": "כ״ה אלול תשפ״ו" } }
+```
+
+Hebrew month numbers (hebcal convention — year always starts counting from
+Nisan, regardless of the civil/religious new year):
+
+| # | Month | # | Month |
+|---|---|---|---|
+| 1 | ניסן | 8 | חשוון |
+| 2 | אייר | 9 | כסלו |
+| 3 | סיוון | 10 | טבת |
+| 4 | תמוז | 11 | שבט |
+| 5 | אב | 12 | אדר (אדר א׳ in a leap year) |
+| 6 | אלול | 13 | אדר ב׳ (leap years only) |
+| 7 | תשרי | | |
+
+In a non-leap year, month `12` is the single Adar; in a leap year, `12` is
+Adar I and `13` is Adar II. `?day=&month=&year=` returns `400` for a day/month
+combination invalid in that year (e.g. month 13 in a non-leap year, or day 30
+of a 29-day month).
 
 ## Examples
 

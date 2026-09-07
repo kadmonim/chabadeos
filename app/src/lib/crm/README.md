@@ -133,3 +133,57 @@ runImport(viewer, text: string, mapping: ImportColumn[], opts: { create_families
   // first row of a group becomes 'head', others 'other' unless a gender/age heuristic says spouse/child — keep simple: head then other;
   // tags column: comma/; separated names, created on the fly; wrap in one transaction per 200 rows
 ```
+
+## Hebrew dates (`hebrew-date.ts`) — pure, island-safe, uses `@hebcal/core`
+
+```ts
+type HebrewDateParts = { day: number; month: number /* hebcal month number: 1=Nisan … 7=Tishrei … 12=Adar/Adar I, 13=Adar II */; year: number }
+gregToHebrew(iso: string /* YYYY-MM-DD */, afterSunset?: boolean): HebrewDateParts   // afterSunset → next Hebrew day
+hebrewToGreg(parts: HebrewDateParts): string /* YYYY-MM-DD */                        // throws Error('תאריך עברי לא תקין') on invalid day/month for that year
+hebrewMonths(year: number): { value: number; label: string }[]                        // Hebrew labels; 12/13 months (אדר / אדר א׳ + אדר ב׳)
+daysInHebrewMonth(month: number, year: number): number
+formatHebrew(parts: HebrewDateParts, opts?: { year?: boolean }): string             // 'י״ד סיוון תשמ״ה' (use HDate.renderGematriya, strip nikud)
+nextAnniversary(iso: string, from?: Date): string /* YYYY-MM-DD */                   // next Gregorian date of the Hebrew anniversary (HDate.getBirthdayOrAnniversary semantics; for kind 'yahrzeit' use getYahrzeit)
+nextYahrzeit(iso: string, from?: Date): string
+hebrewYearNow(): number
+```
+
+## Timeline (`activities.ts`)
+
+```ts
+type Activity = { id; contact_id; kind: ActivityKind; body: string | null; occurred_at: string; created_by: EmployeeRef | null; meta: Record<string, unknown>; created_at }
+listActivities(viewer, contactId, opts?: { limit?: number; before?: string | null /* occurred_at cursor */ }): Promise<{ items: Activity[]; next: string | null }>
+  // contact must be visible else { items: [], next: null }; newest first; default limit 30
+addActivity(viewer, contactId, input: { kind: Exclude<ActivityKind,'system'>; body: string; occurred_at?: string }): Promise<{ id }>
+  // body required (throw Error('תוכן חסר')); bumps last_activity_at
+updateActivity(viewer, id, input: { body?: string; kind?; occurred_at? }): Promise<boolean>   // author or admin; never kind 'system'
+deleteActivity(viewer, id): Promise<boolean>                                                   // author or admin; never 'system'
+describeSystemEvent(meta): string   // Hebrew sentence for kinds 'system': created → 'איש הקשר נוצר', stage → 'השלב שונה מ־X ל־Y', family → 'נוסף למשפחה', link → 'נוסף קשר: <type label>', gift → 'נרשמה תרומה', task_done → 'משימה הושלמה'
+```
+
+## Tasks (`tasks.ts`)
+
+```ts
+type Task = { id; contact: { id; first_name; last_name }; title; due_date: string | null; done_at: string | null; assignee: EmployeeRef | null; created_by: EmployeeRef | null; created_at }
+listTasksForContact(viewer, contactId, opts?: { includeDone?: boolean }): Promise<Task[]>       // open first by due_date nulls last, then done desc
+listMyTasks(viewer, opts?: { assignee?: string | 'all'; includeDone?: boolean; limit?: number }): Promise<Task[]>
+  // default assignee = viewer.employeeId; 'all' = every visible contact's tasks (admins & members alike, visibility-filtered)
+createTask(viewer, contactId, input: { title: string; due_date?: string | null; assignee_employee_id?: string | null }): Promise<{ id }>
+  // default assignee = viewer; title required (Error('כותרת חסרה')); bumps last_activity_at
+updateTask(viewer, id, input: { title?; due_date?; assignee_employee_id?; done?: boolean }): Promise<boolean>
+  // done:true sets done_at=now and logs system activity {event:'task_done', title}; done:false clears
+deleteTask(viewer, id): Promise<boolean>
+countOpenTasks(viewer): Promise<{ mine: number; overdue: number }>   // for the shell badge
+```
+
+## Dates (`dates.ts`)
+
+```ts
+type ContactDate = { id; contact_id; kind: DateKind; date: string; label: string | null; hebrew: string /* formatted */; next: string /* next Gregorian occurrence (yahrzeit rules for kind yahrzeit) */ }
+listDates(viewer, contactId): Promise<ContactDate[]>          // includes a synthetic row for crm_contacts.birthdate as kind 'birthday' with id 'birthdate' when set
+addDate(viewer, contactId, input: { kind: DateKind; date: string; label?: string | null }): Promise<{ id }>
+updateDate(viewer, id, input: { kind?; date?; label? }): Promise<boolean>
+deleteDate(viewer, id): Promise<boolean>
+upcomingDates(viewer, opts?: { days?: number /* default 30 */; limit?: number }): Promise<(ContactDate & { contact: { id; first_name; last_name } })[]>
+  // across visible contacts, ordered by next; used by /crm/tasks "תאריכים קרובים" card
+```

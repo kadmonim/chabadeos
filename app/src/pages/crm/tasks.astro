@@ -1,0 +1,167 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import SegmentedTabs from '~/components/SegmentedTabs.astro';
+import { fmtDualDate, todayIso, addDaysIso } from '~/lib/dates';
+import { DATE_KIND_LABELS, type Task } from '~/lib/crm/types';
+import { getViewer } from '~/lib/crm/access';
+import { listMyTasks } from '~/lib/crm/tasks';
+import { upcomingDates } from '~/lib/crm/dates';
+import { ListChecks, CalendarDays } from 'lucide-svelte';
+
+const viewer = getViewer(Astro.locals);
+if (!viewer) return Astro.redirect('/?crm=denied');
+
+const url = Astro.url;
+const who = url.searchParams.get('who') === 'all' ? 'all' : 'mine';
+const includeDone = url.searchParams.get('done') === '1';
+const back = url.pathname + url.search;
+
+const tasks = await listMyTasks(viewer, {
+  assignee: who === 'all' ? 'all' : viewer.employeeId,
+  includeDone,
+  limit: 200,
+});
+const upcoming = await upcomingDates(viewer, { days: 30 });
+
+const qs = (overrides: Record<string, string | null>) => {
+  const p = new URLSearchParams(url.search);
+  for (const [k, v] of Object.entries(overrides)) {
+    p.delete(k);
+    if (v !== null) p.set(k, v);
+  }
+  const s = p.toString();
+  return `/crm/tasks${s ? `?${s}` : ''}`;
+};
+
+const whoTabs = [
+  { key: 'mine', label: 'שלי', href: qs({ who: null }) },
+  { key: 'all', label: 'הכול', href: qs({ who: 'all' }) },
+];
+
+const todayStr = todayIso();
+const weekAheadStr = addDaysIso(todayStr, 7);
+
+const open = tasks.filter((t) => !t.done_at);
+const done = tasks.filter((t) => t.done_at);
+
+type Group = { key: string; label: string; items: Task[] };
+const groups: Group[] = [
+  { key: 'overdue', label: 'באיחור', items: [] },
+  { key: 'today', label: 'היום', items: [] },
+  { key: 'week', label: 'השבוע', items: [] },
+  { key: 'later', label: 'בהמשך', items: [] },
+  { key: 'none', label: 'ללא תאריך', items: [] },
+];
+for (const t of open) {
+  if (!t.due_date) groups[4].items.push(t);
+  else if (t.due_date < todayStr) groups[0].items.push(t);
+  else if (t.due_date === todayStr) groups[1].items.push(t);
+  else if (t.due_date <= weekAheadStr) groups[2].items.push(t);
+  else groups[3].items.push(t);
+}
+
+const duePillClass = (due: string | null) => {
+  if (!due) return '';
+  if (due < todayStr) return 'bg-rose-100 text-rose-700';
+  if (due === todayStr) return 'bg-amber-100 text-amber-800';
+  return 'bg-stone-100 text-stone-600';
+};
+---
+<AppLayout title={'המשימות שלי · CRM · חב״ד כרמיאל'} module="crm">
+  <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
+    <h1 class="text-xl font-semibold text-stone-900">המשימות שלי</h1>
+    <div class="flex items-center gap-3 flex-wrap">
+      <SegmentedTabs items={whoTabs} active={who} />
+      <a
+        href={qs({ done: includeDone ? null : '1' })}
+        class={`chip ${includeDone ? 'bg-accent-soft text-accent-ink border-accent/30' : ''}`}
+      >
+        {includeDone ? '✓ ' : ''}הצג הושלמו
+      </a>
+    </div>
+  </div>
+
+  <div class="grid gap-4 lg:grid-cols-[2fr_1fr] items-start">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title flex items-center gap-1.5"><ListChecks size={14} class="text-stone-400" /> משימות ({open.length})</span>
+      </div>
+      <div class="card-body space-y-5">
+        {open.length === 0 ? (
+          <p class="text-sm text-stone-400 text-center py-6">אין משימות פתוחות</p>
+        ) : groups.filter((g) => g.items.length > 0).map((g) => (
+          <div>
+            <div class="text-xs font-semibold text-stone-500 mb-2">{g.label} ({g.items.length})</div>
+            <div class="space-y-2">
+              {g.items.map((t) => (
+                <div class="flex items-center gap-2.5">
+                  <form method="POST" action="/api/crm/tasks">
+                    <input type="hidden" name="_action" value="toggle" />
+                    <input type="hidden" name="id" value={t.id} />
+                    <input type="hidden" name="back" value={back} />
+                    <input type="hidden" name="done" value="1" />
+                    <button type="submit" class="w-5 h-5 rounded-md border-2 border-stone-300 hover:border-accent shrink-0" title="סימון כהושלם"></button>
+                  </form>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm text-stone-900 truncate">{t.title}</div>
+                    <a href={`/crm/contacts/${t.contact.id}`} class="text-xs text-stone-500 hover:text-accent truncate">
+                      {t.contact.first_name} {t.contact.last_name}
+                    </a>
+                  </div>
+                  {t.due_date && <span class={`pill shrink-0 ${duePillClass(t.due_date)}`}>{fmtDualDate(t.due_date, { year: false })}</span>}
+                  <span class="text-xs text-stone-400 shrink-0">{t.assignee?.full_name ?? '—'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {includeDone && done.length > 0 && (
+          <details>
+            <summary class="text-xs text-stone-500 cursor-pointer select-none">הושלמו ({done.length})</summary>
+            <div class="space-y-2 pt-2">
+              {done.map((t) => (
+                <div class="flex items-center gap-2.5 opacity-60">
+                  <form method="POST" action="/api/crm/tasks">
+                    <input type="hidden" name="_action" value="toggle" />
+                    <input type="hidden" name="id" value={t.id} />
+                    <input type="hidden" name="back" value={back} />
+                    <input type="hidden" name="done" value="0" />
+                    <button type="submit" class="w-5 h-5 rounded-md bg-accent border-2 border-accent shrink-0" title="ביטול סימון"></button>
+                  </form>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm text-stone-500 line-through truncate">{t.title}</div>
+                    <a href={`/crm/contacts/${t.contact.id}`} class="text-xs text-stone-500 hover:text-accent truncate">
+                      {t.contact.first_name} {t.contact.last_name}
+                    </a>
+                  </div>
+                  {t.due_date && <span class="pill shrink-0 bg-stone-100 text-stone-500">{fmtDualDate(t.due_date, { year: false })}</span>}
+                  <span class="text-xs text-stone-400 shrink-0">{t.assignee?.full_name ?? '—'}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title flex items-center gap-1.5"><CalendarDays size={14} class="text-stone-400" /> תאריכים קרובים</span>
+      </div>
+      <div class="card-body space-y-3">
+        {upcoming.length === 0 ? (
+          <p class="text-xs text-stone-400">אין תאריכים בחודש הקרוב</p>
+        ) : upcoming.map((d) => (
+          <div class="text-sm">
+            <a href={`/crm/contacts/${d.contact.id}`} class="font-medium text-stone-900 hover:text-accent truncate block">
+              {d.contact.first_name} {d.contact.last_name}
+            </a>
+            <div class="text-xs text-stone-500">{DATE_KIND_LABELS[d.kind]}{d.label ? ` · ${d.label}` : ''}</div>
+            <div class="text-xs text-stone-400">{fmtDualDate(d.next)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</AppLayout>

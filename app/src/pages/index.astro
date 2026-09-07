@@ -2,9 +2,10 @@
 import AppLayout from '~/layouts/AppLayout.astro';
 import { Target, AlertCircle, ListTodo, Users, ArrowLeft } from 'lucide-svelte';
 import { sql } from '~/lib/db';
+import { todayIso } from '~/lib/dates';
 const team = Astro.locals.currentTeam;
 
-const today = new Date().toISOString().slice(0, 10);
+const today = todayIso();
 
 const [
   rocksCountRows,

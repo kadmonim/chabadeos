@@ -6,20 +6,30 @@ import ContactForm from '~/components/crm/ContactForm.astro';
 import ContactPicker from '~/components/crm/ContactPicker.svelte';
 import FamilyPicker from '~/components/crm/FamilyPicker.svelte';
 import TagPicker from '~/components/crm/TagPicker.svelte';
+import HebrewDatePicker from '~/components/crm/HebrewDatePicker.svelte';
 import { initials, fmtMoney } from '~/lib/crm/format';
 import { whatsappUrl, telUrl } from '~/lib/crm/phone';
-import { fmtDualDate } from '~/lib/dates';
+import { fmtDualDate, todayIso } from '~/lib/dates';
 import {
   STAGES, STAGE_LABELS, STAGE_STYLES, HOUSEHOLD_ROLES, LINK_TYPES, LINK_LABELS,
+  ACTIVITY_KINDS, ACTIVITY_LABELS, DATE_KINDS, DATE_KIND_LABELS,
 } from '~/lib/crm/types';
 import { getViewer, listEmployees, listCrmUsers, canManage } from '~/lib/crm/access';
 import { getContact } from '~/lib/crm/contacts';
 import { getHousehold } from '~/lib/crm/households';
 import { listTags } from '~/lib/crm/tags';
+import { listActivities, describeSystemEvent } from '~/lib/crm/activities';
+import { listTasksForContact } from '~/lib/crm/tasks';
+import { listDates } from '~/lib/crm/dates';
 import {
   StickyNote, ListTodo, Phone, MessageCircle, Pencil, Copy, Users, Link2,
-  Gift, ListChecks, Plus, X, ArrowRightLeft,
+  Gift, ListChecks, Plus, X, ArrowRightLeft, Home, Sparkles, MoreVertical,
+  Trash2, CalendarDays, Check,
 } from 'lucide-svelte';
+
+const ACTIVITY_ICONS: Record<string, typeof StickyNote> = {
+  note: StickyNote, call: Phone, visit: Home, message: MessageCircle, meeting: Users, system: Sparkles,
+};
 
 // Relabel head → 'ראש המשפחה'; keep the rest from HOUSEHOLD_ROLE_LABELS.
 const ROLE_LABELS: Record<string, string> = {
@@ -47,7 +57,49 @@ const memberRoleParam = url.searchParams.get('role') ?? 'spouse';
 const memberRole = (HOUSEHOLD_ROLES as readonly string[]).includes(memberRoleParam) ? memberRoleParam : 'spouse';
 const familyDrawer = url.searchParams.get('drawer') === 'family';
 const linkDrawer = url.searchParams.get('drawer') === 'link';
+const dateDrawer = url.searchParams.get('drawer') === 'date';
 const suggestFamilyId = url.searchParams.get('suggest_family');
+const compose = url.searchParams.get('compose') === '1';
+
+// ---------------------------------------------------------------------------
+// Phase 3: timeline / tasks / dates data
+// ---------------------------------------------------------------------------
+const beforeCursor = url.searchParams.get('before');
+const timelineData = contact
+  ? await listActivities(viewer, contact.id, { limit: 30, before: beforeCursor || null })
+  : { items: [], next: null };
+const tasksData = contact ? await listTasksForContact(viewer, contact.id, { includeDone: true }) : [];
+const openTasksList = tasksData.filter((t) => !t.done_at);
+const doneTasksList = tasksData.filter((t) => t.done_at);
+const datesData = contact ? await listDates(viewer, contact.id) : [];
+const taskAssignees = contact ? await listCrmUsers() : [];
+
+const toLocalInput = (iso: string) => {
+  const d = new Date(iso);
+  const tz = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tz).toISOString().slice(0, 16);
+};
+const nowLocal = toLocalInput(new Date().toISOString());
+const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+const fmtGregOnly = (iso: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${Number(m[3])}.${Number(m[2])}.${m[1]}` : '';
+};
+const ageTurning = (dateIso: string, nextIso: string) => Number(nextIso.slice(0, 4)) - Number(dateIso.slice(0, 4));
+const todayStr = todayIso();
+const duePillClass = (due: string | null, done: boolean) => {
+  if (!due) return '';
+  if (done) return 'bg-stone-100 text-stone-500';
+  if (due < todayStr) return 'bg-rose-100 text-rose-700';
+  if (due === todayStr) return 'bg-amber-100 text-amber-800';
+  return 'bg-stone-100 text-stone-600';
+};
+
+const activityDrawer = url.searchParams.get('drawer') === 'activity';
+const activityEditId = url.searchParams.get('id');
+const editingActivity = activityDrawer && activityEditId
+  ? timelineData.items.find((a) => a.id === activityEditId) ?? null
+  : null;
 
 const tabQs = (t: string) => {
   const p = new URLSearchParams(url.search);
@@ -56,6 +108,9 @@ const tabQs = (t: string) => {
   p.delete('drawer');
   p.delete('role');
   p.delete('suggest_family');
+  p.delete('before');
+  p.delete('compose');
+  p.delete('id');
   Array.from(p.keys()).filter((k) => k.startsWith('f_')).forEach((k) => p.delete(k));
   p.set('tab', t);
   return `${url.pathname}?${p}`;
@@ -124,7 +179,7 @@ if (contact) {
           </div>
           <span class={`pill ${STAGE_STYLES[contact.stage]} mb-3`}>{STAGE_LABELS[contact.stage]}</span>
           <div class="grid grid-cols-5 gap-1 border-t border-stone-100 pt-3">
-            <a href={tabQs('timeline') + '#note'} class="flex flex-col items-center gap-1 py-1 rounded-lg hover:bg-stone-50 text-stone-600">
+            <a href={`${tabQs('timeline')}&compose=1#note`} class="flex flex-col items-center gap-1 py-1 rounded-lg hover:bg-stone-50 text-stone-600">
               <StickyNote size={16} /><span class="text-[10px]">הערה</span>
             </a>
             <a href={tabQs('tasks')} class="flex flex-col items-center gap-1 py-1 rounded-lg hover:bg-stone-50 text-stone-600">
@@ -268,16 +323,158 @@ if (contact) {
       <!-- ===================== Center: timeline / tasks / gifts ===================== -->
       <div class="space-y-3 min-w-0">
         <SegmentedTabs items={tabs} active={tab} group="center" />
-        <div class="card card-body" id="note" data-tab-panel="center:timeline" hidden={tab !== 'timeline'}>
-          {contact.notes ? (
-            <p class="text-sm text-stone-700 whitespace-pre-wrap">{contact.notes}</p>
+
+        <!-- ---------- Timeline ---------- -->
+        <div class="card card-body space-y-4" id="note" data-tab-panel="center:timeline" hidden={tab !== 'timeline'}>
+          <form method="POST" action="/api/crm/activities" class="space-y-2" data-once>
+            <input type="hidden" name="_action" value="add" />
+            <input type="hidden" name="contact_id" value={contact.id} />
+            <input type="hidden" name="back" value={`${url.pathname}?tab=timeline`} />
+            <div class="flex flex-wrap gap-2">
+              <select name="kind" class="input !w-32 shrink-0">
+                {ACTIVITY_KINDS.filter((k) => k !== 'system').map((k) => (
+                  <option value={k} selected={k === 'note'}>{ACTIVITY_LABELS[k]}</option>
+                ))}
+              </select>
+              <input type="datetime-local" name="occurred_at" class="input flex-1 min-w-[10rem]" value={nowLocal} />
+            </div>
+            <textarea name="body" rows="2" required class="input" placeholder="מה קרה?" autofocus={compose}></textarea>
+            <button class="btn btn-primary btn-sm" data-submit>הוספה</button>
+          </form>
+
+          <div class="divider"></div>
+
+          {contact.notes && (
+            <div class="bg-stone-50 border border-stone-100 rounded-lg px-3 py-2">
+              <div class="field-label">הערות כלליות</div>
+              <p class="text-sm text-stone-700 whitespace-pre-wrap">{contact.notes}</p>
+            </div>
+          )}
+
+          {timelineData.items.length === 0 ? (
+            <p class="text-sm text-stone-400 text-center py-6">אין עדיין פעילות</p>
           ) : (
-            <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
+            <div class="space-y-3">
+              {timelineData.items.map((a) => {
+                const Icon = ACTIVITY_ICONS[a.kind] ?? StickyNote;
+                const canEdit = a.kind !== 'system' && (viewer.role === 'admin' || a.created_by?.id === viewer.employeeId);
+                return (
+                  <div class="flex gap-3">
+                    <div class={`w-8 h-8 rounded-full grid place-items-center shrink-0 ${a.kind === 'system' ? 'bg-stone-100 text-stone-400' : 'bg-accent-soft text-accent-ink'}`}>
+                      <Icon size={15} />
+                    </div>
+                    <div class="flex-1 min-w-0 space-y-0.5">
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 text-xs text-stone-400 min-w-0">
+                          <span class="font-medium text-stone-600 shrink-0">{ACTIVITY_LABELS[a.kind]}</span>
+                          <span class="shrink-0">·</span>
+                          <span class="truncate">{fmtDualDate(a.occurred_at, { year: false })} · {fmtTime(a.occurred_at)}</span>
+                        </div>
+                        {canEdit && (
+                          <div class="relative shrink-0">
+                            <button type="button" id={`act-menu-btn-${a.id}`} popovertarget={`act-menu-${a.id}`} class="btn-icon !w-7 !h-7" aria-haspopup="menu" title="פעולות">
+                              <MoreVertical size={14} />
+                            </button>
+                            <div id={`act-menu-${a.id}`} popover class="fixed" data-anchor={`act-menu-btn-${a.id}`} data-place="below">
+                              <div class="menu" role="menu">
+                                <a href={`${url.pathname}?tab=timeline&drawer=activity&id=${a.id}`} class="menu-item" role="menuitem">
+                                  <Pencil size={14} class="text-stone-400" /> עריכה
+                                </a>
+                                <form method="POST" action="/api/crm/activities" onsubmit="return confirm('למחוק את הפעילות?')">
+                                  <input type="hidden" name="_action" value="delete" />
+                                  <input type="hidden" name="id" value={a.id} />
+                                  <input type="hidden" name="back" value={`${url.pathname}?tab=timeline`} />
+                                  <button type="submit" class="menu-item text-rose-600" role="menuitem"><Trash2 size={14} /> מחיקה</button>
+                                </form>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {a.kind === 'system' ? (
+                        <p class="text-sm text-stone-500">{describeSystemEvent(a.meta)}</p>
+                      ) : (
+                        <p class="text-sm text-stone-800 whitespace-pre-wrap">{a.body}</p>
+                      )}
+                      <div class="text-[11px] text-stone-400">{a.created_by?.full_name ?? '—'}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {timelineData.next && (
+            <div class="text-center pt-1">
+              <a href={`${url.pathname}?tab=timeline&before=${encodeURIComponent(timelineData.next)}`} class="text-xs text-stone-500 hover:text-accent">עוד</a>
+            </div>
           )}
         </div>
-        <div class="card card-body" data-tab-panel="center:tasks" hidden={tab !== 'tasks'}>
-          <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
+
+        <!-- ---------- Tasks ---------- -->
+        <div class="card card-body space-y-4" data-tab-panel="center:tasks" hidden={tab !== 'tasks'}>
+          <form method="POST" action="/api/crm/tasks" class="flex flex-wrap gap-2" data-once>
+            <input type="hidden" name="_action" value="create" />
+            <input type="hidden" name="contact_id" value={contact.id} />
+            <input type="hidden" name="back" value={`${url.pathname}?tab=tasks`} />
+            <input type="text" name="title" required placeholder="משימה חדשה…" class="input flex-1 min-w-[10rem]" />
+            <input type="date" name="due_date" class="input !w-36" />
+            <select name="assignee_employee_id" class="input !w-40">
+              {taskAssignees.map((u) => <option value={u.id} selected={u.id === viewer.employeeId}>{u.full_name}</option>)}
+            </select>
+            <button class="btn btn-primary btn-sm" data-submit>הוספה</button>
+          </form>
+
+          <div class="divider"></div>
+
+          {openTasksList.length === 0 && doneTasksList.length === 0 ? (
+            <p class="text-sm text-stone-400 text-center py-6">אין משימות</p>
+          ) : (
+            <div class="space-y-2">
+              {openTasksList.length === 0 ? (
+                <p class="text-xs text-stone-400">אין משימות פתוחות</p>
+              ) : openTasksList.map((t) => (
+                <div class="flex items-center gap-2.5">
+                  <form method="POST" action="/api/crm/tasks">
+                    <input type="hidden" name="_action" value="toggle" />
+                    <input type="hidden" name="id" value={t.id} />
+                    <input type="hidden" name="back" value={`${url.pathname}?tab=tasks`} />
+                    <input type="hidden" name="done" value="1" />
+                    <button type="submit" class="w-5 h-5 rounded-md border-2 border-stone-300 hover:border-accent shrink-0" title="סימון כהושלם"></button>
+                  </form>
+                  <div class="flex-1 min-w-0 text-sm text-stone-900 truncate">{t.title}</div>
+                  {t.due_date && <span class={`pill shrink-0 ${duePillClass(t.due_date, false)}`}>{fmtDualDate(t.due_date, { year: false })}</span>}
+                  <span class="text-xs text-stone-400 shrink-0">{t.assignee?.full_name ?? '—'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {doneTasksList.length > 0 && (
+            <details class="pt-1">
+              <summary class="text-xs text-stone-500 cursor-pointer select-none">הושלמו ({doneTasksList.length})</summary>
+              <div class="space-y-2 pt-2">
+                {doneTasksList.map((t) => (
+                  <div class="flex items-center gap-2.5 opacity-60">
+                    <form method="POST" action="/api/crm/tasks">
+                      <input type="hidden" name="_action" value="toggle" />
+                      <input type="hidden" name="id" value={t.id} />
+                      <input type="hidden" name="back" value={`${url.pathname}?tab=tasks`} />
+                      <input type="hidden" name="done" value="0" />
+                      <button type="submit" class="w-5 h-5 rounded-md bg-accent border-2 border-accent grid place-items-center shrink-0" title="ביטול סימון">
+                        <Check size={12} class="text-white" />
+                      </button>
+                    </form>
+                    <div class="flex-1 min-w-0 text-sm text-stone-500 line-through truncate">{t.title}</div>
+                    {t.due_date && <span class="pill shrink-0 bg-stone-100 text-stone-500">{fmtDualDate(t.due_date, { year: false })}</span>}
+                    <span class="text-xs text-stone-400 shrink-0">{t.assignee?.full_name ?? '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
+
         <div class="card card-body" data-tab-panel="center:gifts" hidden={tab !== 'gifts'}>
           <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
         </div>
@@ -387,11 +584,54 @@ if (contact) {
 
         <div class="card">
           <div class="card-header">
-            <span class="card-title flex items-center gap-1.5"><ListChecks size={14} class="text-stone-400" /> משימות פתוחות ({contact.open_tasks})</span>
-            <button type="button" class="btn btn-ghost btn-sm" disabled title="בקרוב"><Plus size={13} /> הוספה</button>
+            <span class="card-title flex items-center gap-1.5"><ListChecks size={14} class="text-stone-400" /> משימות פתוחות ({openTasksList.length})</span>
+            <a href={tabQs('tasks')} class="btn btn-ghost btn-sm"><Plus size={13} /> הוספה</a>
           </div>
-          <div class="card-body">
-            <p class="text-xs text-stone-400">{contact.open_tasks === 0 ? 'אין משימות פתוחות' : `${contact.open_tasks} משימות פתוחות`}</p>
+          <div class="card-body space-y-1.5">
+            {openTasksList.length === 0 ? (
+              <p class="text-xs text-stone-400">אין משימות פתוחות</p>
+            ) : (
+              <>
+                {openTasksList.slice(0, 3).map((t) => (
+                  <div class="text-sm text-stone-700 truncate">{t.title}</div>
+                ))}
+                <a href={tabQs('tasks')} class="text-xs text-stone-500 hover:text-accent inline-block pt-1">כל המשימות</a>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title flex items-center gap-1.5"><CalendarDays size={14} class="text-stone-400" /> תאריכים</span>
+            <a href={`${url.pathname}?drawer=date`} class="btn btn-ghost btn-sm"><Plus size={13} /> הוספה</a>
+          </div>
+          <div class="card-body space-y-3">
+            {datesData.length === 0 ? (
+              <p class="text-xs text-stone-400">אין תאריכים נוספים</p>
+            ) : datesData.map((d) => (
+              <div class="flex items-start justify-between gap-2 text-sm">
+                <div class="min-w-0">
+                  <div class="text-xs text-stone-400">{DATE_KIND_LABELS[d.kind]}{d.label ? ` · ${d.label}` : ''}</div>
+                  <div class="font-medium text-stone-900">{d.hebrew}</div>
+                  <div class="text-xs text-stone-500">{fmtGregOnly(d.date)}</div>
+                  <div class="text-[11px] text-stone-400">
+                    הבא: {fmtDualDate(d.next)}
+                    {d.kind === 'birthday' && ` · בן/בת ${ageTurning(d.date, d.next)}`}
+                  </div>
+                </div>
+                {d.id === 'birthdate' ? (
+                  <a href={`${url.pathname}?edit=1`} class="btn-icon !w-7 !h-7 shrink-0" title="עריכה"><Pencil size={13} /></a>
+                ) : (
+                  <form method="POST" action="/api/crm/dates" onsubmit="return confirm('למחוק את התאריך?')">
+                    <input type="hidden" name="_action" value="delete" />
+                    <input type="hidden" name="id" value={d.id} />
+                    <input type="hidden" name="back" value={url.pathname} />
+                    <button type="submit" class="btn-icon !w-7 !h-7 shrink-0" title="מחיקה"><Trash2 size={13} /></button>
+                  </form>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -524,6 +764,59 @@ if (contact) {
           <input type="text" name="note" class="input" />
         </div>
         <button class="btn btn-primary w-full">הוספת קשר</button>
+      </form>
+    </Drawer>
+  )}
+
+  {contact && editingActivity && (
+    <Drawer title="עריכת פעילות" closeHref={`${url.pathname}?tab=timeline`}>
+      {err && <div class="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 mb-4">{err}</div>}
+      <form method="POST" action="/api/crm/activities" class="space-y-4">
+        <input type="hidden" name="_action" value="update" />
+        <input type="hidden" name="id" value={editingActivity.id} />
+        <input type="hidden" name="back" value={`${url.pathname}?tab=timeline`} />
+        <div>
+          <label class="field-label">סוג</label>
+          <select name="kind" class="input">
+            {ACTIVITY_KINDS.filter((k) => k !== 'system').map((k) => (
+              <option value={k} selected={k === editingActivity.kind}>{ACTIVITY_LABELS[k]}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label class="field-label">מתי</label>
+          <input type="datetime-local" name="occurred_at" class="input" value={toLocalInput(editingActivity.occurred_at)} />
+        </div>
+        <div>
+          <label class="field-label">תוכן</label>
+          <textarea name="body" rows="4" required class="input">{editingActivity.body}</textarea>
+        </div>
+        <button class="btn btn-primary w-full">שמירה</button>
+      </form>
+    </Drawer>
+  )}
+
+  {contact && dateDrawer && (
+    <Drawer title="הוספת תאריך" closeHref={url.pathname}>
+      {err && <div class="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 mb-4">{err}</div>}
+      <form method="POST" action="/api/crm/dates" class="space-y-4">
+        <input type="hidden" name="_action" value="add" />
+        <input type="hidden" name="contact_id" value={contact.id} />
+        <input type="hidden" name="back" value={url.pathname} />
+        <div>
+          <label class="field-label">סוג</label>
+          <select name="kind" class="input">
+            {DATE_KINDS.map((k) => <option value={k}>{DATE_KIND_LABELS[k]}</option>)}
+          </select>
+        </div>
+        <div>
+          <HebrewDatePicker client:load name="date" label="תאריך" required />
+        </div>
+        <div>
+          <label class="field-label">תווית</label>
+          <input type="text" name="label" class="input" placeholder="לדוגמה: יארצייט אבא" />
+        </div>
+        <button class="btn btn-primary w-full">הוספה</button>
       </form>
     </Drawer>
   )}

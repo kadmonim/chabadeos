@@ -5,6 +5,7 @@
 // them here as a flat `values` object.
 import { GENDERS, STAGES, STAGE_LABELS, VISIBILITIES, HOUSEHOLD_ROLES, type EmployeeRef } from '~/lib/crm/types';
 import FamilyPicker from '~/components/crm/FamilyPicker.svelte';
+import HebrewDatePicker from '~/components/crm/HebrewDatePicker.svelte';
 
 interface Props {
   employees: EmployeeRef[];
@@ -74,18 +75,16 @@ const v = values ?? {};
       </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-3">
-      <div>
-        <label class="field-label">מגדר</label>
-        <select name="gender" class="input">
-          <option value="">—</option>
-          {GENDERS.map((g) => <option value={g} selected={g === v.gender}>{GENDER_LABELS[g]}</option>)}
-        </select>
-      </div>
-      <div>
-        <label class="field-label">תאריך לידה</label>
-        <input type="date" name="birthdate" class="input" value={v.birthdate ?? ''} />
-      </div>
+    <div>
+      <label class="field-label">מגדר</label>
+      <select name="gender" class="input">
+        <option value="">—</option>
+        {GENDERS.map((g) => <option value={g} selected={g === v.gender}>{GENDER_LABELS[g]}</option>)}
+      </select>
+    </div>
+
+    <div>
+      <HebrewDatePicker client:load name="birthdate" value={v.birthdate ?? ''} label="תאריך לידה" />
     </div>
 
     <div class="grid grid-cols-2 gap-3">

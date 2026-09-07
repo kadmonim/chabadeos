@@ -69,6 +69,7 @@ const moduleLabel = module === 'crm' ? 'CRM' : module === 'rooms' ? 'חדרים'
 const crmNav = module === 'crm' && crm ? [
   { href: '/crm',          label: 'אנשי קשר', match: (p: string) => p === '/crm' || p.startsWith('/crm/contacts') },
   { href: '/crm/families', label: 'משפחות',   match: (p: string) => p.startsWith('/crm/families') },
+  { href: '/crm/tasks',    label: 'משימות',   match: (p: string) => p.startsWith('/crm/tasks') },
   ...(crm.role === 'admin' ? [
     { href: '/crm/import',   label: 'ייבוא',   match: (p: string) => p.startsWith('/crm/import') },
     { href: '/crm/settings', label: 'הגדרות',  match: (p: string) => p.startsWith('/crm/settings') },

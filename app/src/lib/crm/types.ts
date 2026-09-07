@@ -242,3 +242,49 @@ export const IMPORT_COLUMN_LABELS: Record<ImportColumn, string> = {
 };
 export type ImportPreview = { headers: string[]; sample: string[][]; suggested: ImportColumn[]; row_count: number };
 export type ImportResult = { created: number; duplicates: number; families: number; errors: { row: number; message: string }[] };
+
+// ---------------------------------------------------------------------------
+// Phase 3: timeline, tasks, dates
+// ---------------------------------------------------------------------------
+
+export const DATE_KIND_LABELS: Record<DateKind, string> = {
+  birthday: 'יום הולדת',
+  anniversary: 'יום נישואין',
+  yahrzeit: 'יארצייט',
+  bar_mitzvah: 'בר/בת מצווה',
+  other: 'אחר',
+};
+
+export type HebrewDateParts = { day: number; month: number; year: number };
+
+export type Activity = {
+  id: string;
+  contact_id: string;
+  kind: ActivityKind;
+  body: string | null;
+  occurred_at: string;
+  created_by: EmployeeRef | null;
+  meta: Record<string, unknown>;
+  created_at: string;
+};
+
+export type Task = {
+  id: string;
+  contact: { id: string; first_name: string; last_name: string };
+  title: string;
+  due_date: string | null;
+  done_at: string | null;
+  assignee: EmployeeRef | null;
+  created_by: EmployeeRef | null;
+  created_at: string;
+};
+
+export type ContactDate = {
+  id: string;
+  contact_id: string;
+  kind: DateKind;
+  date: string;
+  label: string | null;
+  hebrew: string;
+  next: string;
+};

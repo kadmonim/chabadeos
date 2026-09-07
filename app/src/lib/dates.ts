@@ -66,3 +66,19 @@ export function fmtDualDate(
   const greg = (withYear ? gregFull : gregShort).format(date);
   return `${fmtHebrewDate(date, opts)} (${greg})`;
 }
+
+// The server runs in UTC; "today" for this app is always the calendar date in
+// Israel. Both helpers are pure and safe in islands.
+export function todayIso(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+}
+/** Local-midnight Date for Israel's calendar date (for calendar arithmetic). */
+export function israelToday(): Date {
+  const [y, m, d] = todayIso().split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+export function addDaysIso(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
