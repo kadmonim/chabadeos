@@ -3,35 +3,59 @@ import AppLayout from '~/layouts/AppLayout.astro';
 import Drawer from '~/components/Drawer.astro';
 import SegmentedTabs from '~/components/SegmentedTabs.astro';
 import ContactForm from '~/components/crm/ContactForm.astro';
+import ContactPicker from '~/components/crm/ContactPicker.svelte';
+import FamilyPicker from '~/components/crm/FamilyPicker.svelte';
+import TagPicker from '~/components/crm/TagPicker.svelte';
 import { initials, fmtMoney } from '~/lib/crm/format';
 import { whatsappUrl, telUrl } from '~/lib/crm/phone';
 import { fmtDualDate } from '~/lib/dates';
 import {
-  STAGES, STAGE_LABELS, STAGE_STYLES, HOUSEHOLD_ROLE_LABELS, LINK_LABELS,
+  STAGES, STAGE_LABELS, STAGE_STYLES, HOUSEHOLD_ROLES, LINK_TYPES, LINK_LABELS,
 } from '~/lib/crm/types';
 import { getViewer, listEmployees, listCrmUsers, canManage } from '~/lib/crm/access';
 import { getContact } from '~/lib/crm/contacts';
+import { getHousehold } from '~/lib/crm/households';
+import { listTags } from '~/lib/crm/tags';
 import {
   StickyNote, ListTodo, Phone, MessageCircle, Pencil, Copy, Users, Link2,
-  Gift, ListChecks, Plus,
+  Gift, ListChecks, Plus, X, ArrowRightLeft,
 } from 'lucide-svelte';
+
+// Relabel head → 'ראש המשפחה'; keep the rest from HOUSEHOLD_ROLE_LABELS.
+const ROLE_LABELS: Record<string, string> = {
+  head: 'ראש המשפחה',
+  spouse: 'בן/בת זוג',
+  child: 'ילד/ה',
+  other: 'אחר',
+};
 
 const viewer = getViewer(Astro.locals);
 if (!viewer) return Astro.redirect('/?crm=denied');
 
 const { id } = Astro.params;
 const contact = id ? await getContact(viewer, id) : null;
+const family = contact?.household ? await getHousehold(viewer, contact.household.id) : null;
+const allTags = await listTags();
 
 const url = Astro.url;
 const back = url.pathname + url.search;
 const editing = url.searchParams.get('edit') === '1';
 const err = url.searchParams.get('err');
 const tab = url.searchParams.get('tab') ?? 'timeline';
+const memberDrawer = url.searchParams.get('drawer') === 'member';
+const memberRoleParam = url.searchParams.get('role') ?? 'spouse';
+const memberRole = (HOUSEHOLD_ROLES as readonly string[]).includes(memberRoleParam) ? memberRoleParam : 'spouse';
+const familyDrawer = url.searchParams.get('drawer') === 'family';
+const linkDrawer = url.searchParams.get('drawer') === 'link';
+const suggestFamilyId = url.searchParams.get('suggest_family');
 
 const tabQs = (t: string) => {
   const p = new URLSearchParams(url.search);
   p.delete('edit');
   p.delete('err');
+  p.delete('drawer');
+  p.delete('role');
+  p.delete('suggest_family');
   Array.from(p.keys()).filter((k) => k.startsWith('f_')).forEach((k) => p.delete(k));
   p.set('tab', t);
   return `${url.pathname}?${p}`;
@@ -147,11 +171,15 @@ if (contact) {
               <div class="field-value">{contact.birthdate ? fmtDualDate(contact.birthdate) : '—'}</div>
             </div>
             <div>
-              <div class="field-label">משק בית</div>
+              <div class="field-label">משפחה</div>
               <div class="field-value">
-                {contact.household ? <a href={`/crm/households/${contact.household.id}`} class="hover:text-accent">{contact.household.name}</a> : '—'}
-                {contact.household_role && <span class="text-stone-400"> · {HOUSEHOLD_ROLE_LABELS[contact.household_role]}</span>}
+                {contact.household ? <a href={`/crm/families/${contact.household.id}`} class="hover:text-accent">{contact.household.name}</a> : '—'}
+                {contact.household_role && <span class="text-stone-400"> · {ROLE_LABELS[contact.household_role]}</span>}
               </div>
+            </div>
+            <div>
+              <div class="field-label">תגיות</div>
+              <TagPicker client:load contactId={contact.id} tags={allTags} selected={contact.tags.map((t) => t.id)} />
             </div>
             <div>
               <div class="field-label">בעלים</div>
@@ -257,27 +285,65 @@ if (contact) {
 
       <!-- ===================== Right: associations ===================== -->
       <div class="space-y-4">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title flex items-center gap-1.5"><Users size={14} class="text-stone-400" /> משק בית ({contact.household_members.length})</span>
-            <button type="button" class="btn btn-ghost btn-sm" disabled title="בקרוב"><Plus size={13} /> הוספה</button>
+        {suggestFamilyId && (
+          <div class="card card-body bg-amber-50 border-amber-200 space-y-2">
+            <p class="text-sm text-amber-900">לאחד למשפחה אחת?</p>
+            <form method="POST" action="/api/crm/households" class="flex gap-2">
+              <input type="hidden" name="_action" value="merge_spouse" />
+              <input type="hidden" name="contact_id" value={contact.id} />
+              <input type="hidden" name="other_id" value={suggestFamilyId} />
+              <input type="hidden" name="back" value={url.pathname} />
+              <button class="btn btn-primary btn-sm flex-1">איחוד למשפחה</button>
+              <a href={url.pathname} class="btn btn-outline btn-sm">לא כעת</a>
+            </form>
           </div>
-          <div class="card-body space-y-1.5">
-            {contact.household_members.length === 0 ? (
-              <p class="text-xs text-stone-400">אין בני משק בית נוספים</p>
-            ) : contact.household_members.map((m) => (
-              <a href={`/crm/contacts/${m.id}`} class="flex items-center justify-between text-sm hover:text-accent">
-                <span>{m.first_name} {m.last_name}</span>
-                {m.household_role && <span class="text-xs text-stone-400">{HOUSEHOLD_ROLE_LABELS[m.household_role]}</span>}
-              </a>
-            ))}
+        )}
+
+        <div class="card">
+          <div class="card-header flex-wrap gap-1.5">
+            <span class="card-title flex items-center gap-1.5"><Users size={14} class="text-stone-400" /> משפחה</span>
+            <div class="flex items-center gap-1.5">
+              <a href={`${url.pathname}?drawer=member&role=spouse`} class="btn btn-ghost btn-sm"><Plus size={13} /> בן/בת זוג</a>
+              <a href={`${url.pathname}?drawer=member&role=child`} class="btn btn-ghost btn-sm"><Plus size={13} /> ילד/ה</a>
+            </div>
+          </div>
+          <div class="card-body space-y-2">
+            {family ? (
+              <>
+                <a href={`/crm/families/${family.id}`} class="font-medium text-sm text-stone-900 hover:text-accent">{family.name}</a>
+                {(family.street || family.city) && (
+                  <div class="text-xs text-stone-500">{[family.street, family.city].filter(Boolean).join(', ')}</div>
+                )}
+                <div class="space-y-1.5 pt-1">
+                  {family.members.filter((m) => m.id !== contact.id).map((m) => (
+                    <div class="flex items-center justify-between text-sm">
+                      <a href={`/crm/contacts/${m.id}`} class="hover:text-accent truncate">{m.first_name} {m.last_name}</a>
+                      <div class="flex items-center gap-1.5 shrink-0">
+                        {m.household_role && <span class="pill bg-stone-100 text-stone-600">{ROLE_LABELS[m.household_role] ?? m.household_role}</span>}
+                        {m.birthdate && <span class="text-[11px] text-stone-400">{fmtDualDate(m.birthdate, { year: false })}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <a href={`${url.pathname}?drawer=family`} class="text-xs text-stone-500 hover:text-accent inline-flex items-center gap-1 pt-1">
+                  <ArrowRightLeft size={12} /> העברה למשפחה אחרת
+                </a>
+              </>
+            ) : (
+              <>
+                <p class="text-xs text-stone-400">איש הקשר אינו משויך למשפחה</p>
+                <a href={`${url.pathname}?drawer=family`} class="text-xs text-stone-500 hover:text-accent inline-flex items-center gap-1">
+                  <ArrowRightLeft size={12} /> שיוך למשפחה קיימת
+                </a>
+              </>
+            )}
           </div>
         </div>
 
         <div class="card">
           <div class="card-header">
             <span class="card-title flex items-center gap-1.5"><Link2 size={14} class="text-stone-400" /> קשרים ({contact.links.length})</span>
-            <button type="button" class="btn btn-ghost btn-sm" disabled title="בקרוב"><Plus size={13} /> הוספה</button>
+            <a href={`${url.pathname}?drawer=link`} class="btn btn-ghost btn-sm"><Plus size={13} /> הוספת קשר</a>
           </div>
           <div class="card-body space-y-2">
             {contact.links.length === 0 ? (
@@ -287,9 +353,20 @@ if (contact) {
                   <div class="text-xs text-stone-400 mb-1">{LINK_LABELS[type as keyof typeof LINK_LABELS]}</div>
                   <div class="space-y-1">
                     {links.map((l) => (
-                      <a href={`/crm/contacts/${l.contact.id}`} class="block text-sm hover:text-accent">
-                        {l.contact.first_name} {l.contact.last_name}
-                      </a>
+                      <div class="flex items-center justify-between gap-2 text-sm">
+                        <div class="min-w-0">
+                          <a href={`/crm/contacts/${l.contact.id}`} class="hover:text-accent">
+                            {l.contact.first_name} {l.contact.last_name}
+                          </a>
+                          {l.note && <span class="text-xs text-stone-400"> · {l.note}</span>}
+                        </div>
+                        <form method="POST" action="/api/crm/links" onsubmit="return confirm('להסיר את הקשר?')">
+                          <input type="hidden" name="_action" value="remove" />
+                          <input type="hidden" name="id" value={l.id} />
+                          <input type="hidden" name="back" value={url.pathname} />
+                          <button type="submit" class="btn-icon !w-6 !h-6 shrink-0" title="הסרה"><X size={13} /></button>
+                        </form>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -331,6 +408,123 @@ if (contact) {
         back={url.pathname}
         err={err}
       />
+    </Drawer>
+  )}
+
+  {contact && memberDrawer && (
+    <Drawer title={memberRole === 'spouse' ? 'הוספת בן/בת זוג' : 'הוספת ילד/ה'} closeHref={url.pathname}>
+      {err && <div class="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 mb-4">{err}</div>}
+      <form method="POST" action="/api/crm/households" class="space-y-4">
+        <input type="hidden" name="_action" value="add_member" />
+        <input type="hidden" name="contact_id" value={contact.id} />
+        <input type="hidden" name="household_role" value={memberRole} />
+        <input type="hidden" name="back" value={url.pathname} />
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="field-label">שם פרטי *</label>
+            <input type="text" name="first_name" required class="input" />
+          </div>
+          <div>
+            <label class="field-label">שם משפחה</label>
+            <input type="text" name="last_name" class="input" value={family?.name?.replace(/^משפחת\s+/, '') ?? contact.last_name} />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="field-label">טלפון</label>
+            <input type="tel" name="phone" class="input" placeholder="050-123 4567" />
+          </div>
+          <div>
+            <label class="field-label">אימייל</label>
+            <input type="email" name="email" class="input" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="field-label">מגדר</label>
+            <select name="gender" class="input">
+              <option value="">—</option>
+              <option value="male">זכר</option>
+              <option value="female">נקבה</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">תאריך לידה</label>
+            <input type="date" name="birthdate" class="input" />
+          </div>
+        </div>
+        <button class="btn btn-primary w-full">הוספה</button>
+      </form>
+    </Drawer>
+  )}
+
+  {contact && familyDrawer && (
+    <Drawer title="שיוך למשפחה" closeHref={url.pathname}>
+      {err && <div class="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 mb-4">{err}</div>}
+      <form method="POST" action="/api/crm/households" class="space-y-4">
+        <input type="hidden" name="_action" value="set_family" />
+        <input type="hidden" name="contact_id" value={contact.id} />
+        <input type="hidden" name="back" value={url.pathname} />
+        <div>
+          <label class="field-label">משפחה</label>
+          <FamilyPicker
+            client:load
+            name="household_id"
+            placeholder="חיפוש משפחה…"
+            initialId={family?.id ?? ''}
+            initialLabel={family?.name ?? ''}
+          />
+        </div>
+        <div>
+          <label class="field-label">תפקיד במשפחה</label>
+          <select name="household_role" class="input">
+            {HOUSEHOLD_ROLES.map((r) => <option value={r} selected={r === (contact.household_role ?? 'other')}>{ROLE_LABELS[r]}</option>)}
+          </select>
+        </div>
+        <button class="btn btn-primary w-full">שיוך</button>
+      </form>
+      {family && (
+        <form method="POST" action="/api/crm/households" class="pt-3 mt-3 border-t border-stone-200">
+          <input type="hidden" name="_action" value="set_family" />
+          <input type="hidden" name="contact_id" value={contact.id} />
+          <input type="hidden" name="household_id" value="" />
+          <input type="hidden" name="back" value={url.pathname} />
+          <button
+            class="btn btn-danger w-full"
+            onclick="if(!confirm('להסיר את איש הקשר מהמשפחה?')) return false;"
+          >
+            הסרה מהמשפחה
+          </button>
+        </form>
+      )}
+    </Drawer>
+  )}
+
+  {contact && linkDrawer && (
+    <Drawer title="הוספת קשר" closeHref={url.pathname}>
+      {err && <div class="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 mb-4">{err}</div>}
+      <form method="POST" action="/api/crm/links" class="space-y-4">
+        <input type="hidden" name="_action" value="add" />
+        <input type="hidden" name="from_id" value={contact.id} />
+        <input type="hidden" name="back" value={url.pathname} />
+        <div>
+          <label class="field-label">איש קשר</label>
+          <ContactPicker client:load name="to_id" placeholder="חיפוש איש קשר…" exclude={contact.id} />
+        </div>
+        <div>
+          <label class="field-label">סוג הקשר</label>
+          <select name="type" class="input">
+            {LINK_TYPES.map((t) => (
+              <option value={t}>{contact.first_name} הוא/היא {LINK_LABELS[t]} של</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label class="field-label">הערה</label>
+          <input type="text" name="note" class="input" />
+        </div>
+        <button class="btn btn-primary w-full">הוספת קשר</button>
+      </form>
     </Drawer>
   )}
 

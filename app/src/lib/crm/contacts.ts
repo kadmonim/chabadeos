@@ -11,7 +11,7 @@ import type {
 
 // One reusable SELECT fragment for every ContactSummary column. Callers embed
 // it after `select` with `from crm_contacts c ${contactSummaryJoins()}`.
-function contactSummarySelect(): string {
+export function contactSummarySelect(): string {
   return `
     c.id, c.first_name, c.last_name, c.email, c.phone, c.phone_display,
     c.stage, c.visibility,
@@ -28,7 +28,7 @@ function contactSummarySelect(): string {
 }
 
 // Joins backing contactSummarySelect(); every list/search/detail query needs these.
-function contactSummaryJoins(): string {
+export function contactSummaryJoins(): string {
   return `left join system_employees o on o.id = c.owner_employee_id left join crm_households h on h.id = c.household_id`;
 }
 
@@ -111,7 +111,7 @@ export async function listContacts(
 ): Promise<Page<ContactSummary>> {
   const sort = opts?.sort ?? 'name';
   const { exprs, casts, dir } = sortSpec(sort, opts?.dir);
-  const limit = Math.min(200, Math.max(1, opts?.limit ?? 50));
+  const limit = Math.min(200, Math.max(1, Math.floor(Number.isFinite(opts?.limit) ? (opts!.limit as number) : 50)));
 
   const params: unknown[] = [];
   const baseWhere = buildContactWhere(viewer, filter, params);

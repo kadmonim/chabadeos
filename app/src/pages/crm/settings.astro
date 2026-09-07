@@ -1,7 +1,9 @@
 ---
 import AppLayout from '~/layouts/AppLayout.astro';
 import { getViewer, listCrmUsers, listEmployees } from '~/lib/crm/access';
-import { Trash2 } from 'lucide-svelte';
+import { listTags } from '~/lib/crm/tags';
+import { TAG_COLORS, TAG_STYLES } from '~/lib/crm/types';
+import { Trash2, Upload } from 'lucide-svelte';
 
 const viewer = getViewer(Astro.locals);
 if (!viewer) return Astro.redirect('/?crm=denied');
@@ -13,6 +15,7 @@ const err = Astro.url.searchParams.get('err');
 const crmUsers = await listCrmUsers();
 const allEmployees = await listEmployees();
 const availableEmployees = allEmployees.filter((e) => !crmUsers.some((u) => u.id === e.id));
+const tags = await listTags();
 ---
 <AppLayout title={'הגדרות CRM · חב״ד כרמיאל'} module="crm">
   <h1 class="text-xl font-semibold text-stone-900 mb-4">הגדרות CRM</h1>
@@ -94,11 +97,85 @@ const availableEmployees = allEmployees.filter((e) => !crmUsers.some((u) => u.id
     </div>
   </div>
 
+  <div class="card mb-4">
+    <div class="card-header">
+      <span class="card-title">ייבוא</span>
+    </div>
+    <div class="card-body">
+      <a href="/crm/import" class="flex items-center gap-3 rounded-xl border border-stone-200 hover:border-accent hover:bg-accent-soft/40 transition px-4 py-3">
+        <div class="w-9 h-9 rounded-lg bg-accent-soft text-accent-ink grid place-items-center shrink-0">
+          <Upload size={16} />
+        </div>
+        <div>
+          <div class="text-sm font-medium text-stone-900">ייבוא מקובץ CSV</div>
+          <div class="text-xs text-stone-500">הוספת אנשי קשר בכמות גדולה מקובץ אקסל/CSV</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
   <div class="grid gap-4 sm:grid-cols-2">
     <div class="card">
       <div class="card-header"><span class="card-title">תגיות</span></div>
       <div class="card-body">
-        <p class="text-sm text-stone-400 text-center py-6">בשלב הבא</p>
+        {tags.length > 0 ? (
+          <table class="w-full text-sm mb-4">
+            <tbody>
+              {tags.map((t) => (
+                <tr class="border-b border-stone-100 last:border-0">
+                  <td class="py-2 pe-2 w-0">
+                    <span class={`pill ${TAG_STYLES[t.color]}`}>{t.name}</span>
+                  </td>
+                  <td class="py-2 pe-2 text-stone-400 text-xs w-0 whitespace-nowrap">{t.contact_count} אנשי קשר</td>
+                  <td class="py-2">
+                    <form method="POST" action="/api/crm/tags" class="flex items-center gap-1.5">
+                      <input type="hidden" name="_action" value="update" />
+                      <input type="hidden" name="id" value={t.id} />
+                      <input type="hidden" name="back" value={back} />
+                      <input type="text" name="name" value={t.name} required class="input !py-1.5 text-sm flex-1 min-w-0" />
+                      <select name="color" class="input !py-1.5 !w-auto text-sm">
+                        {TAG_COLORS.map((c) => <option value={c} selected={t.color === c}>{c}</option>)}
+                      </select>
+                      <button class="btn btn-outline btn-sm">שמירה</button>
+                    </form>
+                  </td>
+                  <td class="py-2 ps-1 w-0">
+                    <form method="POST" action="/api/crm/tags">
+                      <input type="hidden" name="_action" value="delete" />
+                      <input type="hidden" name="id" value={t.id} />
+                      <input type="hidden" name="back" value={back} />
+                      <button
+                        class="btn-icon text-rose-600"
+                        title="מחיקה"
+                        onclick="if(!confirm('למחוק את התגית? היא תוסר מכל אנשי הקשר.')) return false;"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p class="text-sm text-stone-400 text-center py-4">אין עדיין תגיות</p>
+        )}
+
+        <form method="POST" action="/api/crm/tags" class="flex items-end gap-2 pt-3 border-t border-stone-100">
+          <input type="hidden" name="_action" value="create" />
+          <input type="hidden" name="back" value={back} />
+          <div class="flex-1">
+            <label class="field-label">תגית חדשה</label>
+            <input type="text" name="name" required class="input" placeholder="שם התגית" />
+          </div>
+          <div>
+            <label class="field-label">צבע</label>
+            <select name="color" class="input !w-auto">
+              {TAG_COLORS.map((c) => <option value={c}>{c}</option>)}
+            </select>
+          </div>
+          <button class="btn btn-primary">הוספה</button>
+        </form>
       </div>
     </div>
     <div class="card">

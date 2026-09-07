@@ -3,7 +3,8 @@
 // the record page drawer. The caller resolves prefill values (getContact on
 // edit, `f_*` echo on a rejected submit winning over everything) and hands
 // them here as a flat `values` object.
-import { GENDERS, STAGES, STAGE_LABELS, VISIBILITIES, type EmployeeRef } from '~/lib/crm/types';
+import { GENDERS, STAGES, STAGE_LABELS, VISIBILITIES, HOUSEHOLD_ROLES, type EmployeeRef } from '~/lib/crm/types';
+import FamilyPicker from '~/components/crm/FamilyPicker.svelte';
 
 interface Props {
   employees: EmployeeRef[];
@@ -19,6 +20,9 @@ interface Props {
     visibility?: string | null;
     source?: string | null;
     notes?: string | null;
+    household_id?: string | null;
+    household_name?: string | null;
+    household_role?: string | null;
   };
   action: 'create' | 'update';
   id?: string;
@@ -26,6 +30,13 @@ interface Props {
   err?: string | null;
 }
 const GENDER_LABELS: Record<string, string> = { male: 'זכר', female: 'נקבה' };
+// Relabel head → 'ראש המשפחה'; keep the rest from HOUSEHOLD_ROLE_LABELS.
+const ROLE_LABELS: Record<string, string> = {
+  head: 'ראש המשפחה',
+  spouse: 'בן/בת זוג',
+  child: 'ילד/ה',
+  other: 'אחר',
+};
 const { employees, values, action, id, back, err = null } = Astro.props;
 const v = values ?? {};
 ---
@@ -94,6 +105,24 @@ const v = values ?? {};
     </div>
 
     <div>
+      <label class="field-label">משפחה</label>
+      <FamilyPicker
+        client:load
+        name="household_id"
+        placeholder="חיפוש משפחה…"
+        initialId={v.household_id ?? ''}
+        initialLabel={v.household_name ?? ''}
+      />
+    </div>
+
+    <div data-role-field hidden={!v.household_id}>
+      <label class="field-label">תפקיד במשפחה</label>
+      <select name="household_role" class="input">
+        {HOUSEHOLD_ROLES.map((r) => <option value={r} selected={r === (v.household_role ?? 'other')}>{ROLE_LABELS[r]}</option>)}
+      </select>
+    </div>
+
+    <div>
       <label class="field-label mb-1.5">שיוך</label>
       <div class="flex gap-2">
         {VISIBILITIES.map((vis) => (
@@ -120,6 +149,18 @@ const v = values ?? {};
 
     <button class="btn btn-primary w-full" data-submit>שמירה</button>
   </form>
+
+  <script is:inline>
+    // Toggle the household_role field when the family picker's hidden input
+    // changes (the FamilyPicker island dispatches this custom event).
+    document.addEventListener('family-picker-change', (e) => {
+      const input = e.target;
+      if (!input || input.name !== 'household_id') return;
+      const form = input.closest('form');
+      const roleField = form && form.querySelector('[data-role-field]');
+      if (roleField) roleField.hidden = !e.detail?.value;
+    });
+  </script>
 
   <script is:inline>
     // Saving can take a moment on a cold database; a second tap must not create

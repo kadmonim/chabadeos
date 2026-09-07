@@ -1,0 +1,205 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import Drawer from '~/components/Drawer.astro';
+import { initials, fmtMoney } from '~/lib/crm/format';
+import { whatsappUrl, telUrl } from '~/lib/crm/phone';
+import { HOUSEHOLD_ROLES } from '~/lib/crm/types';
+import { getViewer } from '~/lib/crm/access';
+import { getHousehold } from '~/lib/crm/households';
+import { Plus, Pencil, Phone, MessageCircle, Gift, Users } from 'lucide-svelte';
+
+// Relabel head → 'ראש המשפחה'; keep the rest from HOUSEHOLD_ROLE_LABELS.
+const ROLE_LABELS: Record<string, string> = {
+  head: 'ראש המשפחה',
+  spouse: 'בן/בת זוג',
+  child: 'ילד/ה',
+  other: 'אחר',
+};
+
+const viewer = getViewer(Astro.locals);
+if (!viewer) return Astro.redirect('/?crm=denied');
+
+const { id } = Astro.params;
+const family = id ? await getHousehold(viewer, id) : null;
+
+const url = Astro.url;
+const editing = url.searchParams.get('edit') === '1';
+const drawer = url.searchParams.get('drawer');
+const roleParam = url.searchParams.get('role') ?? 'other';
+const err = url.searchParams.get('err');
+
+const drawerRole = (HOUSEHOLD_ROLES as readonly string[]).includes(roleParam) ? roleParam : 'other';
+const drawerTitle = drawerRole === 'spouse' ? 'הוספת בן/בת זוג' : drawerRole === 'child' ? 'הוספת ילד/ה' : 'הוספת בן משפחה';
+---
+<AppLayout title={family ? `${family.name} · חב״ד כרמיאל` : 'לא נמצאה · חב״ד כרמיאל'} module="crm">
+  {!family ? (
+    <div class="card card-body text-center py-10">
+      <p class="text-sm text-stone-500">המשפחה לא נמצאה</p>
+      <a href="/crm/families" class="btn btn-outline mt-3 inline-flex">חזרה לרשימת המשפחות</a>
+    </div>
+  ) : (
+    <div class="grid gap-4 lg:grid-cols-[1fr_320px] items-start">
+      <div class="space-y-4 min-w-0">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title text-base">{family.name}</span>
+            <a href={`${url.pathname}?edit=1`} class="btn-icon" title="עריכה"><Pencil size={16} /></a>
+          </div>
+          <div class="card-body space-y-3">
+            <div>
+              <div class="field-label">כתובת</div>
+              <div class="field-value">
+                {family.street || family.city
+                  ? [family.street, family.city].filter(Boolean).join(', ')
+                  : <span class="text-stone-300">—</span>}
+                {family.postal_code && <span class="text-stone-400"> · {family.postal_code}</span>}
+              </div>
+            </div>
+            {family.notes && (
+              <div>
+                <div class="field-label">הערות</div>
+                <p class="field-value whitespace-pre-wrap">{family.notes}</p>
+              </div>
+            )}
+            <div>
+              <div class="field-label">בעלים</div>
+              <div class="field-value">{family.owner?.full_name ?? <span class="text-stone-300">—</span>}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header flex-wrap gap-2">
+            <span class="card-title flex items-center gap-1.5"><Users size={14} class="text-stone-400" /> בני המשפחה ({family.members.length})</span>
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <a href={`${url.pathname}?drawer=member&role=spouse`} class="btn btn-outline btn-sm"><Plus size={13} /> הוספת בן/בת זוג</a>
+              <a href={`${url.pathname}?drawer=member&role=child`} class="btn btn-outline btn-sm"><Plus size={13} /> הוספת ילד/ה</a>
+              <a href={`${url.pathname}?drawer=member&role=other`} class="btn btn-outline btn-sm"><Plus size={13} /> הוספת בן משפחה</a>
+            </div>
+          </div>
+          <div class="card-body">
+            {family.members.length === 0 ? (
+              <p class="text-sm text-stone-400 text-center py-4">אין עדיין בני משפחה</p>
+            ) : (
+              <div class="space-y-2">
+                {family.members.map((m) => (
+                  <div class="flex items-center gap-3 py-2 border-b border-stone-100 last:border-0">
+                    <div class="w-9 h-9 rounded-full bg-accent-soft text-accent-ink grid place-items-center text-xs font-semibold shrink-0">
+                      {initials(m.first_name, m.last_name)}
+                    </div>
+                    <a href={`/crm/contacts/${m.id}`} class="flex-1 min-w-0">
+                      <div class="font-medium text-stone-900 truncate hover:text-accent">{m.first_name} {m.last_name}</div>
+                      {m.phone && <div class="text-xs text-stone-500 truncate" dir="ltr">{m.phone_display}</div>}
+                    </a>
+                    {m.household_role && (
+                      <span class="pill bg-stone-100 text-stone-600 shrink-0">{ROLE_LABELS[m.household_role] ?? m.household_role}</span>
+                    )}
+                    {m.phone && (
+                      <div class="flex items-center gap-1 shrink-0">
+                        <a href={telUrl(m.phone)} class="btn-icon" title="חיוג"><Phone size={15} /></a>
+                        <a href={whatsappUrl(m.phone)} target="_blank" rel="noopener" class="btn-icon text-emerald-600" title="וואטסאפ"><MessageCircle size={15} /></a>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title flex items-center gap-1.5"><Gift size={14} class="text-stone-400" /> תרומות ({family.gift_count})</span>
+          </div>
+          <div class="card-body">
+            <div class="text-lg font-semibold text-stone-900">{fmtMoney(family.gift_total)}</div>
+            <div class="text-xs text-stone-400">{family.gift_count} תרומות</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {family && editing && (
+    <Drawer title="עריכת משפחה" closeHref={url.pathname}>
+      {err && <div class="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 mb-4">{err}</div>}
+      <form method="POST" action="/api/crm/households" class="space-y-4">
+        <input type="hidden" name="_action" value="update" />
+        <input type="hidden" name="id" value={family.id} />
+        <input type="hidden" name="back" value={url.pathname} />
+        <div>
+          <label class="field-label">שם המשפחה *</label>
+          <input type="text" name="name" required class="input" value={family.name} />
+        </div>
+        <div>
+          <label class="field-label">רחוב</label>
+          <input type="text" name="street" class="input" value={family.street ?? ''} />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="field-label">עיר</label>
+            <input type="text" name="city" class="input" value={family.city ?? ''} />
+          </div>
+          <div>
+            <label class="field-label">מיקוד</label>
+            <input type="text" name="postal_code" class="input" value={family.postal_code ?? ''} />
+          </div>
+        </div>
+        <div>
+          <label class="field-label">הערות</label>
+          <textarea name="notes" rows="3" class="input">{family.notes ?? ''}</textarea>
+        </div>
+        <button class="btn btn-primary w-full">שמירה</button>
+      </form>
+    </Drawer>
+  )}
+
+  {family && drawer === 'member' && (
+    <Drawer title={drawerTitle} closeHref={url.pathname}>
+      {err && <div class="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 mb-4">{err}</div>}
+      <form method="POST" action="/api/crm/households" class="space-y-4">
+        <input type="hidden" name="_action" value="add_member" />
+        <input type="hidden" name="household_id" value={family.id} />
+        <input type="hidden" name="household_role" value={drawerRole} />
+        <input type="hidden" name="back" value={url.pathname} />
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="field-label">שם פרטי *</label>
+            <input type="text" name="first_name" required class="input" />
+          </div>
+          <div>
+            <label class="field-label">שם משפחה</label>
+            <input type="text" name="last_name" class="input" value={family.name.replace(/^משפחת\s+/, '')} />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="field-label">טלפון</label>
+            <input type="tel" name="phone" class="input" placeholder="050-123 4567" />
+          </div>
+          <div>
+            <label class="field-label">אימייל</label>
+            <input type="email" name="email" class="input" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="field-label">מגדר</label>
+            <select name="gender" class="input">
+              <option value="">—</option>
+              <option value="male">זכר</option>
+              <option value="female">נקבה</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">תאריך לידה</label>
+            <input type="date" name="birthdate" class="input" />
+          </div>
+        </div>
+        <button class="btn btn-primary w-full">הוספה</button>
+      </form>
+    </Drawer>
+  )}
+</AppLayout>

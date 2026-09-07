@@ -361,6 +361,20 @@ email must belong to an existing CRM user, or the request fails with `400`.
 | PATCH | `/api/v1/crm/contacts/:id` | Update a contact. |
 | DELETE | `/api/v1/crm/contacts/:id` | Archive a contact. |
 | GET | `/api/v1/crm/search` | Fuzzy search. |
+| GET | `/api/v1/crm/households` | List families ("households"). |
+| POST | `/api/v1/crm/households` | Create a family. |
+| GET | `/api/v1/crm/households/:id` | Get a family, with its members. |
+| PATCH | `/api/v1/crm/households/:id` | Update a family. |
+| POST | `/api/v1/crm/households/:id/members` | Add/move a contact into a family. |
+| DELETE | `/api/v1/crm/households/:id/members` | Remove a contact from a family. |
+| GET | `/api/v1/crm/contacts/:id/links` | List a contact's links. |
+| POST | `/api/v1/crm/contacts/:id/links` | Link two contacts. |
+| DELETE | `/api/v1/crm/contacts/:id/links` | Remove a link. |
+| PUT | `/api/v1/crm/contacts/:id/tags` | Replace a contact's tags. |
+| POST | `/api/v1/crm/contacts/:id/tags` | Add a tag to a contact. |
+| DELETE | `/api/v1/crm/contacts/:id/tags` | Remove a tag from a contact. |
+| GET | `/api/v1/crm/tags` | List tags. |
+| POST | `/api/v1/crm/tags` | Create a tag (admin only). |
 
 ### Stages
 
@@ -451,6 +465,130 @@ Fuzzy-matches name/Hebrew name, and exact-matches digits of phone/email.
 ```json
 { "contacts": [ { "id": "…", "first_name": "…", "last_name": "…", "…": "…" } ] }
 ```
+
+### Families
+
+The CRM groups contacts into families ("households" internally — the UI
+label and this API use "family"/"household" interchangeably; the table is
+`crm_households`). A family has an address (street/city/postal_code) shared
+by its members, and each member has a `household_role`: `head` (ראש משק
+בית), `spouse` (בן/בת זוג), `child` (ילד/ה), `other` (אחר).
+
+**`GET /api/v1/crm/households`** — `?q=` (ilike on name/city/street), `?limit=`
+(default 50), `?after=` (cursor from a previous page's `next`). Only families
+with at least one member visible to the caller are returned (admins see all).
+
+```json
+{
+  "households": [
+    { "id": "…", "name": "משפחת כהן", "street": "…", "city": "…", "postal_code": "…",
+      "member_count": 4, "heads": ["דוד כהן", "רבקה כהן"], "updated_at": "…" }
+  ],
+  "count": 20,
+  "total": 88,
+  "next": "eyJ…"
+}
+```
+
+**`POST /api/v1/crm/households`**
+
+```json
+{
+  "name": "משפחת כהן",
+  "street": "הרצל 12",
+  "city": "כרמיאל",
+  "postal_code": "…",
+  "notes": "optional",
+  "owner_email": "gabbai@example.com"
+}
+```
+
+`name` is required. `owner_email` resolves to an employee server-side
+(unknown email → `400`). Returns `201 { "id": "…" }`.
+
+**`GET /api/v1/crm/households/:id`** — `404 { "error": "not found" }` if
+missing or no member is visible to the caller. Otherwise
+`{ "household": { …family fields, "notes", "owner", "members": [ …ContactSummary + household_role, ordered head, spouse, child (by birthdate), other ], "gift_total", "gift_count" } }`.
+
+**`PATCH /api/v1/crm/households/:id`** — body: same fields as `POST` (all
+optional), `owner_email` instead of `owner_employee_id`. `204` on success,
+`404` if not found/visible.
+
+**`POST /api/v1/crm/households/:id/members`** — body: `{ "contact_id": "…", "role": "head" | "spouse" | "child" | "other" }`. Moves the contact into this family (out of any previous one). `204` on success, `404` if the contact or family isn't found/visible.
+
+**`DELETE /api/v1/crm/households/:id/members`** — body: `{ "contact_id": "…" }`. Removes the contact from the family. `204` on success.
+
+### Links
+
+Links record relationships between two contacts (spouse, parent/child, employer,
+referrals, etc). Each link type has an inverse — creating a link from A→B also
+implies the flipped relationship when viewed from B:
+
+| type | label (from `from`) | inverse |
+|---|---|---|
+| `spouse` | בן/בת זוג | `spouse` |
+| `parent` | הורה | `child` |
+| `child` | ילד/ה | `parent` |
+| `sibling` | אח/אחות | `sibling` |
+| `employer` | מעסיק | `employee` |
+| `employee` | עובד/ת | `employer` |
+| `referred_by` | הופנה על ידי | `referred` |
+| `referred` | הפנה את | `referred_by` |
+| `friend` | חבר/ה | `friend` |
+| `other` | קשר אחר | `other` |
+
+**`GET /api/v1/crm/contacts/:id/links`** — `{ "links": [ { "id": "…", "type": "spouse", "note": null, "contact": { "id": "…", "first_name": "…", "last_name": "…" } } ] }`, already flipped so `type` is as seen from `:id`.
+
+**`POST /api/v1/crm/contacts/:id/links`**
+
+```json
+{ "to_contact_id": "…", "type": "spouse", "note": "optional" }
+```
+
+Both contacts must be visible to the caller; linking a contact to itself is
+`400`. Idempotent — re-posting the same pair/type (or its inverse) returns the
+existing link rather than duplicating it. Returns
+`201 { "id": "…", "suggest_family": true }` — `suggest_family` is `true` when
+`type` is `spouse` and the two contacts aren't already in the same family (a
+hint to the caller, not an automatic merge).
+
+**`DELETE /api/v1/crm/contacts/:id/links`** — body: `{ "id": "…" }` (the link
+id from `GET`/`POST`). `204` on success, `404` if not found/visible.
+
+### Tags
+
+Tags are short labels with a colour, attachable to any contact.
+
+| colour | pill |
+|---|---|
+| `stone` | bg-stone-100 text-stone-700 |
+| `brand` | bg-brand-soft text-brand-ink |
+| `flame` | bg-flame-soft text-flame-ink |
+| `emerald` | bg-emerald-100 text-emerald-800 |
+| `amber` | bg-amber-100 text-amber-800 |
+| `rose` | bg-rose-100 text-rose-800 |
+| `sky` | bg-sky-100 text-sky-700 |
+| `teal` | bg-teal-100 text-teal-800 |
+
+**`GET /api/v1/crm/tags`** — `{ "tags": [ { "id": "…", "name": "…", "color": "brand", "contact_count": 12 } ] }`.
+
+**`POST /api/v1/crm/tags`** — **admin only**. The service account
+(no `X-On-Behalf-Of`) is always admin; with `X-On-Behalf-Of` set to a
+non-admin CRM user the call fails with `403`.
+
+```json
+{ "name": "תורם קבוע", "color": "amber" }
+```
+
+`color` defaults to a service-chosen colour when omitted; must be one of the
+table above. `name` must be unique (case-insensitive) or the call fails with
+`400`. Returns `201 { "id": "…" }`.
+
+**`PUT /api/v1/crm/contacts/:id/tags`** — body: `{ "tags": ["תורם קבוע", "…tag id…"] }`. Each entry may be a tag id or an exact (case-insensitive) tag name; an unrecognised entry fails the whole call with `400 { "error": "unknown tag(s): …" }` rather than partially applying. Replaces the contact's full tag list. `204` on success, `404` if the contact isn't found/visible.
+
+**`POST /api/v1/crm/contacts/:id/tags`** — body: `{ "tag": "תורם קבוע" }` (id or name). Adds one tag without disturbing the rest. `204` on success.
+
+**`DELETE /api/v1/crm/contacts/:id/tags`** — body: `{ "tag": "תורם קבוע" }` (id or name). Removes one tag. `204` on success.
 
 ## Examples
 

@@ -8,7 +8,7 @@ import { STAGES, VISIBILITIES } from '~/lib/crm/types';
 // drawer reopens with exactly what the user typed.
 const KEEP = [
   'first_name', 'last_name', 'phone', 'email', 'gender', 'birthdate',
-  'stage', 'owner_employee_id', 'visibility', 'source', 'notes',
+  'stage', 'owner_employee_id', 'visibility', 'source', 'notes', 'household_id', 'household_role',
 ];
 
 function reopen(form: FormData): [string, string] | null {
@@ -33,6 +33,8 @@ function inputFromForm(form: FormData): ContactInput {
     email: str('email'),
     gender: str('gender') as ContactInput['gender'],
     birthdate: str('birthdate'),
+    household_id: str('household_id'),
+    household_role: str('household_role') as ContactInput['household_role'],
     stage: (stage && (STAGES as readonly string[]).includes(stage) ? stage : 'new') as Stage,
     owner_employee_id: str('owner_employee_id'),
     visibility: (visibility && (VISIBILITIES as readonly string[]).includes(visibility) ? visibility : 'public') as Visibility,
@@ -112,6 +114,8 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
       const id = String(form.get('id') ?? '');
       const value = String(form.get('value') ?? '').trim();
       if (!id) return bad('חסר מזהה');
+      if (action === 'set_stage' && !(STAGES as readonly string[]).includes(value)) return bad('שלב לא תקין');
+      if (action === 'set_visibility' && !(VISIBILITIES as readonly string[]).includes(value)) return bad('ערך שיתוף לא תקין');
       const input: ContactInput =
         action === 'set_stage' ? { stage: value as Stage }
         : action === 'set_owner' ? { owner_employee_id: value || null }

@@ -7,9 +7,10 @@ import SearchBox from '~/components/crm/SearchBox.svelte';
 import { initials } from '~/lib/crm/format';
 import { whatsappUrl, telUrl } from '~/lib/crm/phone';
 import { fmtDualDate } from '~/lib/dates';
-import { STAGES, STAGE_LABELS, STAGE_STYLES, type ContactFilter, type ContactSort, type Stage } from '~/lib/crm/types';
+import { STAGES, STAGE_LABELS, STAGE_STYLES, TAG_STYLES, type ContactFilter, type ContactSort, type Stage } from '~/lib/crm/types';
 import { getViewer, listEmployees } from '~/lib/crm/access';
 import { listContacts, getContact } from '~/lib/crm/contacts';
+import { listTags } from '~/lib/crm/tags';
 import { Plus, CircleAlert, Phone, MessageCircle, X } from 'lucide-svelte';
 
 const viewer = getViewer(Astro.locals);
@@ -20,6 +21,7 @@ const q = url.searchParams.get('q') ?? '';
 const stageParams = url.searchParams.getAll('stage').filter((s): s is Stage => (STAGES as readonly string[]).includes(s));
 const owner = url.searchParams.get('owner') ?? '';
 const visibility = url.searchParams.get('visibility') ?? '';
+const tag = url.searchParams.get('tag') ?? '';
 const sort = (url.searchParams.get('sort') ?? 'name') as ContactSort;
 const dir = (url.searchParams.get('dir') ?? 'asc') as 'asc' | 'desc';
 const after = url.searchParams.get('after');
@@ -30,8 +32,10 @@ if (stageParams.length === 1) filter.stage = stageParams[0];
 else if (stageParams.length > 1) filter.stage = stageParams;
 if (owner) filter.owner = owner;
 if (visibility === 'public' || visibility === 'restricted') filter.visibility = visibility;
+if (tag) filter.tag = tag;
 
 const employees = await listEmployees();
+const tags = await listTags();
 let page;
 let listError: string | null = null;
 try {
@@ -56,6 +60,7 @@ const qs = (overrides: Record<string, string | string[] | null> = {}, { keepAfte
   for (const s of stageParams) p.append('stage', s);
   if (owner) p.set('owner', owner);
   if (visibility) p.set('visibility', visibility);
+  if (tag) p.set('tag', tag);
   if (sort !== 'name') p.set('sort', sort);
   if (dir !== 'asc') p.set('dir', dir);
   if (keepAfter && after) p.set('after', after);
@@ -84,6 +89,9 @@ const formValues = editing
       visibility: draft('visibility') ?? editing.visibility,
       source: draft('source') ?? editing.source,
       notes: draft('notes') ?? editing.notes,
+      household_id: editing.household?.id ?? null,
+      household_name: editing.household?.name ?? null,
+      household_role: editing.household_role,
     }
   : {
       first_name: draft('first_name'),
@@ -105,7 +113,7 @@ const stageTabs = [
 ];
 const activeStageTab = stageParams.length === 1 ? stageParams[0] : 'all';
 
-const hasFilters = !!q || stageParams.length > 0 || !!owner || !!visibility;
+const hasFilters = !!q || stageParams.length > 0 || !!owner || !!visibility || !!tag;
 
 const sortLink = (col: ContactSort) => {
   const newDir = sort === col && dir === 'asc' ? 'desc' : 'asc';
@@ -148,6 +156,10 @@ const sortIndicator = (col: ContactSort) => (sort === col ? (dir === 'asc' ? '�
         <option value="public" selected={visibility === 'public'}>ציבורי</option>
         <option value="restricted" selected={visibility === 'restricted'}>מוגבל</option>
       </select>
+      <select name="tag" onchange="this.form.submit()" class="text-xs bg-white border border-stone-300 rounded-full px-3 py-1.5 text-stone-600">
+        <option value="">כל התגיות</option>
+        {tags.map((t) => <option value={t.id} selected={t.id === tag}>{t.name}</option>)}
+      </select>
     </form>
     {hasFilters && (
       <a href="/crm" class="text-xs text-stone-500 hover:text-stone-900 flex items-center gap-1">
@@ -179,7 +191,7 @@ const sortIndicator = (col: ContactSort) => (sort === col ? (dir === 'asc' ? '�
                 <a href={sortLink('stage')} class="hover:text-stone-900">שלב {sortIndicator('stage')}</a>
               </th>
               <th class="text-start px-4 py-2.5 font-medium text-stone-500">בעלים</th>
-              <th class="text-start px-4 py-2.5 font-medium text-stone-500">משק בית</th>
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">משפחה</th>
               <th class="text-start px-4 py-2.5 font-medium text-stone-500">תגיות</th>
               <th class="text-start px-4 py-2.5 font-medium text-stone-500">
                 <a href={sortLink('updated')} class="hover:text-stone-900">עדכון {sortIndicator('updated')}</a>
@@ -208,11 +220,11 @@ const sortIndicator = (col: ContactSort) => (sort === col ? (dir === 'asc' ? '�
                 <td class="px-4 py-2.5"><span class={`pill ${STAGE_STYLES[c.stage]}`}>{STAGE_LABELS[c.stage]}</span></td>
                 <td class="px-4 py-2.5 text-stone-600">{c.owner?.full_name ?? <span class="text-stone-300">—</span>}</td>
                 <td class="px-4 py-2.5 text-stone-600">
-                  {c.household ? <a href={`/crm/households/${c.household.id}`} class="hover:text-accent">{c.household.name}</a> : <span class="text-stone-300">—</span>}
+                  {c.household ? <a href={`/crm/families/${c.household.id}`} class="hover:text-accent">{c.household.name}</a> : <span class="text-stone-300">—</span>}
                 </td>
                 <td class="px-4 py-2.5">
                   <div class="flex flex-wrap gap-1">
-                    {c.tags.map((t) => <span class="chip">{t.name}</span>)}
+                    {c.tags.map((t) => <span class={`pill ${TAG_STYLES[t.color as keyof typeof TAG_STYLES] ?? 'bg-stone-100 text-stone-700'}`}>{t.name}</span>)}
                   </div>
                 </td>
                 <td class="px-4 py-2.5 text-stone-500 whitespace-nowrap">{fmtDualDate(c.updated_at, { year: false })}</td>

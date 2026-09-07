@@ -1,0 +1,164 @@
+---
+import AppLayout from '~/layouts/AppLayout.astro';
+import Drawer from '~/components/Drawer.astro';
+import { getViewer } from '~/lib/crm/access';
+import { listHouseholds } from '~/lib/crm/households';
+import { Plus, CircleAlert, X } from 'lucide-svelte';
+
+const viewer = getViewer(Astro.locals);
+if (!viewer) return Astro.redirect('/?crm=denied');
+
+const url = Astro.url;
+const q = url.searchParams.get('q') ?? '';
+const after = url.searchParams.get('after');
+
+let page;
+let listError: string | null = null;
+try {
+  page = await listHouseholds(viewer, { q: q || undefined, limit: 50, after });
+} catch (e) {
+  listError = (e as Error).message;
+  page = await listHouseholds(viewer, { q: q || undefined, limit: 50 });
+}
+
+const adding = url.searchParams.get('add') === '1';
+const err = url.searchParams.get('err') ?? listError;
+
+const qs = (overrides: Record<string, string | null> = {}, { keepAfter = false } = {}) => {
+  const p = new URLSearchParams();
+  if (q) p.set('q', q);
+  if (keepAfter && after) p.set('after', after);
+  for (const [k, v] of Object.entries(overrides)) {
+    p.delete(k);
+    if (v !== null) p.set(k, v);
+  }
+  const s = p.toString();
+  return `/crm/families${s ? `?${s}` : ''}`;
+};
+const back = qs({}, { keepAfter: true });
+---
+<AppLayout title={'משפחות · חב״ד כרמיאל'} module="crm">
+  <div class="flex items-center gap-3 mb-4 flex-wrap">
+    <h1 class="text-xl font-semibold text-stone-900">משפחות <span class="text-stone-400 font-normal text-base">({page.total})</span></h1>
+    <div class="flex-1"></div>
+    <form method="GET" action="/crm/families" class="w-full max-w-xs sm:w-auto">
+      <input type="search" name="q" value={q} placeholder="חיפוש לפי שם, עיר או רחוב" class="input" />
+    </form>
+    <a href={qs({ add: '1' })} class="btn btn-primary hidden sm:inline-flex">
+      <Plus size={16} />
+      משפחה חדשה
+    </a>
+  </div>
+
+  {err && !adding && (
+    <div class="mb-4 bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
+      <CircleAlert size={16} class="mt-0.5 shrink-0" />
+      <span>{err}</span>
+    </div>
+  )}
+
+  {q && (
+    <div class="mb-3">
+      <a href="/crm/families" class="text-xs text-stone-500 hover:text-stone-900 inline-flex items-center gap-1">
+        <X size={12} /> נקה חיפוש
+      </a>
+    </div>
+  )}
+
+  {page.items.length === 0 ? (
+    <div class="card card-body text-center py-10">
+      <p class="text-sm text-stone-500 mb-3">לא נמצאו משפחות{q ? ' התואמות את החיפוש' : ''}.</p>
+      <a href={qs({ add: '1' })} class="btn btn-primary inline-flex">
+        <Plus size={16} /> משפחה חדשה
+      </a>
+    </div>
+  ) : (
+    <>
+      <!-- Desktop table -->
+      <div class="hidden md:block card overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-stone-200 bg-stone-50">
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">שם המשפחה</th>
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">ראשי משפחה</th>
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">עיר</th>
+              <th class="text-start px-4 py-2.5 font-medium text-stone-500">נפשות</th>
+            </tr>
+          </thead>
+          <tbody>
+            {page.items.map((h) => (
+              <tr class="border-b border-stone-100 last:border-0 hover:bg-stone-50">
+                <td class="px-4 py-2.5">
+                  <a href={`/crm/families/${h.id}`} class="font-medium text-stone-900 hover:text-accent">{h.name}</a>
+                </td>
+                <td class="px-4 py-2.5 text-stone-600">{h.heads.join(', ') || <span class="text-stone-300">—</span>}</td>
+                <td class="px-4 py-2.5 text-stone-600">{h.city ?? <span class="text-stone-300">—</span>}</td>
+                <td class="px-4 py-2.5 text-stone-600">{h.member_count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile cards -->
+      <div class="md:hidden space-y-2.5">
+        {page.items.map((h) => (
+          <a href={`/crm/families/${h.id}`} class="card card-body flex items-center gap-3 block">
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-stone-900 truncate">{h.name}</div>
+              <div class="text-xs text-stone-500 truncate">{h.heads.join(', ')}</div>
+              <div class="text-xs text-stone-400 truncate">{h.city ?? ''}</div>
+            </div>
+            <span class="pill bg-stone-100 text-stone-600">{h.member_count} נפשות</span>
+          </a>
+        ))}
+      </div>
+    </>
+  )}
+
+  {page.next && (
+    <div class="mt-4 text-center">
+      <a href={qs({ after: page.next })} class="btn btn-outline btn-sm">הבא</a>
+    </div>
+  )}
+
+  <a
+    href={qs({ add: '1' })}
+    class="sm:hidden fixed bottom-5 end-5 z-20 rounded-full bg-accent text-white w-14 h-14 shadow-lg grid place-items-center"
+    title="משפחה חדשה"
+  >
+    <Plus size={24} />
+  </a>
+
+  {adding && (
+    <Drawer title="משפחה חדשה" closeHref={back}>
+      <form method="POST" action="/api/crm/households" class="space-y-4">
+        <input type="hidden" name="_action" value="create" />
+        <input type="hidden" name="back" value={back} />
+        <div>
+          <label class="field-label">שם המשפחה *</label>
+          <input type="text" name="name" required class="input" placeholder="משפחת כהן" />
+        </div>
+        <div>
+          <label class="field-label">רחוב</label>
+          <input type="text" name="street" class="input" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="field-label">עיר</label>
+            <input type="text" name="city" class="input" />
+          </div>
+          <div>
+            <label class="field-label">מיקוד</label>
+            <input type="text" name="postal_code" class="input" />
+          </div>
+        </div>
+        <div>
+          <label class="field-label">הערות</label>
+          <textarea name="notes" rows="3" class="input"></textarea>
+        </div>
+        <button class="btn btn-primary w-full">שמירה</button>
+      </form>
+    </Drawer>
+  )}
+</AppLayout>

@@ -1,0 +1,253 @@
+---
+// CSV import — admin only, two steps, no client framework.
+//
+// Step 1 (GET): file picker card.
+// Step 2 (POST _action=preview): parse the uploaded CSV server-side, render a
+//   mapping table + sample preview. The CSV text itself travels forward inside
+//   a hidden field on the step-2 form (no storage between requests).
+// Step 3 (POST _action=run): apply the mapping, show the ImportResult.
+import AppLayout from '~/layouts/AppLayout.astro';
+import { getViewer } from '~/lib/crm/access';
+import { listTags } from '~/lib/crm/tags';
+import { previewImport, runImport } from '~/lib/crm/import';
+import {
+  IMPORT_COLUMNS, IMPORT_COLUMN_LABELS, STAGES, STAGE_LABELS,
+  type ImportColumn, type ImportPreview, type ImportResult, type Stage,
+} from '~/lib/crm/types';
+import { Upload, ArrowRight } from 'lucide-svelte';
+
+const viewer = getViewer(Astro.locals);
+if (!viewer) return Astro.redirect('/?crm=denied');
+if (viewer.role !== 'admin') return Astro.redirect('/crm');
+
+const MAX_BYTES = 2 * 1024 * 1024;
+
+let err: string | null = Astro.url.searchParams.get('err');
+let preview: ImportPreview | null = null;
+let csvText: string | null = null;
+let result: ImportResult | null = null;
+const tags = await listTags();
+
+if (Astro.request.method === 'POST') {
+  try {
+    const form = await Astro.request.formData();
+    const action = String(form.get('_action') ?? '');
+
+    if (action === 'preview') {
+      const file = form.get('file');
+      if (!(file instanceof File) || file.size === 0) {
+        err = 'יש לבחור קובץ CSV';
+      } else if (file.size > MAX_BYTES) {
+        err = 'הקובץ גדול מדי (מקסימום 2MB)';
+      } else {
+        csvText = await file.text();
+        preview = previewImport(csvText);
+      }
+    } else if (action === 'run') {
+      csvText = String(form.get('csv_text') ?? '');
+      if (csvText.length > MAX_BYTES) throw new Error('הקובץ גדול מדי (מקסימום 2MB)');
+      const headerCount = Number(form.get('header_count') ?? '0');
+      const mapping: ImportColumn[] = [];
+      for (let i = 0; i < headerCount; i++) {
+        const v = String(form.get(`col_${i}`) ?? 'skip') as ImportColumn;
+        mapping.push((IMPORT_COLUMNS as readonly string[]).includes(v) ? v : 'skip');
+      }
+      const create_families = String(form.get('create_families') ?? 'none') as 'by_column' | 'by_address' | 'none';
+      const default_stage = String(form.get('default_stage') ?? '') as Stage | '';
+      const tag = String(form.get('tag') ?? '');
+      result = await runImport(viewer, csvText, mapping, {
+        create_families,
+        ...(default_stage ? { default_stage } : {}),
+        ...(tag ? { tag } : {}),
+      });
+    } else {
+      err = 'פעולה לא מוכרת';
+    }
+  } catch (e) {
+    err = (e as Error).message || 'שגיאה בעיבוד הקובץ';
+  }
+}
+---
+<AppLayout title={'ייבוא אנשי קשר · CRM · חב״ד כרמיאל'} module="crm">
+  <div class="flex items-center gap-3 mb-4">
+    <a href="/crm/settings" class="btn-icon" title="חזרה להגדרות"><ArrowRight size={18} /></a>
+    <h1 class="text-xl font-semibold text-stone-900">ייבוא אנשי קשר מקובץ CSV</h1>
+  </div>
+
+  {err && (
+    <div class="mb-4 bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-xl px-4 py-3">{err}</div>
+  )}
+
+  {result ? (
+    <div class="card">
+      <div class="card-header"><span class="card-title">תוצאות הייבוא</span></div>
+      <div class="card-body space-y-4">
+        <div class="grid grid-cols-3 gap-3">
+          <div class="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-center">
+            <div class="text-2xl font-semibold text-emerald-800">{result.created}</div>
+            <div class="text-xs text-emerald-700 mt-1">נוצרו</div>
+          </div>
+          <div class="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-center">
+            <div class="text-2xl font-semibold text-amber-800">{result.duplicates}</div>
+            <div class="text-xs text-amber-700 mt-1">כפילויות</div>
+          </div>
+          <div class="rounded-xl bg-sky-50 border border-sky-200 px-4 py-3 text-center">
+            <div class="text-2xl font-semibold text-sky-800">{result.families}</div>
+            <div class="text-xs text-sky-700 mt-1">משפחות</div>
+          </div>
+        </div>
+
+        {result.errors.length > 0 && (
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-stone-200">
+                  <th class="text-start py-2 font-medium text-stone-500 w-20">שורה</th>
+                  <th class="text-start py-2 font-medium text-stone-500">שגיאה</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.errors.map((er) => (
+                  <tr class="border-b border-stone-100 last:border-0">
+                    <td class="py-2 text-stone-600">{er.row}</td>
+                    <td class="py-2 text-rose-700">{er.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div class="flex gap-2 pt-2">
+          <a href="/crm/import" class="btn btn-outline">ייבוא נוסף</a>
+          <a href="/crm" class="btn btn-primary">אל רשימת אנשי הקשר</a>
+        </div>
+      </div>
+    </div>
+  ) : preview && csvText ? (
+    <form method="POST" action="/crm/import" class="card">
+      <input type="hidden" name="_action" value="run" />
+      <input type="hidden" name="csv_text" value={csvText} />
+      <input type="hidden" name="header_count" value={preview.headers.length} />
+
+      <div class="card-header"><span class="card-title">התאמת עמודות</span></div>
+      <div class="card-body space-y-5">
+        <p class="text-sm text-stone-500">
+          נמצאו {preview.row_count} שורות. יש להתאים כל עמודה בקובץ לשדה במערכת (ניתן לבחור
+          "{IMPORT_COLUMN_LABELS.skip}" לעמודות שאין לייבא).
+        </p>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-stone-200">
+                <th class="text-start py-2 font-medium text-stone-500">עמודה בקובץ</th>
+                <th class="text-start py-2 font-medium text-stone-500">שדה במערכת</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.headers.map((h, i) => (
+                <tr class="border-b border-stone-100 last:border-0">
+                  <td class="py-2 font-medium text-stone-900">{h || `(עמודה ${i + 1})`}</td>
+                  <td class="py-2">
+                    <select name={`col_${i}`} class="input !py-1.5 !w-auto text-sm">
+                      {IMPORT_COLUMNS.map((c) => (
+                        <option value={c} selected={preview!.suggested[i] === c}>{IMPORT_COLUMN_LABELS[c]}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div>
+          <h3 class="field-label mb-2">תצוגה מקדימה (5 שורות ראשונות)</h3>
+          <div class="overflow-x-auto border border-stone-200 rounded-lg">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="bg-stone-50 border-b border-stone-200">
+                  {preview.headers.map((h, i) => <th class="text-start py-1.5 px-2 font-medium text-stone-500 whitespace-nowrap">{h || `עמודה ${i + 1}`}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {preview.sample.map((row) => (
+                  <tr class="border-b border-stone-100 last:border-0">
+                    {row.map((cell) => <td class="py-1.5 px-2 text-stone-700 whitespace-nowrap">{cell}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-3 pt-2 border-t border-stone-100">
+          <div>
+            <label class="field-label">יצירת משפחות</label>
+            <div class="space-y-1.5 text-sm">
+              <label class="flex items-center gap-2">
+                <input type="radio" name="create_families" value="by_column" checked />
+                לפי עמודת משפחה
+              </label>
+              <label class="flex items-center gap-2">
+                <input type="radio" name="create_families" value="by_address" />
+                לפי כתובת
+              </label>
+              <label class="flex items-center gap-2">
+                <input type="radio" name="create_families" value="none" />
+                ללא קיבוץ למשפחות
+              </label>
+            </div>
+          </div>
+          <div>
+            <label class="field-label" for="default_stage">שלב ברירת מחדל</label>
+            <select id="default_stage" name="default_stage" class="input">
+              <option value="">— ללא —</option>
+              {STAGES.map((s) => <option value={s}>{STAGE_LABELS[s]}</option>)}
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="tag">תגית לכל הרשומות המיובאות</label>
+            <select id="tag" name="tag" class="input">
+              <option value="">— ללא —</option>
+              {tags.map((t) => <option value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+      <footer class="px-4 py-3 border-t border-stone-200 bg-stone-50 rounded-b-xl flex justify-end gap-2">
+        <a href="/crm/import" class="btn btn-outline">ביטול</a>
+        <button class="btn btn-primary">ייבוא</button>
+      </footer>
+    </form>
+  ) : (
+    <form method="POST" action="/crm/import" enctype="multipart/form-data" class="card max-w-xl">
+      <input type="hidden" name="_action" value="preview" />
+      <div class="card-header"><span class="card-title">בחירת קובץ</span></div>
+      <div class="card-body space-y-4">
+        <div>
+          <label class="field-label" for="file">קובץ CSV</label>
+          <label
+            for="file"
+            class="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-stone-300 rounded-xl py-8 px-4 text-center cursor-pointer hover:border-accent hover:bg-accent-soft/40 transition"
+          >
+            <Upload size={22} class="text-stone-400" />
+            <span class="text-sm text-stone-600">לחצו לבחירת קובץ, או גררו לכאן</span>
+            <input type="file" id="file" name="file" accept=".csv,text/csv" required class="sr-only" onchange="this.closest('form').querySelector('[data-filename]').textContent = this.files[0]?.name ?? ''" />
+            <span data-filename class="text-xs font-medium text-accent-ink"></span>
+          </label>
+        </div>
+        <div class="text-xs text-stone-500 space-y-1 bg-stone-50 rounded-lg px-3 py-2.5">
+          <p class="font-medium text-stone-600">עמודות נתמכות:</p>
+          <p>שם פרטי, שם משפחה, טלפון, אימייל, מגדר, תאריך לידה, שלב, רחוב, עיר, מיקוד, משפחה, תגיות, הערות, מקור.</p>
+          <p>כותרות בעברית מזוהות אוטומטית (למשל: שם, שם פרטי, משפחה, טלפון, נייד, אימייל, כתובת, עיר).</p>
+          <p>קידוד הקובץ צריך להיות UTF-8. גודל מקסימלי: 2MB.</p>
+        </div>
+      </div>
+      <footer class="px-4 py-3 border-t border-stone-200 bg-stone-50 rounded-b-xl flex justify-end">
+        <button class="btn btn-primary">המשך</button>
+      </footer>
+    </form>
+  )}
+</AppLayout>

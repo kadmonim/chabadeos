@@ -182,3 +182,63 @@ export type Page<T> = {
   /** Total matching rows (for the header count). */
   total: number;
 };
+
+// ---------------------------------------------------------------------------
+// Phase 2: families, tags, import
+// ---------------------------------------------------------------------------
+
+export const TAG_COLORS = ['stone', 'brand', 'flame', 'emerald', 'amber', 'rose', 'sky', 'teal'] as const;
+export type TagColor = (typeof TAG_COLORS)[number];
+/** Pill classes per tag colour. */
+export const TAG_STYLES: Record<TagColor, string> = {
+  stone: 'bg-stone-100 text-stone-700',
+  brand: 'bg-brand-soft text-brand-ink',
+  flame: 'bg-flame-soft text-flame-ink',
+  emerald: 'bg-emerald-100 text-emerald-800',
+  amber: 'bg-amber-100 text-amber-800',
+  rose: 'bg-rose-100 text-rose-800',
+  sky: 'bg-sky-100 text-sky-700',
+  teal: 'bg-teal-100 text-teal-800',
+};
+export type Tag = { id: string; name: string; color: TagColor; contact_count: number };
+
+export type HouseholdSummary = {
+  id: string;
+  name: string;
+  street: string | null;
+  city: string | null;
+  postal_code: string | null;
+  member_count: number;
+  /** "first last" of the head and spouse, for list rows. */
+  heads: string[];
+  updated_at: string;
+};
+export type HouseholdMember = ContactSummary & { household_role: HouseholdRole | null; birthdate: string | null };
+export type HouseholdDetail = HouseholdSummary & {
+  notes: string | null;
+  owner: EmployeeRef | null;
+  members: HouseholdMember[];
+  gift_total: number;
+  gift_count: number;
+};
+export type HouseholdInput = {
+  name?: string;
+  street?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+  notes?: string | null;
+  owner_employee_id?: string | null;
+};
+
+export const IMPORT_COLUMNS = [
+  'first_name', 'last_name', 'phone', 'email', 'gender', 'birthdate', 'stage',
+  'street', 'city', 'postal_code', 'family', 'tags', 'notes', 'source', 'skip',
+] as const;
+export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
+export const IMPORT_COLUMN_LABELS: Record<ImportColumn, string> = {
+  first_name: 'שם פרטי', last_name: 'שם משפחה', phone: 'טלפון', email: 'אימייל', gender: 'מגדר',
+  birthdate: 'תאריך לידה', stage: 'שלב', street: 'רחוב', city: 'עיר', postal_code: 'מיקוד',
+  family: 'משפחה', tags: 'תגיות', notes: 'הערות', source: 'מקור', skip: '— לא לייבא —',
+};
+export type ImportPreview = { headers: string[]; sample: string[][]; suggested: ImportColumn[]; row_count: number };
+export type ImportResult = { created: number; duplicates: number; families: number; errors: { row: number; message: string }[] };
